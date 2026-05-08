@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    
+    function getUserData() {
+      let path = /databases/$(database)/documents/trabalhadores/$(request.auth.uid);
+      return exists(path) ? get(path).data : {"role": "NONE", "sectorId": "NONE"};
+    }
+    
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.uid == 'jp0BPnBryESbhwtg3tdkHXDjjKC3' ||
+        request.auth.token.email == 'carlostecal35@gmail.com'
+      );
+    }
+
+    // --- Global Access for Super Admin ---
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (isSuperAdmin() || getUserData().role in ['ADMIN', 'ADM']);
+    }
+
+    function isCoordinator() {
+      return isSignedIn() && getUserData().role == 'COORDENADOR';
+    }
+
+    function isSecretary() {
+      return isSignedIn() && getUserData().role == 'SECRETARIO';
+    }
+
+    function isReceptionist() {
+      return isSignedIn() && getUserData().role == 'RECEPCIONISTA';
+    }
+
+    function hasBasicAccess() {
+      return isSignedIn() && (isSuperAdmin() || getUserData().role in ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO']);
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- Validation Helpers ---
+    function isValidWorker(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role', 'active', 'createdAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.role in ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] &&
+             data.active is bool &&
+             data.createdAt is number;
+    }
+
+    function isValidParticipant(data) {
+      return data.keys().hasAll(['id', 'name', 'phone', 'lgpdConsent', 'registrationDate', 'currentStatus']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.lgpdConsent is bool &&
+             data.currentStatus in ['IDLE', 'WAITING', 'IN_SERVICE', 'COMPLETED', 'REFERRERED'];
+    }
+
+    // --- Matches ---
+
+    // Trabalhadores: ADMIN controls all. Workers can read their own or others (basic info).
+    match /trabalhadores/{workerId} {
+      allow get: if isSignedIn();
+      allow list: if hasBasicAccess() || (isSignedIn() && (resource.data.email == request.auth.token.email || resource.data.email == request.auth.email));
+      allow create: if 
+        // 1. Admin can create any valid worker
+        isAdmin() || 
+        // 2. The super admin can bootstrap or sync their own profile
+        (isSuperAdmin() && request.auth.uid == workerId) ||
+        // 3. A newly created user (via Auth) can create their own worker profile as volunteer
+        (isSignedIn() && request.auth.uid == workerId && incoming().role == 'VOLUNTARIO' && incoming().active == false) ||
+        // 4. Unauthenticated users can register interest (prefixed with vol-)
+        (!isSignedIn() && workerId.startsWith('vol-') && incoming().active == false && incoming().role == 'VOLUNTARIO');
+        
+      allow update: if 
+        isAdmin() || 
+        isSuperAdmin() ||
+        (isSignedIn() && request.auth.uid == workerId && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoUrl', 'phone', 'observation', 'active', 'acceptedTerm', 'termAcceptedAt', 'lgpdConsent', 'lgpdDate']));
+      
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // Sectors: Public read for registration
+    match /setores/{sectorId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Participants: Restricted PII access
+    match /atendidos/{participantId} {
+      allow get: if hasBasicAccess();
+      allow list: if hasBasicAccess(); 
+      allow create: if isAdmin() || isCoordinator() || isSecretary() || isReceptionist();
+      allow update: if (isAdmin() || isSecretary() || isCoordinator() || isReceptionist()) && isValidParticipant(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // Evolutions (Prontuários): Strict access
+    match /atendimentos/{evolutionId} {
+      // allow read: handles both 'get' and 'list'
+      // Allow Admin, Coordinator, and Secretary to see history
+      allow read: if isAdmin() || isCoordinator() || isSecretary();
+      
+      allow create: if (isAdmin() || isCoordinator()) && incoming().workerId == request.auth.uid;
+      allow update: if isAdmin() || (isCoordinator() && existing().sectorId == getUserData().sectorId && incoming().workerId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Queue
+    match /fila/{entryId} {
+      allow read: if hasBasicAccess();
+      allow create: if isAdmin() || isCoordinator() || isSecretary() || isReceptionist();
+      allow update: if isAdmin() || isCoordinator() || isSecretary() || isReceptionist();
+      allow delete: if isAdmin();
+    }
+
+    // Schedules: COORD only for their sector
+    match /escalas/{scheduleId} {
+      allow read: if hasBasicAccess();
+      allow create: if isAdmin() || (isCoordinator() && incoming().sectorId == getUserData().sectorId);
+      allow update: if isAdmin() || (isCoordinator() && existing().sectorId == getUserData().sectorId && incoming().sectorId == getUserData().sectorId);
+      allow delete: if isAdmin() || (isCoordinator() && existing().sectorId == getUserData().sectorId);
+    }
+
+    // Logs: ADMIN only
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn(); // Any signed in user can trigger a log (via backend service eventually, but here client side)
+    }
+
+    // Agenda & Speakers
+    match /agenda/{eventId} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /palestrantes/{speakerId} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+  }
+}

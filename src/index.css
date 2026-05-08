@@ -1,0 +1,141 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  
+  --color-indigo-50: #f5f7ff;
+  --color-indigo-100: #ebf0fe;
+  --color-indigo-600: #4f46e5;
+  --color-indigo-900: #1e1b4b;
+}
+
+/* React Quill Custom Styling */
+.ql-container.ql-snow {
+  border: none !important;
+  font-family: inherit;
+}
+.ql-editor {
+  min-height: 120px;
+  font-size: 14px;
+}
+.ql-editor[contenteditable="true"] {
+  -webkit-spellcheck: true !important;
+  spellcheck: true !important;
+}
+
+@media print {
+  /* Hide all UI elements except the content to be printed */
+  aside, nav, #toggle-sidebar, #new-participant-btn-dash, .lg\:col-span-4, button, form, header, footer, .print\:hidden {
+    display: none !important;
+  }
+  
+  /* Reset layout for print */
+  body {
+    background: white !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Target the medical record container specifically */
+  .lg\:col-span-8 {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  /* Ensure containers don't trap content with fixed heights or overflow */
+  .flex, .grid, .h-full, .h-screen, .overflow-y-auto {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Style adjustment for print legibility */
+  .bg-white {
+    background: white !important;
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #eee !important;
+    margin-bottom: 2rem !important;
+    padding: 1.5rem !important;
+    border-radius: 20px !important;
+  }
+
+  .text-indigo-900, .text-gray-900, .text-gray-700 {
+    color: black !important;
+  }
+
+  .shadow-sm, .shadow-md, .shadow-xl, .shadow-2xl {
+    box-shadow: none !important;
+  }
+
+  /* Typography tweaks */
+  h1, h2, h3 {
+    color: black !important;
+    page-break-after: avoid;
+  }
+
+  /* No scrollbars in print */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+  }
+}
+
+.ql-toolbar.ql-snow {
+  border: none !important;
+  border-bottom: 1px solid rgba(129, 140, 248, 0.2) !important;
+  background: #f8fafc;
+}
+.ql-editor.ql-blank::before {
+  color: #94a3b8 !important;
+  font-style: normal !important;
+}
+
+@layer base {
+  body {
+    @apply bg-indigo-50 text-gray-900 antialiased;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}

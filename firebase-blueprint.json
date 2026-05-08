@@ -1,0 +1,178 @@
+{
+  "entities": {
+    "Worker": {
+      "title": "Trabalhador",
+      "description": "System user/worker info",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["ADMIN", "COORDENADOR", "SECRETARIO", "RECEPCIONISTA", "ATENDENTE", "VOLUNTARIO"] },
+        "sectorId": { "type": "string" },
+        "active": { "type": "boolean" },
+        "photoUrl": { "type": "string" },
+        "acceptedTerm": { "type": "boolean" },
+        "termAcceptedAt": { "type": "number" },
+        "lgpdConsent": { "type": "boolean" },
+        "lgpdDate": { "type": "number" },
+        "phone": { "type": "string" },
+        "observation": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "email", "role", "active", "createdAt"]
+    },
+    "Sector": {
+      "title": "Sector",
+      "description": "Department/Sector info",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "Attended person (patient/sister/brother)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "lgpdConsent": { "type": "boolean" },
+        "lgpdDate": { "type": "number" },
+        "registrationDate": { "type": "number" },
+        "currentStatus": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "lgpdConsent", "registrationDate", "currentStatus"]
+    },
+    "ServiceQueueEntry": {
+      "title": "ServiceQueueEntry",
+      "description": "Queue entry for service",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participantId": { "type": "string" },
+        "sectorId": { "type": "string" },
+        "arrivalDate": { "type": "number" },
+        "status": { "type": "string" },
+        "priority": { "type": "boolean" }
+      },
+      "required": ["id", "participantId", "sectorId", "arrivalDate", "status"]
+    },
+    "Evolution": {
+      "title": "Evolution",
+      "description": "History of service/notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participantId": { "type": "string" },
+        "workerId": { "type": "string" },
+        "sectorId": { "type": "string" },
+        "date": { "type": "number" },
+        "notesEncrypted": { "type": "string" },
+        "recommendations": { "type": "string" },
+        "encaminhamento": { "type": "string" },
+        "nextStepSectorIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["id", "participantId", "workerId", "sectorId", "date", "notesEncrypted"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System audit logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "userId", "userName", "action"]
+    },
+    "AgendaEvent": {
+      "title": "AgendaEvent",
+      "description": "Events in the agenda",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "number" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "title", "date", "type"]
+    },
+    "Speaker": {
+      "title": "Speaker",
+      "description": "External speakers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "SectorSchedule": {
+      "title": "SectorSchedule",
+      "description": "Monthly schedules for sectors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sectorId": { "type": "string" },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "assignments": { "type": "array" }
+      },
+      "required": ["id", "sectorId", "month", "year", "assignments"]
+    }
+  },
+  "firestore": {
+    "trabalhadores": {
+      "schema": "Worker",
+      "description": "Collection of all workers"
+    },
+    "setores": {
+      "schema": "Sector",
+      "description": "Collection of sectors"
+    },
+    "atendidos": {
+      "schema": "Participant",
+      "description": "Collection of attended participants"
+    },
+    "fila": {
+      "schema": "ServiceQueueEntry",
+      "description": "Active service queue"
+    },
+    "atendimentos": {
+      "schema": "Evolution",
+      "description": "Service evolution history"
+    },
+    "logs": {
+      "schema": "AuditLog",
+      "description": "System audit logs"
+    },
+    "agenda": {
+      "schema": "AgendaEvent",
+      "description": "Events agenda"
+    },
+    "palestrantes": {
+      "schema": "Speaker",
+      "description": "Speakers directory"
+    },
+    "escalas": {
+      "schema": "SectorSchedule",
+      "description": "Monthly schedules"
+    }
+  }
+}

@@ -1,0 +1,731 @@
+import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { 
+  Settings, 
+  Users, 
+  ShieldCheck, 
+  Building2, 
+  Plus, 
+  Trash2, 
+  CheckCircle2,
+  Mail,
+  UserCircle,
+  X,
+  Pencil,
+  Lock
+} from 'lucide-react';
+import { dataService } from '../services/dataService';
+import { Worker, Sector, UserRole, SectorType } from '../types';
+import { cn } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
+
+export const SettingsPage: React.FC = () => {
+  const { currentUser, registerWorker } = useAuth();
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [isAddingWorker, setIsAddingWorker] = useState(false);
+  const [isAddingSector, setIsAddingSector] = useState(false);
+  const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
+  const [editingSector, setEditingSector] = useState<Sector | null>(null);
+  const [deletingWorkerId, setDeletingWorkerId] = useState<string | null>(null);
+  const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
+  const [workerPassword, setWorkerPassword] = useState('');
+  
+  const [newWorker, setNewWorker] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '',
+    role: 'VOLUNTARIO' as UserRole, 
+    sectorId: '', 
+    photoUrl: '',
+    acceptedTerm: false
+  });
+  const [newSector, setNewSector] = useState({ 
+    name: '', 
+    type: 'FRATERNO' as SectorType, 
+    description: '',
+    mission: '',
+    foundation: '',
+    location: '',
+    coordinator: '',
+    subcoordinator: '',
+    secretary: '',
+    workerProfile: '',
+    entryFlow: '',
+    mainActivities: '',
+    schedule: '',
+    meetingFrequency: '',
+    reportsTo: '',
+    interactions: '',
+    resources: '',
+    goals: '',
+    challenges: ''
+  });
+
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+
+  const resetSectorForm = () => {
+    setNewSector({ 
+      name: '', 
+      type: 'FRATERNO', 
+      description: '',
+      mission: '',
+      foundation: '',
+      location: '',
+      coordinator: '',
+      subcoordinator: '',
+      secretary: '',
+      workerProfile: '',
+      entryFlow: '',
+      mainActivities: '',
+      schedule: '',
+      meetingFrequency: '',
+      reportsTo: '',
+      interactions: '',
+      resources: '',
+      goals: '',
+      challenges: ''
+    });
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    const [w, s] = await Promise.all([dataService.getWorkers(), dataService.getSectors()]);
+    setWorkers(w);
+    setSectors(s);
+  };
+
+  const handleEditWorker = (w: Worker) => {
+    setEditingWorker(w);
+    setNewWorker({
+      name: w.name,
+      email: w.email,
+      phone: w.phone || '',
+      role: w.role,
+      sectorId: w.sectorId || '',
+      photoUrl: w.photoUrl || '',
+      acceptedTerm: w.acceptedTerm || false
+    });
+    setIsAddingWorker(true);
+  };
+
+  const handleEditSector = (s: Sector) => {
+    setEditingSector(s);
+    setNewSector({
+      name: s.name,
+      type: s.type,
+      description: s.description || '',
+      mission: s.mission || '',
+      foundation: s.foundation || '',
+      location: s.location || '',
+      coordinator: s.coordinator || '',
+      subcoordinator: s.subcoordinator || '',
+      secretary: s.secretary || '',
+      workerProfile: s.workerProfile || '',
+      entryFlow: s.entryFlow || '',
+      mainActivities: s.mainActivities || '',
+      schedule: s.schedule || '',
+      meetingFrequency: s.meetingFrequency || '',
+      reportsTo: s.reportsTo || '',
+      interactions: s.interactions || '',
+      resources: s.resources || '',
+      goals: s.goals || '',
+      challenges: s.challenges || ''
+    });
+    setIsAddingSector(true);
+  };
+
+  const handleAddWorker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newWorker.role === 'VOLUNTARIO' && !newWorker.acceptedTerm) {
+      alert('É necessário aceitar o Termo de Adesão ao Trabalho Voluntário.');
+      return;
+    }
+
+    try {
+      const payload = {
+        ...newWorker,
+        termAcceptedAt: newWorker.acceptedTerm ? Date.now() : undefined
+      };
+
+      if (editingWorker) {
+        await dataService.updateWorker({ ...editingWorker, ...payload });
+      } else {
+        if (!workerPassword || workerPassword.length < 6) {
+          alert('Senha deve ter no mínimo 6 caracteres.');
+          return;
+        }
+        await registerWorker(payload, workerPassword);
+      }
+      setIsAddingWorker(false);
+      setEditingWorker(null);
+      setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', sectorId: '', photoUrl: '', acceptedTerm: false });
+      setWorkerPassword('');
+      loadData();
+    } catch (err: any) {
+      alert('Erro ao cadastrar trabalhador: ' + err.message);
+    }
+  };
+
+  const handleAddSector = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingSector) {
+        await dataService.updateSector({ ...editingSector, ...newSector });
+        alert('Setor atualizado com sucesso!');
+      } else {
+        await dataService.addSector(newSector);
+        alert('Setor criado com sucesso!');
+      }
+      setIsAddingSector(false);
+      setEditingSector(null);
+      resetSectorForm();
+      loadData();
+    } catch (err: any) {
+      console.error('Erro ao salvar setor:', err);
+      try {
+        const errObj = JSON.parse(err.message);
+        alert(`Erro ao salvar setor: ${errObj.error || 'Sem permissão'}`);
+      } catch {
+        alert('Ocorreu um erro ao salvar o setor.');
+      }
+    }
+  };
+
+  const handleDeleteWorker = async (id: string) => {
+    if (deletingWorkerId === id) {
+      await dataService.deleteWorker(id);
+      setDeletingWorkerId(null);
+      loadData();
+    } else {
+      setDeletingWorkerId(id);
+      setTimeout(() => setDeletingWorkerId(null), 3000);
+    }
+  };
+
+  const handleDeleteSector = async (id: string) => {
+    if (deletingSectorId === id) {
+      await dataService.deleteSector(id);
+      setDeletingSectorId(null);
+      loadData();
+    } else {
+      setDeletingSectorId(id);
+      setTimeout(() => setDeletingSectorId(null), 3000);
+    }
+  };
+
+  return (
+    <div className="p-8 space-y-10">
+      <header>
+        <h1 className="text-3xl font-bold text-gray-900">Trabalhadores & Setores</h1>
+        <p className="text-gray-500 font-medium font-serif">Gerenciamento de equipe e frentes de trabalho do Mirante de Luz.</p>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Gestão de Voluntários */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <Users className="text-indigo-600" size={24} /> Trabalhadores da Casa
+            </h2>
+            {isAdmin && (
+              <button 
+                onClick={() => setIsAddingWorker(true)}
+                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+              >
+                <Plus size={16} /> Novo Trabalhador
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50">
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100">Colaborador</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100">Acesso</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100">Setor</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 text-sm">
+                  {workers
+                    .filter(w => {
+                      const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+                      if (isAdmin) return true;
+                      if (currentUser?.role === 'COORDENADOR') return w.sectorId === currentUser.sectorId;
+                      return false;
+                    })
+                    .map(w => (
+                    <tr key={w.id} className="group hover:bg-indigo-50/30 transition-colors font-medium">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {w.photoUrl ? (
+                            <img src={w.photoUrl} alt={w.name} className="w-10 h-10 rounded-full border border-indigo-100 shadow-sm object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold shadow-sm">
+                              {(w.name || '?').charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-gray-900 leading-none">{w.name}</p>
+                              {!w.active && (
+                                <span className="text-[8px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-tighter">Pendente</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">{w.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-tight border",
+                          (w.role === 'ADMIN' || w.role === 'ADM') ? "bg-purple-50 text-purple-700 border-purple-100" :
+                          w.role === 'COORDENADOR' ? "bg-blue-50 text-blue-700 border-blue-100" :
+                          w.role === 'ATENDENTE' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                          "bg-amber-50 text-amber-700 border-amber-100"
+                        )}>
+                          {(w.role === 'ADMIN' || w.role === 'ADM') ? 'Administrador' :
+                           w.role === 'COORDENADOR' ? 'Coordenador' :
+                           w.role === 'SECRETARIO' ? 'Secretário' :
+                           w.role === 'ATENDENTE' ? 'Atendente' : 'Voluntário'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-bold text-gray-500">
+                        {sectors.find(s => s.id === w.sectorId)?.name || 'Acesso Geral'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.role === 'COORDENADOR' && w.sectorId === currentUser.sectorId)) && (
+                            <>
+                              {!w.active && (
+                                <button 
+                                  onClick={async () => {
+                                    if (confirm(`Deseja ativar o acesso de ${w.name}?`)) {
+                                      await dataService.updateWorker({ ...w, active: true });
+                                      loadData();
+                                    }
+                                  }}
+                                  className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
+                                  title="Ativar Trabalhador"
+                                >
+                                  <CheckCircle2 size={16} />
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => handleEditWorker(w)}
+                                className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteWorker(w.id)}
+                                className={cn(
+                                  "p-2 transition-all rounded-lg flex items-center gap-1",
+                                  deletingWorkerId === w.id ? "bg-red-500 text-white text-[10px] font-bold px-2 py-1" : "text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100"
+                                )}
+                              >
+                                {deletingWorkerId === w.id ? "Confirma?" : <Trash2 size={16} />}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {workers.filter(w => {
+                    if (isAdmin) return true;
+                    if (currentUser?.role === 'COORDENADOR') return w.sectorId === currentUser.sectorId;
+                    return false;
+                  }).length === 0 && (
+                    <tr>
+                       <td colSpan={4} className="py-20 text-center text-gray-400 font-medium italic">Nenhum trabalhador encontrado.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Gestão de Setores */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <Building2 className="text-indigo-600" size={24} /> Setores
+            </h2>
+            {isAdmin && (
+              <button 
+                onClick={() => setIsAddingSector(true)}
+                className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all"
+              >
+                <Plus size={20} />
+              </button>
+            )}
+          </div>
+          <div className="space-y-3">
+             {sectors.map(s => (
+               <div key={s.id} className="p-5 bg-white rounded-[24px] border border-gray-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-50 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner">
+                      <ShieldCheck size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm leading-tight">{s.name}</h4>
+                      <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{s.type}</p>
+                    </div>
+                  </div>
+                    {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM') && (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleEditSector(s)}
+                          className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteSector(s.id)}
+                          className={cn(
+                            "p-2 transition-all rounded-lg",
+                            deletingSectorId === s.id ? "bg-red-500 text-white text-[10px] font-bold px-2 py-1" : "text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                          )}
+                        >
+                          {deletingSectorId === s.id ? "Confirma?" : <Trash2 size={16} />}
+                        </button>
+                      </div>
+                    )}
+               </div>
+             ))}
+             {isAdmin && (
+               <button 
+                 onClick={() => setIsAddingSector(true)}
+                 className="w-full py-5 border-2 border-dashed border-gray-200 rounded-[24px] text-gray-400 font-black text-xs uppercase tracking-widest hover:bg-white hover:border-indigo-200 hover:text-indigo-600 transition-all"
+               >
+                  + Adicionar Novo Setor
+               </button>
+             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Adicionar Colaborador */}
+      {isAddingWorker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-indigo-900/60 backdrop-blur-sm" onClick={() => setIsAddingWorker(false)} />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="relative w-full max-w-lg bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh]"
+          >
+            <div className="p-8 pb-4 border-b border-gray-50 flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tighter italic">{editingWorker ? 'Editar Colaborador' : 'Novo Colaborador'}</h2>
+                <p className="text-xs text-gray-400 font-medium tracking-tight">Cadastre um novo irmão de jornada.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsAddingWorker(false);
+                  setEditingWorker(null);
+                  setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', sectorId: '', photoUrl: '', acceptedTerm: false });
+                }} 
+                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddWorker} className="p-8 space-y-5 overflow-y-auto custom-scrollbar">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Nome do Trabalhador</label>
+                <input required value={newWorker.name} onChange={e => setNewWorker({...newWorker, name: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" placeholder="Ex: Francisco Cândido" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">E-mail para Login</label>
+                  <input required type="email" value={newWorker.email} onChange={e => setNewWorker({...newWorker, email: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" placeholder="Ex: voluntario@cemil.org" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Telefone da Equipe</label>
+                  <input value={newWorker.phone} onChange={e => setNewWorker({...newWorker, phone: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" placeholder="(00) 00000-0000" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">URL da Foto (Opcional)</label>
+                <input value={newWorker.photoUrl} onChange={e => setNewWorker({...newWorker, photoUrl: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" placeholder="https://link-da-imagem.com" />
+              </div>
+
+              {!editingWorker && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Senha Inicial</label>
+                  <div className="relative group/pass">
+                    <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 group-focus-within/pass:text-indigo-600 transition-colors">
+                      <Lock size={18} />
+                    </div>
+                    <input 
+                      required 
+                      type="password" 
+                      value={workerPassword} 
+                      onChange={e => setWorkerPassword(e.target.value)} 
+                      className="w-full pl-12 pr-6 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" 
+                      placeholder="Mínimo 6 caracteres" 
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Nível de Acesso</label>
+                  <select value={newWorker.role} onChange={e => setNewWorker({...newWorker, role: e.target.value as UserRole})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700">
+                    <option value="VOLUNTARIO">Voluntário</option>
+                    <option value="ATENDENTE">Atendente</option>
+                    <option value="RECEPCIONISTA">Recepcionista</option>
+                    <option value="SECRETARIO">Secretário</option>
+                    <option value="COORDENADOR">Coordenador</option>
+                    <option value="ADMIN">Administrador</option>
+                    <option value="ADM">ADM (Admin)</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Setor Principal</label>
+                  <select value={newWorker.sectorId} onChange={e => setNewWorker({...newWorker, sectorId: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700">
+                    <option value="">Acesso Geral</option>
+                    {sectors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-5 bg-indigo-50/50 rounded-[24px] border border-indigo-100 space-y-4">
+                <h3 className="text-xs font-black uppercase text-indigo-900 flex items-center gap-2">
+                  <ShieldCheck size={14} /> Termo de Adesão ao Trabalho Voluntário
+                </h3>
+                <div className="max-h-[80px] overflow-y-auto text-[10px] text-indigo-700/80 leading-relaxed font-medium bg-white/50 p-3 rounded-xl border border-indigo-100/50 custom-scrollbar">
+                  <p className="mb-2">Pelo presente instrumento, o voluntário adere ao trabalho voluntário no <strong>CENTRO ESPÍRITA MIRANTE DE LUZ</strong>, nos termos da Lei nº 9.608/98.</p>
+                  <p className="mb-2">O serviço voluntário não gera vínculo empregatício... O voluntário declara estar ciente das normas da casa e compromete-se a desempenhar suas tarefas com zelo e ética.</p>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      required 
+                      checked={newWorker.acceptedTerm}
+                      onChange={e => setNewWorker({...newWorker, acceptedTerm: e.target.checked})}
+                      className="peer hidden" 
+                    />
+                    <div className="w-5 h-5 rounded-lg border-2 border-indigo-200 bg-white peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-all flex items-center justify-center">
+                      <CheckCircle2 size={12} className="text-white scale-0 peer-checked:scale-100 transition-transform" />
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold text-indigo-900 group-hover:text-indigo-600 transition-colors">
+                    Li e concordo com os termos de voluntariado da casa.
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-4 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsAddingWorker(false);
+                    setEditingWorker(null);
+                    setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', sectorId: '', photoUrl: '', acceptedTerm: false });
+                  }} 
+                  className="flex-1 py-3.5 font-bold text-gray-400 hover:bg-gray-50 rounded-2xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-[1.5] py-3.5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
+                  {editingWorker ? 'Salvar Alterações' : 'Salvar Trabalhador'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Adicionar Setor */}
+      {isAddingSector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-indigo-900/60 backdrop-blur-sm" onClick={() => setIsAddingSector(false)} />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="relative w-full max-w-lg bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh]"
+          >
+            <div className="p-8 pb-4 border-b border-gray-50 flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tighter italic">{editingSector ? 'Editar Setor' : 'Novo Setor'}</h2>
+                <p className="text-xs text-gray-400 font-medium tracking-tight">Crie uma nova frente de atendimento.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsAddingSector(false);
+                  setEditingSector(null);
+                  resetSectorForm();
+                }} 
+                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSector} className="p-8 space-y-5 overflow-y-auto custom-scrollbar">
+              <div className="space-y-4 pr-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Nome do Setor</label>
+                  <input required value={newSector.name} onChange={e => setNewSector({...newSector, name: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" placeholder="Ex: Evangelização Juvenil" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Tipo de Atividade</label>
+                    <select value={newSector.type} onChange={e => setNewSector({...newSector, type: e.target.value as SectorType})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700">
+                      <option value="FRATERNO">Atendimento Fraterno</option>
+                      <option value="PASSE">Passe & Fluidoterapia</option>
+                      <option value="ESTUDO">Estudo Doutrinário</option>
+                      <option value="INFANCIA">Infância & Juventude</option>
+                      <option value="SOCIAL">Ação Social</option>
+                      <option value="ADMINISTRATIVO">Administrativo</option>
+                      <option value="MEDIUNICO">Trabalho Mediúnico</option>
+                      <option value="OUTROS">Outros / Não Especificado</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Localização</label>
+                    <input value={newSector.location} onChange={e => setNewSector({...newSector, location: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Ex: Sala 3" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Missão / Objetivo Geral</label>
+                  <textarea rows={2} value={newSector.mission} onChange={e => setNewSector({...newSector, mission: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium resize-none shadow-inner" placeholder="Qual a razão de existir deste setor?" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Fundamentação Doutrinária</label>
+                  <input value={newSector.foundation} onChange={e => setNewSector({...newSector, foundation: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Ex: O Evangelho Segundo o Espiritismo" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Coordenador</label>
+                    <input value={newSector.coordinator} onChange={e => setNewSector({...newSector, coordinator: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Nome" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Subcoordenador</label>
+                    <input value={newSector.subcoordinator} onChange={e => setNewSector({...newSector, subcoordinator: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Vice" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Secretário(a)</label>
+                    <input value={newSector.secretary} onChange={e => setNewSector({...newSector, secretary: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Nome" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Horário de Trabalho</label>
+                    <input value={newSector.schedule} onChange={e => setNewSector({...newSector, schedule: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Ex: Terças 20h" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Frequência Reuniões de Equipe</label>
+                    <input value={newSector.meetingFrequency} onChange={e => setNewSector({...newSector, meetingFrequency: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Ex: Mensal" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">A quem responde?</label>
+                    <input value={newSector.reportsTo} onChange={e => setNewSector({...newSector, reportsTo: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Ex: Diretoria Executiva" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Recursos e Materiais Necessários</label>
+                  <textarea rows={2} value={newSector.resources} onChange={e => setNewSector({...newSector, resources: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium resize-none shadow-inner" placeholder="Ex: Projetor, macas, computador" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Metas e Indicadores</label>
+                    <input value={newSector.goals} onChange={e => setNewSector({...newSector, goals: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Qualidade, frequência..." />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Principais Desafios</label>
+                    <input value={newSector.challenges} onChange={e => setNewSector({...newSector, challenges: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium" placeholder="Melhorar o que?" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Atividades Principais (separadas por vírgula)</label>
+                  <textarea rows={2} value={newSector.mainActivities} onChange={e => setNewSector({...newSector, mainActivities: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium resize-none shadow-inner" placeholder="Ex: Passe, Estudo, Vibração" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Breve Descrição para Painéis</label>
+                  <textarea rows={2} value={newSector.description} onChange={e => setNewSector({...newSector, description: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium resize-none" placeholder="Finalidade resumida..." />
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsAddingSector(false);
+                    setEditingSector(null);
+                    resetSectorForm();
+                  }} 
+                  className="flex-1 py-3.5 font-bold text-gray-400 hover:bg-gray-100 rounded-2xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="flex-[1.5] py-3.5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
+                  {editingSector ? 'Salvar Alterações' : 'Criar Setor'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Opções Avançadas */}
+      {isAdmin && (
+        <div className="pt-10 border-t border-gray-100 italic">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-red-50/30 p-8 rounded-[32px] border border-red-100 shadow-inner">
+            <div>
+              <h3 className="text-lg font-bold text-red-900 not-italic">Manutenção de Dados</h3>
+              <p className="text-sm text-red-600 font-medium max-w-md">Utilize esta opção somente se houver erro ao carregar as abas ou o prontuário. Isso retornará o sistema aos dados originais da casa.</p>
+            </div>
+            <button 
+              onClick={async () => {
+                if (confirm('ATENÇÃO: Deseja restaurar a estrutura básica de setores caso tenham desaparecido? Dados de atendimentos existentes NÃO serão apagados.')) {
+                  try {
+                    const restored = await dataService.populateDefaults();
+                    if (restored) {
+                      alert('Setores restaurados com sucesso!');
+                      loadData();
+                    } else {
+                      alert('Os setores já existem ou não puderam ser restaurados.');
+                    }
+                  } catch (err: any) {
+                    alert('Erro ao restaurar: ' + err.message);
+                  }
+                }
+              }}
+              className="px-8 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-100 flex items-center gap-2"
+            >
+              <ShieldCheck size={18} />
+              <span>Restaurar Setores Padrão</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
