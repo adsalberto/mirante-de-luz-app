@@ -13,7 +13,9 @@ import {
   Zap,
   Sparkles,
   Heart,
-  ShieldCheck
+  ShieldCheck,
+  Mic2,
+  Settings
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -33,6 +35,45 @@ import { reflections } from '../constants/reflections';
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ReceptionistDashboard from './ReceptionistDashboard';
+import VolunteerDashboard from './VolunteerDashboard';
+import SpeakerDashboard from './SpeakerDashboard';
+import AdministrativeDashboard from './AdministrativeDashboard';
+
+const ViewSwitcher = ({ current, set }: { current: string, set: (v: any) => void }) => {
+  const views = [
+    { id: 'MASTER', label: 'Visão Master', icon: Sparkles },
+    { id: 'RECEPTION', label: 'Simular Recepção', icon: Users },
+    { id: 'VOLUNTEER', label: 'Simular Atendimento', icon: HeartHandshake },
+    { id: 'SPEAKER', label: 'Simular Oratória', icon: Mic2 },
+    { id: 'ADMIN', label: 'Simular Secretaria', icon: Settings },
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-6 p-2 bg-indigo-50/50 rounded-2xl border border-indigo-100 overflow-x-auto no-scrollbar">
+      {views.map(v => (
+        <button
+          key={v.id}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            set(v.id);
+          }}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            current === v.id 
+              ? "bg-indigo-600 text-white shadow-lg" 
+              : "bg-white text-indigo-400 hover:bg-white/80"
+          )}
+        >
+          <v.icon size={14} />
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const dataChart = [
   { name: 'Seg', total: 40 },
@@ -47,6 +88,8 @@ const dataChart = [
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [activeView, setActiveView] = useState<'MASTER' | 'RECEPTION' | 'VOLUNTEER' | 'SPEAKER' | 'ADMIN'>('MASTER');
+
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [nextEvents, setNextEvents] = useState<AgendaEvent[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -80,6 +123,13 @@ export const Dashboard: React.FC = () => {
     fetchData();
   }, []);
 
+  // Render sub-dashboards if master wants to "preview" their experience
+  // MUST be after all hooks to avoid hook calculation errors
+  if (activeView === 'RECEPTION') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><ReceptionistDashboard /></div>;
+  if (activeView === 'VOLUNTEER') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><VolunteerDashboard /></div>;
+  if (activeView === 'SPEAKER') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><SpeakerDashboard /></div>;
+  if (activeView === 'ADMIN') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><AdministrativeDashboard /></div>;
+
   const cards = [
     { title: 'Aguardando', value: stats?.waitingCount || 0, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', shadow: 'shadow-amber-500/5', border: 'border-amber-100/50' },
     { title: 'Em Atendimento', value: stats?.inServiceCount || 0, icon: HeartHandshake, color: 'text-indigo-600', bg: 'bg-indigo-50', shadow: 'shadow-indigo-500/5', border: 'border-indigo-100/50' },
@@ -88,30 +138,31 @@ export const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div className="p-8 space-y-12 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 space-y-8 sm:space-y-12 max-w-7xl mx-auto">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-[0.25em] mb-2">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-indigo-600 font-bold text-[10px] sm:text-xs uppercase tracking-[0.25em] mb-1">
             <Sparkles size={14} />
             <span>Mirante de Luz</span>
           </div>
-          <h1 className="text-5xl font-black text-gray-900 tracking-tighter italic">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-gray-900 tracking-tighter italic leading-none">
             Vibrações de Paz
           </h1>
-          <p className="text-gray-400 font-medium text-lg">Seja bem-vindo ao painel administrativo.</p>
+          <p className="text-gray-400 font-medium text-sm sm:text-lg">Gestão administrativa e espiritual.</p>
+          <ViewSwitcher current={activeView} set={setActiveView} />
         </div>
         <button 
           id="new-participant-btn-dash"
           onClick={() => navigate('/atendidos')}
-          className="flex items-center justify-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-[24px] font-black shadow-2xl shadow-gray-200 hover:bg-gray-800 transition-all hover:-translate-y-1 active:scale-95 group"
+          className="flex items-center justify-center gap-3 bg-gray-900 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-2xl sm:rounded-[24px] font-black shadow-xl sm:shadow-2xl shadow-gray-200 hover:bg-gray-800 transition-all hover:-translate-y-1 active:scale-95 group text-sm sm:text-base"
         >
-          <UserPlus size={20} className="group-hover:scale-110 transition-transform" />
+          <UserPlus size={18} className="sm:size-5 group-hover:scale-110 transition-transform" />
           <span>Novo Atendimento</span>
         </button>
       </header>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {cards.map((card, idx) => (
           <motion.div
             key={card.title}
@@ -119,21 +170,21 @@ export const Dashboard: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1, duration: 0.5 }}
             className={cn(
-              "p-8 bg-white rounded-[40px] border border-gray-50 shadow-xl overflow-hidden relative group",
+              "p-5 sm:p-8 bg-white rounded-[32px] sm:rounded-[40px] border border-gray-50 shadow-xl overflow-hidden relative group transition-all",
               card.shadow
             )}
           >
-            <div className={cn("absolute top-0 right-0 w-32 h-32 opacity-[0.03] translate-x-8 -translate-y-8 transition-transform group-hover:scale-125 duration-700", card.color.replace('text', 'bg'))}>
+            <div className={cn("absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 opacity-[0.03] translate-x-6 sm:translate-x-8 -translate-y-6 sm:-translate-y-8 transition-transform group-hover:scale-125 duration-700", card.color.replace('text', 'bg'))}>
               <card.icon size={128} />
             </div>
             
-            <div className="relative z-10 space-y-4">
-              <div className={cn("inline-flex p-3 rounded-[20px]", card.bg, card.color)}>
-                <card.icon size={24} strokeWidth={2.5} />
+            <div className="relative z-10 space-y-3 sm:space-y-4">
+              <div className={cn("inline-flex p-2.5 sm:p-3 rounded-2xl sm:rounded-[20px]", card.bg, card.color)}>
+                <card.icon size={20} className="sm:size-6" strokeWidth={2.5} />
               </div>
               <div>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{card.title}</p>
-                <h3 className="text-4xl font-black text-gray-900 tracking-tight mt-1">{card.value}</h3>
+                <p className="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{card.title}</p>
+                <h3 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight mt-0.5 sm:mt-1">{card.value}</h3>
               </div>
             </div>
           </motion.div>
@@ -167,8 +218,8 @@ export const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* Main Chart Section */}
-        <div className="lg:col-span-8 space-y-8">
-          <div className="bg-white p-10 rounded-[48px] border border-gray-50 shadow-sm space-y-10 group transition-all hover:shadow-xl hover:shadow-indigo-500/5">
+        <div className="lg:col-span-8 space-y-6 sm:space-y-8">
+          <div className="bg-white p-6 sm:p-10 rounded-[32px] sm:rounded-[48px] border border-gray-50 shadow-sm space-y-6 sm:space-y-10 group transition-all hover:shadow-xl hover:shadow-indigo-500/5">
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-2xl font-black text-gray-900 tracking-tight italic">Fluxo de Atendimentos</h2>
@@ -275,9 +326,9 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Sidebar Widgets */}
-        <div className="lg:col-span-4 space-y-8">
+        <div className="lg:col-span-4 space-y-6 sm:space-y-8">
           {/* Quick Actions */}
-          <div className="bg-white p-8 rounded-[48px] border border-gray-50 shadow-sm space-y-8">
+          <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[48px] border border-gray-50 shadow-sm space-y-6 sm:space-y-8">
             <h2 className="text-xl font-black text-gray-900 tracking-tight italic flex items-center gap-2">
               <Zap size={20} className="text-indigo-600" />
               Ações Rápidas
@@ -314,7 +365,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Next Activities */}
-          <div className="bg-white p-8 rounded-[48px] border border-gray-50 shadow-sm space-y-8">
+          <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[48px] border border-gray-50 shadow-sm space-y-6 sm:space-y-8">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black text-gray-900 tracking-tight italic">Calendário</h2>
               <button 

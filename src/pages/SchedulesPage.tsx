@@ -306,6 +306,7 @@ export const SchedulesPage: React.FC = () => {
   }
 
   const daysOfWeek = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const currentDayIdx = new Date().getDay();
 
   const months = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -347,83 +348,83 @@ export const SchedulesPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-8 space-y-8 sm:space-y-12 max-w-7xl mx-auto">
-      <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-indigo-600 font-bold text-[10px] sm:text-xs uppercase tracking-[0.25em]">
+    <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-12 max-w-7xl mx-auto">
+      <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6">
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex items-center gap-2 text-indigo-600 font-bold text-[9px] sm:text-xs uppercase tracking-[0.25em]">
             <Calendar size={14} />
             <span>Gestão Operacional</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-gray-900 tracking-tighter italic">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-gray-900 tracking-tighter italic leading-none">
             Escala Mensal
           </h1>
-          <div className="flex items-center gap-1 sm:gap-4 mt-2 bg-white/50 p-1 rounded-2xl w-fit">
+          <div className="flex items-center gap-1 sm:gap-4 mt-1 sm:mt-2 bg-white/50 p-1 rounded-2xl w-fit border border-white/50">
              <button 
                onClick={() => changeMonth(-1)}
-               className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95"
+               className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95 shrink-0"
              >
-               <ChevronRight size={18} className="rotate-180" />
+               <ChevronRight size={16} className="rotate-180 sm:size-5" />
              </button>
-             <h2 className="text-base sm:text-2xl font-black text-indigo-600 italic min-w-[120px] sm:min-w-[200px] text-center">
+             <h2 className="text-sm sm:text-2xl font-black text-indigo-600 italic min-w-[100px] sm:min-w-[200px] text-center px-2">
                {months[selectedMonth]} {selectedYear}
              </h2>
              <button 
                onClick={() => changeMonth(1)}
-               className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95"
+               className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95 shrink-0"
              >
-               <ChevronRight size={18} />
+               <ChevronRight size={16} className="sm:size-5" />
              </button>
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
           {schedules.length === 0 && (
             <button 
               onClick={handleImportPrevious}
-              className="flex items-center justify-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-3 sm:px-6 sm:py-4 rounded-[18px] sm:rounded-[24px] font-bold hover:bg-indigo-100 transition-all active:scale-95 border border-indigo-100 text-xs sm:text-base"
+              className="flex items-center justify-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-2.5 sm:px-6 sm:py-4 rounded-xl sm:rounded-[24px] font-bold hover:bg-indigo-100 transition-all active:scale-95 border border-indigo-100 text-[10px] sm:text-base"
             >
-              <CalendarCheck size={16} className="sm:w-[18px] sm:h-[18px]" />
+              <CalendarCheck size={14} className="sm:w-[18px] sm:h-[18px]" />
               <span>Importar Anterior</span>
             </button>
           )}
           <div className="relative group flex-1 sm:flex-none">
-            <Search className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={14} />
             <input 
               type="text"
               placeholder="Buscar escala..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 sm:pl-12 pr-4 sm:pr-6 py-3 sm:py-4 bg-white rounded-[18px] sm:rounded-[24px] border border-gray-100 outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600 transition-all font-bold text-gray-700 w-full sm:w-[240px] lg:w-[280px] shadow-sm text-xs sm:text-base"
+              className="pl-9 sm:pl-12 pr-4 sm:pr-6 py-2.5 sm:py-4 bg-white rounded-xl sm:rounded-[24px] border border-gray-100 outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600 transition-all font-bold text-gray-700 w-full sm:w-[240px] lg:w-[280px] shadow-sm text-xs sm:text-base"
             />
           </div>
           {isAdmin && (
             <button 
               onClick={() => setIsAddingSector(true)}
-              className="flex items-center justify-center gap-2 sm:gap-3 bg-gray-900 text-white px-5 py-3 sm:px-8 sm:py-4 rounded-[18px] sm:rounded-[24px] font-black shadow-xl sm:shadow-2xl shadow-gray-200 hover:bg-gray-800 transition-all hover:-translate-y-1 active:scale-95 group text-xs sm:text-base"
+              className="flex items-center justify-center gap-2 sm:gap-3 bg-gray-900 text-white px-4 py-2.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-[24px] font-black shadow-xl shadow-gray-200 hover:bg-gray-800 transition-all hover:-translate-y-1 active:scale-95 group text-xs sm:text-base"
             >
-              <Plus size={18} className="sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
+              <Plus size={16} className="sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
               <span>Novo Grupo</span>
             </button>
           )}
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6 pb-20">
         {displaySchedules.map((schedule) => (
           <motion.div
             key={schedule.id}
             layoutId={schedule.id}
-            className="bg-white rounded-[24px] sm:rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col group hover:shadow-xl transition-all duration-500 hover:-translate-y-1"
+            className="bg-white rounded-[24px] sm:rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col group hover:shadow-xl transition-all duration-500 hover:-translate-y-1 active:scale-[0.98] sm:active:scale-100"
           >
-            <div className="p-5 sm:p-7 border-b border-gray-100 flex items-start gap-4 bg-white group-hover:bg-indigo-50/20 transition-colors">
-              <div className="p-3 bg-indigo-600 text-white rounded-2xl transition-transform group-hover:rotate-6 shrink-0 shadow-lg shadow-indigo-200/50">
-                <LayoutGrid size={24} strokeWidth={2.5} />
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex items-start gap-3 sm:gap-4 bg-white group-hover:bg-indigo-50/20 transition-colors">
+              <div className="p-2 sm:p-3 bg-indigo-600 text-white rounded-xl sm:rounded-2xl transition-transform group-hover:rotate-6 shrink-0 shadow-lg shadow-indigo-200/50">
+                <LayoutGrid size={20} className="sm:size-6" strokeWidth={2.5} />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm sm:text-base font-black text-gray-900 tracking-tight leading-tight truncate">{schedule.sectorName}</h3>
-                <div className="flex items-center gap-2 mt-0.5 mb-3">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.15em]">{schedule.assignments.length} Atuantes</p>
+                <div className="flex items-center gap-2 mt-0.5 mb-2 sm:mb-3">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  <p className="text-[9px] sm:text-[10px] font-black text-indigo-400 uppercase tracking-[0.15em]">{schedule.assignments.length} Atuantes</p>
                 </div>
                 
                 <div className="flex items-center gap-1 sm:gap-2">
@@ -433,10 +434,10 @@ export const SchedulesPage: React.FC = () => {
                       setEditingAssignmentId(null);
                       setShowAssignmentModal(true);
                     }}
-                    className="p-2.5 bg-white text-gray-400 hover:text-indigo-600 rounded-2xl transition-all shadow-sm border border-gray-100 hover:border-indigo-100 hover:shadow-md"
+                    className="p-2 sm:p-2.5 bg-white text-gray-400 hover:text-indigo-600 rounded-xl sm:rounded-2xl transition-all shadow-sm border border-gray-100 hover:border-indigo-100 hover:shadow-md"
                     title="Adicionar trabalhador"
                   >
-                    <Plus size={18} />
+                    <Plus size={16} className="sm:size-[18px]" />
                   </button>
                   <button 
                     onClick={() => {
@@ -445,101 +446,125 @@ export const SchedulesPage: React.FC = () => {
                       setIsEditingSector(true);
                       setIsAddingSector(true);
                     }}
-                    className="p-2 hover:bg-gray-100 text-gray-300 hover:text-indigo-600 rounded-xl transition-all"
+                    className="p-1.5 sm:p-2 hover:bg-gray-100 text-gray-300 hover:text-indigo-600 rounded-lg sm:rounded-xl transition-all"
                     title="Editar nome"
                   >
-                    <Pencil size={16} />
+                    <Pencil size={14} className="sm:size-4" />
                   </button>
                   <button 
                     onClick={() => handleDeleteSector(schedule.id, schedule.sectorId)}
                     className={cn(
-                      "p-2 rounded-xl transition-all flex items-center justify-center min-w-[36px]",
+                      "p-1.5 sm:p-2 rounded-lg sm:rounded-xl transition-all flex items-center justify-center min-w-[32px] sm:min-w-[36px]",
                       deletingSectorId === schedule.id 
-                        ? "bg-red-500 text-white px-3" 
+                        ? "bg-red-500 text-white px-2 sm:px-3" 
                         : "hover:bg-red-50 text-gray-300 hover:text-red-500"
                     )}
                     title="Remover grupo"
                   >
                     {deletingSectorId === schedule.id ? (
-                      <span className="text-[10px] font-black uppercase whitespace-nowrap">Excluir?</span>
+                      <span className="text-[8px] sm:text-[10px] font-black uppercase whitespace-nowrap">Excluir?</span>
                     ) : (
-                      <Trash2 size={16} />
+                      <Trash2 size={14} className="sm:size-4" />
                     )}
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="p-3 sm:p-4 flex-1 space-y-2.5 max-h-[320px] overflow-y-auto custom-scrollbar">
+            <div className="p-2 sm:p-4 flex-1 space-y-2 sm:space-y-2.5 max-h-[280px] sm:max-h-[320px] overflow-y-auto custom-scrollbar">
               {schedule.assignments.length > 0 ? (
-                schedule.assignments.map((assignment) => (
-                  <div key={assignment.id} className="p-2.5 sm:p-3 bg-white rounded-[18px] border border-gray-100/50 hover:border-indigo-100 hover:bg-indigo-50/10 transition-all group/item relative shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        onClick={() => handleEditAssignment(schedule, assignment)}
-                        className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center font-black text-indigo-600 text-[10px] cursor-pointer hover:bg-indigo-600 hover:text-white transition-all shrink-0"
-                      >
-                        {(assignment.workerName || '?').charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-900 truncate leading-tight">{assignment.workerName}</p>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                          {assignment.days && assignment.days.map((d) => (
-                            <div key={d.dayOfWeek} className="flex items-center gap-1 text-[8px] font-bold">
-                              <span className="text-gray-400 uppercase">{daysOfWeek[d.dayOfWeek].substring(0, 3)}</span>
-                              <span className="text-indigo-500/80">{d.shift}</span>
-                            </div>
-                          ))}
+                schedule.assignments.map((assignment) => {
+                  const worksToday = assignment.days.some(d => d.dayOfWeek === currentDayIdx);
+                  
+                  return (
+                    <div key={assignment.id} className={cn(
+                      "p-2 sm:p-3 rounded-[16px] sm:rounded-[18px] border transition-all group/item relative shadow-sm",
+                      worksToday 
+                        ? "bg-indigo-600 text-white border-indigo-400 shadow-md ring-2 ring-indigo-100" 
+                        : "bg-white border-gray-100/50 hover:border-indigo-100 hover:bg-indigo-50/10"
+                    )}>
+                      {worksToday && (
+                        <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-white text-indigo-600 text-[7px] font-black rounded-full uppercase tracking-widest shadow-sm">
+                          Hoje
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-all shrink-0">
-                        <button 
+                      )}
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div 
                           onClick={() => handleEditAssignment(schedule, assignment)}
-                          className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (workingAssignmentId === assignment.id) {
-                              handleRemoveAssignment(schedule, assignment.id);
-                              setWorkingAssignmentId(null);
-                            } else {
-                              setWorkingAssignmentId(assignment.id);
-                              setTimeout(() => setWorkingAssignmentId(null), 3000);
-                            }
-                          }}
                           className={cn(
-                            "p-1.5 rounded-lg transition-all",
-                            workingAssignmentId === assignment.id 
-                              ? "bg-red-500 text-white" 
-                              : "text-gray-300 hover:text-red-500 hover:bg-white"
+                            "w-7 h-7 sm:w-8 sm:h-8 rounded-full border flex items-center justify-center font-black text-[9px] sm:text-[10px] cursor-pointer transition-all shrink-0",
+                            worksToday 
+                              ? "bg-white text-indigo-600 border-white" 
+                              : "bg-indigo-50 border-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white"
                           )}
                         >
-                          {workingAssignmentId === assignment.id ? <Trash2 size={14} /> : <Trash2 size={14} />}
-                        </button>
+                          {(assignment.workerName || '?').charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn("text-[11px] sm:text-xs font-bold truncate leading-tight", worksToday ? "text-white" : "text-gray-900")}>
+                            {assignment.workerName}
+                          </p>
+                          <div className="flex flex-wrap gap-x-2 sm:gap-x-3 gap-y-0.5 mt-0.5 sm:mt-1">
+                            {assignment.days && assignment.days.map((d) => (
+                              <div key={d.dayOfWeek} className="flex items-center gap-0.5 sm:gap-1 text-[7px] sm:text-[8px] font-bold">
+                                <span className={cn("uppercase", worksToday ? "text-indigo-100" : "text-gray-400")}>{daysOfWeek[d.dayOfWeek].substring(0, 3)}</span>
+                                <span className={cn("italic", worksToday ? "text-white/80" : "text-indigo-500/80")}>{d.shift}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-all shrink-0">
+                          <button 
+                            onClick={() => handleEditAssignment(schedule, assignment)}
+                            className={cn(
+                              "p-1 sm:p-1.5 rounded-lg transition-all",
+                              worksToday ? "text-white hover:bg-white/20" : "text-gray-300 hover:text-indigo-600 hover:bg-white"
+                            )}
+                          >
+                            <Pencil size={12} className="sm:size-[14px]" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (workingAssignmentId === assignment.id) {
+                                handleRemoveAssignment(schedule, assignment.id);
+                                setWorkingAssignmentId(null);
+                              } else {
+                                setWorkingAssignmentId(assignment.id);
+                                setTimeout(() => setWorkingAssignmentId(null), 3000);
+                              }
+                            }}
+                            className={cn(
+                              "p-1 sm:p-1.5 rounded-lg transition-all",
+                              workingAssignmentId === assignment.id 
+                                ? "bg-red-500 text-white" 
+                                : (worksToday ? "text-white hover:bg-white/20" : "text-gray-300 hover:text-red-500 hover:bg-white")
+                            )}
+                          >
+                            <Trash2 size={12} className="sm:size-[14px]" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-center p-6 space-y-3 opacity-40">
-                  <Users size={24} className="text-gray-300" />
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed">Ninguém<br/>escalado</p>
+                <div className="h-full min-h-[100px] sm:min-h-[120px] flex flex-col items-center justify-center text-center p-4 sm:p-6 space-y-2 sm:space-y-3 opacity-40">
+                  <Users size={20} className="sm:size-6 text-gray-300" />
+                  <p className="text-[8px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed">Ninguém<br/>escalado</p>
                 </div>
               )}
             </div>
             
-            <div className="p-4 bg-gray-50/50">
+            <div className="p-3 sm:p-4 bg-gray-50/50">
               <button 
                 onClick={() => {
                   setEditingSchedule(schedule);
                   setEditingAssignmentId(null);
                   setShowAssignmentModal(true);
                 }}
-                className="w-full py-2.5 bg-white text-gray-600 border border-gray-100 font-bold rounded-[16px] text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-2 sm:py-2.5 bg-white text-gray-600 border border-gray-100 font-bold rounded-xl sm:rounded-[16px] text-[9px] sm:text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm"
               >
-                <UserPlus size={14} />
+                <UserPlus size={12} className="sm:size-[14px]" />
                 <span>Escalar</span>
               </button>
             </div>

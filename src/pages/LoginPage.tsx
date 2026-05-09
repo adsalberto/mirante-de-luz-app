@@ -17,11 +17,19 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login(email, password);
+      await login(email.toLowerCase().trim(), password);
       navigate('/');
     } catch (err: any) {
-      setError('E-mail ou senha incorretos.');
-      console.error(err);
+      console.error("Login error detail:", err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('E-mail ou senha incorretos.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Muitas tentativas sem sucesso. Tente novamente mais tarde.');
+      } else if (err.code === 'auth/user-disabled') {
+        setError('Este usuário foi desativado pela coordenação.');
+      } else {
+        setError('Erro ao acessar o sistema. ' + (err.message || 'Verifique sua conexão.'));
+      }
     } finally {
       setLoading(false);
     }

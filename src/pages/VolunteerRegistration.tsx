@@ -18,6 +18,8 @@ import { cn } from '../lib/utils';
 import { auth } from '../lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 
+import { ImageUpload } from '../components/ImageUpload';
+
 export default function VolunteerRegistration() {
   const navigate = useNavigate();
   const [sectors, setSectors] = useState<Sector[]>([]);
@@ -30,6 +32,7 @@ export default function VolunteerRegistration() {
     password: '', // New field
     phone: '',
     sectorId: '',
+    photoUrl: '', // New field
     activityType: 'OUTROS' as SectorType,
     acceptedTerm: false,
     lgpdConsent: false,
@@ -74,15 +77,17 @@ export default function VolunteerRegistration() {
 
     setIsSubmitting(true);
     try {
+      const email = formData.email.toLowerCase().trim();
       // 1. Create Auth Account First
-      const authRes = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const authRes = await createUserWithEmailAndPassword(auth, email, formData.password);
       const uid = authRes.user.uid;
 
       // 2. Create Firestore Profile
       await dataService.addWorker({
         id: uid, // Use Auth UID
         name: formData.name,
-        email: formData.email,
+        email: email,
+        photoUrl: formData.photoUrl, // Save photo
         phone: formData.phone,
         role: 'VOLUNTARIO',
         sectorId: formData.sectorId || undefined,
@@ -181,15 +186,26 @@ export default function VolunteerRegistration() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1 md:col-span-2">
                 <label className="text-[11px] font-black uppercase text-gray-500 tracking-wider ml-1">Nome Completo</label>
-                <div className="relative group">
-                  <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
-                  <input 
-                    required 
-                    value={formData.name} 
-                    onChange={e => setFormData({...formData, name: e.target.value})} 
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium text-sm" 
-                    placeholder="Seu nome completo..." 
-                  />
+                <div className="flex flex-col md:flex-row gap-6 mt-2">
+                  <div className="w-full md:w-32 shrink-0">
+                    <ImageUpload 
+                      value={formData.photoUrl} 
+                      onChange={val => setFormData({...formData, photoUrl: val})}
+                      label="Foto"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="relative group">
+                      <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                      <input 
+                        required 
+                        value={formData.name} 
+                        onChange={e => setFormData({...formData, name: e.target.value})} 
+                        className="w-full pl-11 pr-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium text-sm" 
+                        placeholder="Seu nome completo..." 
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 

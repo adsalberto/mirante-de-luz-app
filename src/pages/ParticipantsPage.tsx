@@ -42,6 +42,18 @@ export const ParticipantsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'participants' | 'referrals'>('participants');
   const [evolutions, setEvolutions] = useState<Evolution[]>([]);
   const [encaminhamentoFilter, setEncaminhamentoFilter] = useState('all');
+  const [isCheckinModalOpen, setIsCheckinModalOpen] = useState(false);
+  const [checkinParticipant, setCheckinParticipant] = useState<Participant | null>(null);
+  const [selectedCheckinSector, setSelectedCheckinSector] = useState('');
+  const [isCheckinPriority, setIsCheckinPriority] = useState(false);
+  const [isCheckinLoading, setIsCheckinLoading] = useState(false);
+  
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'new') {
+      setIsModalOpen(true);
+    }
+  }, []);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -258,15 +270,29 @@ export const ParticipantsPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    {currentUser?.role !== 'RECEPCIONISTA' && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/atendimentos?participantId=${p.id}`);
+                        }}
+                        title="Abrir Prontuário"
+                        className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all"
+                      >
+                        <History size={18} />
+                      </button>
+                    )}
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/atendimentos?participantId=${p.id}`);
+                        setCheckinParticipant(p);
+                        setIsCheckinModalOpen(true);
+                        if (sectors.length > 0) setSelectedCheckinSector(sectors[0].id);
                       }}
-                      title="Abrir Prontuário"
-                      className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all"
+                      title="Entrar na Fila"
+                      className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
                     >
-                      <History size={18} />
+                      <ClipboardCheck size={18} />
                     </button>
                     {currentUser?.role !== 'RECEPCIONISTA' && currentUser?.role !== 'ATENDENTE' && currentUser?.role !== 'VOLUNTARIO' && (
                       <>
@@ -331,13 +357,15 @@ export const ParticipantsPage: React.FC = () => {
                   )}
                 </div>
 
-                <button 
-                  onClick={() => navigate(`/atendimentos?participantId=${p.id}`)}
-                  className="w-full mt-6 flex items-center justify-center gap-2 py-3 bg-gray-50 text-gray-700 font-bold rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm"
-                >
-                  <span>Ver Prontuário</span>
-                  <ChevronRight size={16} />
-                </button>
+                {currentUser?.role !== 'RECEPCIONISTA' && (
+                  <button 
+                    onClick={() => navigate(`/atendimentos?participantId=${p.id}`)}
+                    className="w-full mt-6 flex items-center justify-center gap-2 py-3 bg-gray-50 text-gray-700 font-bold rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm"
+                  >
+                    <span>Ver Prontuário</span>
+                    <ChevronRight size={16} />
+                  </button>
+                )}
               </motion.div>
             )) : (
               <div className="col-span-full py-20 text-center space-y-4">
@@ -418,7 +446,7 @@ export const ParticipantsPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap gap-2">
-                             {evo.encaminhamento && (
+                             {currentUser?.role !== 'RECEPCIONISTA' && evo.encaminhamento && (
                                <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase border border-emerald-100">
                                  {evo.encaminhamento}
                                </span>
@@ -431,18 +459,23 @@ export const ParticipantsPage: React.FC = () => {
                                  </span>
                                );
                              })}
-                             {!evo.encaminhamento && (!evo.nextStepSectorIds || evo.nextStepSectorIds.length === 0) && (
+                             {currentUser?.role === 'RECEPCIONISTA' && (!evo.nextStepSectorIds || evo.nextStepSectorIds.length === 0) && (
+                               <span className="text-[10px] text-gray-400 italic">Dispensado</span>
+                             )}
+                             {currentUser?.role !== 'RECEPCIONISTA' && !evo.encaminhamento && (!evo.nextStepSectorIds || evo.nextStepSectorIds.length === 0) && (
                                <span className="text-[10px] text-gray-400 italic">Nenhum</span>
                              )}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button 
-                             onClick={() => navigate(`/atendimentos?participantId=${evo.participantId}`)}
-                             className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-indigo-100"
-                           >
-                            <History size={18} />
-                          </button>
+                          {currentUser?.role !== 'RECEPCIONISTA' && (
+                            <button 
+                               onClick={() => navigate(`/atendimentos?participantId=${evo.participantId}`)}
+                               className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-indigo-100"
+                             >
+                              <History size={18} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -460,6 +493,78 @@ export const ParticipantsPage: React.FC = () => {
 
       {/* Modal de Cadastro */}
       <AnimatePresence>
+        {isCheckinModalOpen && checkinParticipant && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCheckinModalOpen(false)} className="absolute inset-0 bg-indigo-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white rounded-[40px] shadow-2xl overflow-hidden">
+               <div className="p-8 border-b border-gray-100 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black text-gray-900 leading-tight">Check-in na Fila</h2>
+                    <p className="text-sm font-medium text-gray-500">Encaminhar {checkinParticipant.name} para atendimento.</p>
+                  </div>
+                  <button onClick={() => setIsCheckinModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <X size={24} className="text-gray-400" />
+                  </button>
+               </div>
+               
+               <form onSubmit={async (e) => {
+                 e.preventDefault();
+                 if (!selectedCheckinSector) return;
+                 setIsCheckinLoading(true);
+                 try {
+                   await dataService.addToQueue({
+                     participantId: checkinParticipant.id,
+                     sectorId: selectedCheckinSector,
+                     priority: isCheckinPriority
+                   });
+                   alert('Encaminhado para a fila com sucesso!');
+                   setIsCheckinModalOpen(false);
+                   loadParticipants();
+                 } catch (err) {
+                   console.error('Erro ao fazer check-in:', err);
+                   alert('Erro ao encaminhar para a fila.');
+                 } finally {
+                   setIsCheckinLoading(false);
+                 }
+               }} className="p-8 space-y-6">
+                 <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Selecionar Setor de Destino</label>
+                   <select 
+                     required
+                     value={selectedCheckinSector} 
+                     onChange={(e) => setSelectedCheckinSector(e.target.value)}
+                     className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all font-bold text-gray-700"
+                   >
+                     {sectors.map(s => (
+                       <option key={s.id} value={s.id}>{s.name}</option>
+                     ))}
+                   </select>
+                 </div>
+
+                 <div className="flex items-center gap-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 group cursor-pointer" onClick={() => setIsCheckinPriority(!isCheckinPriority)}>
+                    <div className={cn(
+                      "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+                      isCheckinPriority ? "bg-amber-600 border-amber-600 text-white" : "border-amber-200"
+                    )}>
+                      {isCheckinPriority && <ClipboardCheck size={14} />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-amber-900">Atendimento Prioritário</p>
+                      <p className="text-[10px] text-amber-700/70 font-medium">Idosos, gestantes, pessoas com deficiência ou crianças.</p>
+                    </div>
+                 </div>
+
+                 <div className="flex gap-4 pt-4">
+                   <button type="button" onClick={() => setIsCheckinModalOpen(false)} className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl">Cancelar</button>
+                   <button type="submit" disabled={isCheckinLoading} className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
+                     {isCheckinLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span>Confirmar</span>}
+                   </button>
+                 </div>
+               </form>
+            </motion.div>
+          </div>
+        )}
+
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div

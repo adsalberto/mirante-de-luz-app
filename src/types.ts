@@ -1,4 +1,4 @@
-export type UserRole = 'ADMIN' | 'ADM' | 'COORDENADOR' | 'SECRETARIO' | 'RECEPCIONISTA' | 'ATENDENTE' | 'VOLUNTARIO';
+export type UserRole = 'ADMIN' | 'ADM' | 'COORDENADOR' | 'SECRETARIO' | 'RECEPCIONISTA' | 'ATENDENTE' | 'VOLUNTARIO' | 'PALESTRANTE';
 
 export interface AuditLog {
   id: string;
@@ -43,6 +43,7 @@ export interface AgendaEvent {
   time: string;
   type: 'DOUTRINARIA' | 'ESTUDO' | 'FESTA' | 'OUTRO';
   speakerId?: string; // Link to Speaker if it's a Doutrinaria
+  speakerName?: string; 
 }
 
 export type SectorType = 'FRATERNO' | 'PASSE' | 'ESTUDO' | 'INFANCIA' | 'SOCIAL' | 'ADMINISTRATIVO' | 'MEDIUNICO' | 'OUTROS';
@@ -149,4 +150,5 @@ export interface DashboardStats {
   activeVolunteers: number;
   totalParticipants: number;
   pendingVolunteers: number;
+  sectorCount: number;
 }

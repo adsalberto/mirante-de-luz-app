@@ -503,10 +503,11 @@ class DataService {
   // --- STATS ---
   async getStats(): Promise<DashboardStats> {
     try {
-      const [qList, pList, wList] = await Promise.all([
+      const [qList, pList, wList, sList] = await Promise.all([
         getDocs(collection(db, 'fila')),
         getDocs(collection(db, 'atendidos')),
-        getDocs(collection(db, 'trabalhadores'))
+        getDocs(collection(db, 'trabalhadores')),
+        getDocs(collection(db, 'setores'))
       ]);
 
       const queue = qList.docs.map(d => d.data() as ServiceQueueEntry);
@@ -515,10 +516,11 @@ class DataService {
       return {
         waitingCount: queue.filter(e => e.status === 'WAITING').length,
         inServiceCount: queue.filter(e => e.status === 'IN_PROGRESS').length,
-        completedToday: queue.filter(e => e.status === 'FINISHED').length, // Should ideally filter by today
+        completedToday: queue.filter(e => e.status === 'FINISHED').length,
         activeVolunteers: workers.filter(w => w.active).length,
         pendingVolunteers: workers.filter(w => !w.active).length,
-        totalParticipants: pList.docs.length
+        totalParticipants: pList.docs.length,
+        sectorCount: sList.docs.length
       };
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -528,7 +530,8 @@ class DataService {
         completedToday: 0,
         activeVolunteers: 0,
         totalParticipants: 0,
-        pendingVolunteers: 0
+        pendingVolunteers: 0,
+        sectorCount: 0
       };
     }
   }

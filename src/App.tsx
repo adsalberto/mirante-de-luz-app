@@ -5,6 +5,10 @@ import { Sidebar } from './components/layout/Sidebar';
 import LoginPage from './pages/LoginPage';
 import VolunteerRegistration from './pages/VolunteerRegistration';
 import { Dashboard } from './pages/Dashboard';
+import ReceptionistDashboard from './pages/ReceptionistDashboard';
+import VolunteerDashboard from './pages/VolunteerDashboard';
+import SpeakerDashboard from './pages/SpeakerDashboard';
+import AdministrativeDashboard from './pages/AdministrativeDashboard';
 import { ParticipantsPage } from './pages/ParticipantsPage';
 import { QueuePage } from './pages/QueuePage';
 import { EvolutionPage } from './pages/EvolutionPage';
@@ -14,11 +18,29 @@ import { SpeakersPage } from './pages/SpeakersPage';
 import { AgendaPage } from './pages/AgendaPage';
 import { SectorsPage } from './pages/SectorsPage';
 import SectorDetailsPage from './pages/SectorDetailsPage';
+import ProfilePage from './pages/ProfilePage';
 import { SchedulesPage } from './pages/SchedulesPage';
 import { LogsPage } from './pages/LogsPage';
 
 function AppRoutes() {
   const { currentUser, fbUser, loading, logout } = useAuth();
+
+  const getDashboardByRole = () => {
+    switch (currentUser?.role) {
+      case 'RECEPCIONISTA':
+        return <ReceptionistDashboard />;
+      case 'VOLUNTARIO':
+      case 'ATENDENTE':
+        return <VolunteerDashboard />;
+      case 'PALESTRANTE':
+        return <SpeakerDashboard />;
+      case 'SECRETARIO':
+      case 'COORDENADOR':
+        return <AdministrativeDashboard />;
+      default:
+        return <Dashboard />;
+    }
+  };
 
   if (loading) {
     return (
@@ -43,7 +65,7 @@ function AppRoutes() {
             
             <main className="flex-1 lg:pl-0 pt-16 lg:pt-0 h-screen overflow-y-auto overflow-x-hidden custom-scrollbar">
               <Routes>
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/" element={getDashboardByRole()} />
                 <Route path="/atendidos" element={<ParticipantsPage />} />
                 <Route path="/palestrantes" element={<SpeakersPage />} />
                 <Route path="/agenda" element={<AgendaPage />} />
@@ -51,12 +73,17 @@ function AppRoutes() {
                 <Route path="/atendimentos" element={<EvolutionPage />} />
                 <Route path="/relatorios" element={<ReportsPage />} />
                 
-                {/* Admin only routes */}
-                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'ADM']} />}>
+                {/* Admin & Secretary/Coordinator routes */}
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'ADM', 'SECRETARIO', 'COORDENADOR']} />}>
                   <Route path="/trabalhadores" element={<SettingsPage />} />
                   <Route path="/setores" element={<SectorsPage />} />
+                </Route>
+
+                {/* Strictly Admin only logs */}
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'ADM']} />}>
                   <Route path="/logs" element={<LogsPage />} />
                 </Route>
+                <Route path="/perfil" element={<ProfilePage />} />
 
                 <Route path="/escalas" element={<SchedulesPage />} />
                 <Route path="/setores/:id" element={<SectorDetailsPage />} />

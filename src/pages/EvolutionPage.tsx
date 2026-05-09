@@ -3,16 +3,21 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   History, 
   Send, 
-  ClipboardCheck, 
+  ClipboardCheck,
+  ClipboardList,
   ArrowRight, 
   Heart, 
   ShieldAlert,
   Search,
+  Users,
+  Sparkles,
   CheckCircle2,
   Calendar,
   User,
   ExternalLink,
   Printer,
+  Phone,
+  MapPin,
   X,
   ArrowUp,
   Lock,
@@ -318,6 +323,18 @@ export const EvolutionPage: React.FC = () => {
           nextStepSectorIds: formData.referralSectors,
           encaminhamento: formData.encaminhamento
         });
+
+        // CRITICAL: Add to Queue for each referral
+        if (formData.referralSectors && formData.referralSectors.length > 0) {
+          console.log("Processing queue referrals:", formData.referralSectors);
+          for (const sectorId of formData.referralSectors) {
+            await dataService.addToQueue({
+              participantId: selectedP.id,
+              sectorId: sectorId,
+              priority: false // Default to false, can be improved later
+            });
+          }
+        }
       }
 
       setFormData(prev => ({ 
@@ -342,6 +359,22 @@ export const EvolutionPage: React.FC = () => {
         ? prev.referralSectors.filter(x => x !== id)
         : [...prev.referralSectors, id]
     }));
+  };
+
+  const getAge = (birthDate: any) => {
+    if (!birthDate) return null;
+    try {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      return age;
+    } catch { return null; }
+  };
+
+  const getParticipantStatus = (pid: string) => {
+    return activeServices.find(s => s.participantId === pid);
   };
 
   const filteredParticipants = (participants || []).filter(p => 
@@ -380,13 +413,13 @@ export const EvolutionPage: React.FC = () => {
   }
 
   return (
-    <div className="p-8 h-full flex flex-col gap-8">
+    <div className="p-4 sm:p-8 h-full flex flex-col gap-4 sm:gap-8">
       <header>
-        <h1 className="text-3xl font-bold text-gray-900">Evolução & Encaminhamento</h1>
-        <p className="text-gray-500 font-medium">Acompanhe a jornada espiritual e direcione os próximos passos.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Evolução & Encaminhamento</h1>
+        <p className="text-sm sm:text-base text-gray-500 font-medium">Acompanhe a jornada espiritual e direcione os próximos passos.</p>
       </header>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-[400px]">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 min-h-[400px]">
         {/* Lado Esquerdo: Busca e Seleção */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           <div className="relative group">
@@ -400,44 +433,66 @@ export const EvolutionPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pb-10">
-            {filteredParticipants.length > 0 ? filteredParticipants.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedP(p)}
-                className={cn(
-                  "w-full text-left p-5 rounded-3xl border-2 transition-all group relative overflow-hidden",
-                  selectedP?.id === p.id 
-                    ? "bg-indigo-600 border-indigo-400 shadow-xl shadow-indigo-100 text-white" 
-                    : "bg-white border-gray-50 text-gray-900 hover:border-indigo-100 shadow-sm"
-                )}
-              >
-                <div className="flex items-center gap-4 relative z-10">
-                  <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center font-bold border-2",
-                    selectedP?.id === p.id ? "bg-white/10 border-white/20 text-white" : "bg-indigo-50 border-indigo-50 text-indigo-600"
-                  )}>
-                    {(p.name || '?').charAt(0)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold truncate">{p.name}</p>
-                      <span className={cn(
-                        "text-[9px] font-black px-1.5 py-0.5 rounded-md border",
-                        (p.gender === 'Masculino' || p.gender === 'M') ? "bg-blue-50 text-blue-600 border-blue-100" : (p.gender === 'Feminino' || p.gender === 'F') ? "bg-pink-50 text-pink-600 border-pink-100" : "bg-gray-50 text-gray-600 border-gray-100"
-                      )}>
-                        {(p.gender === 'Masculino' || p.gender === 'M') ? 'Masc' : (p.gender === 'Feminino' || p.gender === 'F') ? 'Fem' : p.gender || 'N/I'}
-                      </span>
+          <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar pb-10 px-2">
+            {filteredParticipants.length > 0 ? filteredParticipants.map(p => {
+              const age = getAge(p.birthDate);
+              const isActive = getParticipantStatus(p.id);
+              
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setSelectedP(p)}
+                  className={cn(
+                    "w-full text-left p-5 rounded-[28px] border-2 transition-all group relative overflow-hidden",
+                    selectedP?.id === p.id 
+                      ? "bg-indigo-600 border-indigo-400 shadow-xl shadow-indigo-100 text-white translate-x-2" 
+                      : "bg-white border-gray-100 text-gray-900 hover:border-indigo-200 shadow-sm hover:shadow-md"
+                  )}
+                >
+                  <div className="flex items-center gap-4 relative z-10">
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center font-black border-2 shrink-0 transition-transform group-active:scale-90",
+                      selectedP?.id === p.id ? "bg-white/10 border-white/20 text-white" : "bg-indigo-50 border-indigo-50 text-indigo-600"
+                    )}>
+                      {(p.name || '?').charAt(0)}
                     </div>
-                    <p className={cn("text-[10px] font-black uppercase tracking-tighter", selectedP?.id === p.id ? "text-indigo-200" : "text-gray-400")}>
-                      Reg: {String(p.id).includes('-') ? String(p.id).split('-')[1] : String(p.id).substring(0, 5)}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <p className="font-black text-sm truncate">{p.name}</p>
+                        {isActive && (
+                          <div className="animate-pulse w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn(
+                          "text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md border shrink-0",
+                          selectedP?.id === p.id 
+                            ? "bg-white/20 border-white/20 text-white" 
+                            : (p.gender === 'Masculino' || p.gender === 'M') ? "bg-blue-50 text-blue-600 border-blue-100" : (p.gender === 'Feminino' || p.gender === 'F') ? "bg-pink-50 text-pink-600 border-pink-100" : "bg-gray-50 text-gray-600 border-gray-100"
+                        )}>
+                          {(p.gender === 'Masculino' || p.gender === 'M') ? 'Masc' : (p.gender === 'Feminino' || p.gender === 'F') ? 'Fem' : p.gender || 'N/I'}
+                        </span>
+                        {age !== null && (
+                          <span className={cn("text-[9px] font-bold", selectedP?.id === p.id ? "text-indigo-200" : "text-gray-400")}>
+                            {age} anos
+                          </span>
+                        )}
+                        <span className={cn("text-[9px] font-black uppercase tracking-tighter opacity-70", selectedP?.id === p.id ? "text-white" : "text-gray-300")}>
+                          #{String(p.id).substring(0, 5)}
+                        </span>
+                      </div>
+                      {isActive && (
+                        <p className={cn("text-[9px] font-bold mt-1 uppercase tracking-wider", selectedP?.id === p.id ? "text-amber-200" : "text-amber-600")}>
+                          Em espera: {sectors.find(s => s.id === isActive.sectorId)?.name}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
-            )) : (
+                </button>
+              );
+            }) : (
               <div className="bg-white/50 border-2 border-dashed border-gray-200 p-8 rounded-3xl text-center">
-                <User className="mx-auto text-gray-300 mb-2" size={32} />
+                <Users className="mx-auto text-gray-300 mb-2" size={32} />
                 <p className="text-gray-400 text-sm font-medium">Nenhum atendido<br/>encontrado</p>
               </div>
             )}
@@ -449,365 +504,406 @@ export const EvolutionPage: React.FC = () => {
           {selectedP ? (
             <div
               key={selectedP.id}
-              className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300"
+              className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-20"
             >
-              <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-8 items-center">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 p-1">
-                  <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-3xl font-black text-indigo-600">
-                    {(selectedP?.name || '?').charAt(0)}
+              {/* Main Dashboard Header for Participant - Compact Version */}
+              <div className="bg-white rounded-[32px] border border-indigo-50 shadow-sm overflow-hidden group">
+                <div className="px-6 py-6 sm:px-8">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                    {/* Avatar - Slightly smaller and side-by-side */}
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-[28px] bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center text-3xl font-black text-indigo-600 border border-indigo-50 shadow-inner shrink-0 leading-none">
+                      {(selectedP?.name || '?').charAt(0)}
+                    </div>
+
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+                          <div className="min-w-0">
+                            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight leading-tight truncate mb-1">{selectedP?.name}</h2>
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2 text-gray-400 font-bold text-xs">
+                              <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg">
+                                <Calendar size={13} className="text-indigo-400" />
+                                {getAge(selectedP?.birthDate)} anos
+                              </span>
+                              <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg">
+                                <User size={13} className="text-indigo-400" />
+                                {selectedP?.gender}
+                              </span>
+                              <span className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">
+                                <Search size={13} />
+                                #{String(selectedP?.id).substring(0, 5)}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-center gap-2">
+                            <button 
+                              onClick={exportToPDF}
+                              disabled={isExporting}
+                              className={cn(
+                                "flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95",
+                                isExporting && "opacity-50 cursor-not-allowed"
+                              )}
+                            >
+                              <Printer size={14} /> 
+                              {isExporting ? '...' : 'PDF'}
+                            </button>
+                            {isAdmin && (
+                              <button className="p-2 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-white border border-gray-100 rounded-xl transition-all shadow-sm">
+                                <ExternalLink size={16} />
+                              </button>
+                            )}
+                          </div>
+                       </div>
+
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
+                            <Phone size={14} className="text-indigo-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest leading-none mb-1">Telefone</p>
+                              <p className="text-xs font-bold text-gray-700 truncate">{selectedP?.phone || 'N/I'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
+                            <MapPin size={14} className="text-indigo-400" />
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest leading-none mb-1">Endereço</p>
+                              <p className="text-xs font-bold text-gray-700 truncate" title={selectedP?.address}>{selectedP?.address || 'N/I'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 p-3 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100/50">
+                            <CheckCircle2 size={14} />
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black uppercase tracking-widest leading-none mb-1 opacity-70">Cadastro</p>
+                              <p className="text-xs font-black uppercase italic">{activeServices.length > 0 ? 'Em Espera' : 'Concluído'}</p>
+                            </div>
+                          </div>
+                       </div>
+                    </div>
                   </div>
                 </div>
-                <div className="text-center md:text-left flex-1">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h2 className="text-2xl font-black text-gray-900 leading-tight">{selectedP?.name}</h2>
-                    {history.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase text-gray-400">Setores:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {Array.from(new Set(history.map(e => e.sectorId))).map(sid => (
-                            <span key={sid} className="px-2 py-0.5 bg-gray-50 text-gray-500 rounded text-[9px] font-bold border border-gray-100">
-                              {sectors.find(s => s.id === sid)?.name || 'Setor'}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                    <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-2 print:hidden">
-                      <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-gray-200">
-                        <Calendar size={12} /> {safeFormat(selectedP?.birthDate, "dd/MM/yyyy")}
-                      </span>
-                      <span className={cn(
-                        "px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border transition-colors",
-                        (selectedP?.gender === 'Masculino' || selectedP?.gender === 'M') ? "bg-blue-50 text-blue-600 border-blue-100" : (selectedP?.gender === 'Feminino' || selectedP?.gender === 'F') ? "bg-pink-50 text-pink-600 border-pink-100" : "bg-indigo-50 text-indigo-600 border-indigo-100"
-                      )}>
-                        <User size={12} /> Sexo: {(selectedP?.gender === 'Masculino' || selectedP?.gender === 'M') ? 'Masculino' : (selectedP?.gender === 'Feminino' || selectedP?.gender === 'F') ? 'Feminino' : selectedP?.gender || 'N/I'}
-                      </span>
-                      <button 
-                        onClick={exportToPDF}
-                        disabled={isExporting}
-                        className={cn(
-                          "bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-emerald-100 transition-all shadow-sm hover:bg-emerald-100",
-                          isExporting && "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <Printer size={12} /> 
-                        {isExporting ? 'Processando...' : 'Imprimir Prontuário'}
-                      </button>
-                    </div>
+              </div>
 
-                    {/* Print Header - Only visible when printing */}
-                    <div className="hidden print:block border-b-2 border-indigo-900 pb-4 mb-4">
-                      <div className="flex justify-between items-end">
-                        <div>
-                          <h1 className="text-2xl font-black text-indigo-900">Centro Espírita Mirante de Luz</h1>
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Prontuário de Atendimento Espiritual</p>
-                        </div>
-                        <div className="text-right text-[10px] font-black text-gray-400">
-                          DATA DE EMISSÃO: {new Date().toLocaleDateString('pt-BR')}
-                        </div>
-                      </div>
-                      <div className="mt-6 grid grid-cols-2 gap-4 text-sm font-bold">
-                        <p><span className="text-[10px] font-black text-gray-300 uppercase block">Atendido</span> {selectedP?.name}</p>
-                        <p><span className="text-[10px] font-black text-gray-300 uppercase block">Nascimento</span> {safeFormat(selectedP?.birthDate, "dd/MM/yyyy")}</p>
-                      </div>
-                    </div>
-                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium text-gray-500">
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-[10px] uppercase text-gray-300">Endereço:</span>
-                          <span className="truncate">{selectedP?.address}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-[10px] uppercase text-gray-300">Telefone:</span>
-                          <span>{selectedP?.phone}</span>
-                        </div>
-                      </div>
-
-                      {/* Intersectoral Status Indicators */}
-                      {activeServices.length > 0 && (
-                        <div className="mt-6 flex flex-wrap gap-2">
-                          {activeServices.map((q, idx) => (
-                            <div key={idx} className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-2xl border border-amber-100 text-[10px] font-bold animate-pulse">
-                              <AlertCircle size={14} />
-                              Atendimento Ativo: {sectors.find(s => s.id === q.sectorId)?.name || 'Outro Setor'}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                {/* Timeline Column */}
+                <div className="xl:col-span-7 space-y-6">
+                  <div className="flex items-center justify-between px-2">
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <History size={18} className="text-indigo-400" /> Histórico Evolutivo
+                    </h3>
+                    <div className="flex items-center gap-2">
+                       <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-tighter shadow-inner border border-indigo-100">
+                         {history.length} Registros
+                       </span>
                     </div>
                   </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                    <History size={16} /> Linha do Tempo
-                  </h3>
-                  <div className="space-y-4">
                     {/* Participant Original Observation */}
                     {selectedP && selectedP.observation && (
-                      <div className="relative pl-6 border-l-2 border-indigo-100 pb-2">
-                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-500 border-4 border-white shadow-sm" />
-                        <div className="bg-emerald-50/30 p-5 rounded-2xl border border-emerald-100/50 shadow-sm">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[10px] font-black tracking-tighter text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">
-                              Cadastro Inicial
-                            </span>
-                            <span className="text-[10px] text-gray-400 font-bold">
-                              {safeFormat(selectedP.registrationDate, "dd 'de' MMM, yyyy")}
-                            </span>
+                      <div className="relative pl-8">
+                        <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full bg-emerald-500 border-4 border-white shadow-md z-10" />
+                        <div className="bg-gradient-to-br from-emerald-50/50 to-white p-6 rounded-[32px] border border-emerald-100 shadow-sm transition-all hover:shadow-md">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-200">
+                              <Sparkles size={16} />
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-black tracking-widest text-emerald-600 uppercase block mb-0.5">
+                                Início da Jornada
+                              </span>
+                              <span className="text-xs text-emerald-600/60 font-bold italic">
+                                {safeFormat(selectedP.registrationDate, "dd 'de' MMMM 'de' yyyy")}
+                              </span>
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase text-emerald-400/70">Observação do Cadastro</p>
-                            <p className="text-sm text-gray-700 font-medium italic">{selectedP.observation}</p>
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-black uppercase text-emerald-400/80 tracking-widest pl-1">Motivo do Comparecimento</p>
+                            <div className="bg-white/60 p-4 rounded-2xl border border-emerald-50 text-base text-gray-800 font-medium leading-relaxed italic shadow-inner">
+                                "{selectedP.observation}"
+                            </div>
                           </div>
                         </div>
                       </div>
                     )}
 
-                    {history.length > 0 ? history.map((evo, idx) => (
-                      <div key={evo.id || idx} className="relative pl-6 border-l-2 border-indigo-100 pb-2 last:pb-0">
-                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white shadow-sm" />
-                        <div className="bg-white p-5 rounded-2xl border border-gray-50 shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black tracking-tighter text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase">
-                                {sectors.find(s => s.id === evo.sectorId)?.name || 'Setor Indefinido'}
-                              </span>
-                              <span className="text-[10px] text-gray-400 font-bold">
-                                {safeFormat(evo.date, "dd/MM/yyyy 'às' HH:mm")}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {isAdmin && (
+                    {history.length > 0 ? (
+                      [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((evo, idx) => (
+                        <div key={evo.id || idx} className="relative pl-8 group/timeline">
+                          <div className="absolute left-0 top-2 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white shadow-md z-10 group-hover/timeline:scale-125 transition-transform" />
+                          
+                          <motion.div 
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/card overflow-hidden"
+                          >
+                            <div className="flex items-center justify-between mb-5">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-black group-hover/card:bg-indigo-600 group-hover/card:text-white transition-all shadow-sm">
+                                  {sectors.find(s => s.id === evo.sectorId)?.name?.charAt(0) || 'S'}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-black tracking-widest text-indigo-600 uppercase block mb-0.5 truncate">
+                                    {sectors.find(s => s.id === evo.sectorId)?.name || 'Setor Indefinido'}
+                                  </span>
+                                  <span className="text-xs text-gray-400 font-bold whitespace-nowrap">
+                                    {safeFormat(evo.date, "dd 'de' MMM 'às' HH:mm")}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-all">
+                                {isAdmin && (
+                                  <button 
+                                    onClick={() => setEditingEvo(evo)}
+                                    className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                  >
+                                    <Pencil size={18} />
+                                  </button>
+                                )}
                                 <button 
-                                  onClick={() => setEditingEvo(evo)}
-                                  className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                  title="Editar registro"
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                              )}
-                              <button 
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (confirm('Excluir este registro permanentemente?')) {
-                                    try {
-                                      await dataService.deleteEvolution(evo.id);
-                                      if (selectedP) loadHistory(selectedP.id);
-                                    } catch (err) {
-                                      console.error('Error deleting evolution:', err);
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm('Excluir este registro permanentemente?')) {
+                                      try {
+                                        await dataService.deleteEvolution(evo.id);
+                                        if (selectedP) loadHistory(selectedP.id);
+                                      } catch (err) {
+                                        console.error('Error deleting evolution:', err);
+                                      }
                                     }
-                                  }
-                                }}
-                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                title="Excluir item"
-                              >
-                                <X size={14} />
-                              </button>
+                                  }}
+                                  className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                >
+                                  <X size={20} />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                            <div className="space-y-4">
-                              <div className="space-y-1">
-                                <p className="text-[10px] font-black uppercase text-gray-400">Registro do Atendimento</p>
+
+                            <div className="space-y-6">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 mb-1 pl-1">
+                                  <ClipboardList size={14} className="text-gray-300" />
+                                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Notas do Atendimento</p>
+                                </div>
                                 {isAdmin || (currentUser?.role === 'COORDENADOR' && evo.sectorId === currentUser?.sectorId) ? (
                                   <div 
-                                    className="text-sm text-gray-700 font-medium leading-relaxed prose prose-sm max-w-none prose-indigo list-disc pl-4"
-                                    dangerouslySetInnerHTML={{ __html: evo.notesEncrypted || '<i>Sem observações.</i>' }}
+                                    className="text-base text-gray-800 font-medium leading-relaxed prose prose-sm max-w-none prose-indigo list-disc pl-4"
+                                    dangerouslySetInnerHTML={{ __html: evo.notesEncrypted || '<i>Sem observações detalhadas.</i>' }}
                                   />
                                 ) : (
-                                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3 text-gray-400 italic text-xs">
-                                    <Lock size={14} />
-                                    <span>Conteúdo restrito ao setor de origem ou nível de acesso.</span>
-                                    {currentUser?.role === 'COORDENADOR' && (
-                                      <button 
-                                        type="button"
-                                        onClick={() => alert(`Acesso restrito: Você é coordenador do setor ${sectors.find(s => s.id === currentUser.sectorId)?.name || 'outro'}, mas este registro pertence ao setor ${sectors.find(s => s.id === evo.sectorId)?.name || 'outro'}.`)}
-                                        className="ml-auto text-indigo-600 font-bold hover:underline"
-                                      >
-                                        Saber mais
-                                      </button>
+                                  <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-4 text-gray-400 italic text-sm">
+                                    <Lock size={18} className="shrink-0" />
+                                    <span className="leading-tight">Conteúdo restrito ao setor de origem ou nível de acesso superior.</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-200 relative group/evo">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Heart size={14} className="fill-indigo-400 text-indigo-400" />
+                                  <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">
+                                    Recomendações e Orientações
+                                  </p>
+                                </div>
+                                {isAdmin || (currentUser?.role === 'COORDENADOR' && evo.sectorId === currentUser?.sectorId) ? (
+                                  <div 
+                                    className="text-base text-indigo-900 font-bold leading-relaxed prose prose-sm max-w-none prose-indigo italic pl-1"
+                                    dangerouslySetInnerHTML={{ __html: evo.recommendations || '<i>Nenhuma recomendação específica para este momento.</i>' }}
+                                  />
+                                ) : (
+                                  <div className="flex items-center gap-3 text-indigo-300 italic text-sm py-2">
+                                    <Lock size={16} /> Conteúdo sob sigilo fraternal.
+                                  </div>
+                                )}
+                              </div>
+
+                              {(evo.encaminhamento || (evo.nextStepSectorIds && evo.nextStepSectorIds.length > 0)) && (
+                                <div className="pt-4 border-t border-gray-50 space-y-3">
+                                  <p className="text-[9px] font-black uppercase text-gray-300 tracking-[0.2em] pl-1">Conclusão e Encaminhamento</p>
+                                  
+                                  <div className="flex flex-wrap gap-2">
+                                    {evo.encaminhamento && (
+                                      <div className="flex items-center gap-2 text-[10px] font-black text-indigo-600 bg-white px-3 py-1.5 rounded-lg uppercase border border-indigo-100 shadow-sm">
+                                        <ClipboardCheck size={14} /> {evo.encaminhamento}
+                                      </div>
                                     )}
+                                    {evo.nextStepSectorIds && evo.nextStepSectorIds.map(sid => (
+                                      <div key={sid} className="flex items-center gap-2 text-[10px] font-black text-emerald-600 bg-white px-3 py-1.5 rounded-lg uppercase border border-emerald-100 shadow-sm">
+                                        <CheckCircle2 size={14} strokeWidth={3} /> {sectors.find(s => s.id === sid)?.name || 'Setor'}
+                                      </div>
+                                    ))}
                                   </div>
-                                )}
-                              </div>
-                              <div className="space-y-1 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                                <p className="text-[10px] font-black uppercase text-indigo-400 flex items-center gap-1">
-                                  <Heart size={10} /> Recomendações Terapêuticas
-                                </p>
-                                {isAdmin || (currentUser?.role === 'COORDENADOR' && evo.sectorId === currentUser?.sectorId) ? (
-                                  <div 
-                                    className="text-sm text-indigo-900 font-bold leading-relaxed prose prose-sm max-w-none prose-indigo italic"
-                                    dangerouslySetInnerHTML={{ __html: evo.recommendations || '<i>Sem recomendações específicas.</i>' }}
-                                  />
-                                ) : (
-                                  <div className="flex items-center gap-2 text-indigo-300 italic text-xs py-1">
-                                    <Lock size={12} /> Conteúdo bloqueado
-                                  </div>
-                                )}
-                              </div>
+                                </div>
+                              )}
                             </div>
-                          {evo.encaminhamento && (
-                        <div className="mt-2 flex items-center gap-2 text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg uppercase border border-indigo-100">
-                          <ClipboardCheck size={10} /> Encaminhamento: {evo.encaminhamento}
+                          </motion.div>
                         </div>
-                      )}
-                      {evo.nextStepSectorIds && evo.nextStepSectorIds.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-gray-50">
-                              <p className="text-[9px] font-black uppercase text-gray-300 mb-2">Encaminhado para:</p>
-                              <div className="flex flex-wrap gap-2">
-                                {evo.nextStepSectorIds.map(sid => (
-                                  <div key={sid} className="flex items-center gap-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg uppercase border border-emerald-100">
-                                    <CheckCircle2 size={10} /> {sectors.find(s => s.id === sid)?.name || 'Setor'}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )) : (
-                      <div className="bg-gray-50/50 rounded-3xl p-10 text-center border-2 border-dashed border-gray-100">
-                        <History size={32} className="mx-auto text-gray-200 mb-2" />
-                        <p className="text-gray-400 text-sm font-medium">Nenhum registro anterior encontrado para este atendido.</p>
+                      ))
+                    ) : (
+                      <div className="bg-gray-50/50 rounded-[48px] p-16 text-center border-2 border-dashed border-gray-100">
+                        <History size={48} className="mx-auto text-gray-200 mb-4 opacity-50" />
+                        <h4 className="text-gray-400 font-bold text-lg mb-1">Caminhada Silenciosa</h4>
+                        <p className="text-gray-400 text-sm italic">Nenhum registro anterior encontrado para este atendido.</p>
                       </div>
                     )}
                   </div>
-                </div>
 
-                <div className="space-y-6">
-                  <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                    <Send size={16} /> {editingEvo ? 'Editar Evolução' : 'Nova Evolução'}
-                  </h3>
-                  <form id="evolution-form" onSubmit={handleSaveEvolution} className="bg-indigo-900 p-8 rounded-[40px] text-white space-y-6 shadow-2xl shadow-indigo-200 ring-4 ring-indigo-50 relative">
-                    {editingEvo && (
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setEditingEvo(null);
-                          setFormData({ recordingSectorId: sectors[0].id, notes: '', recommendations: '', referralSectors: [], encaminhamento: '' });
-                        }}
-                        className="absolute right-8 top-8 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-all"
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase text-indigo-300 ml-1">Registrar para o Setor:</label>
-                       <select 
-                         value={formData.recordingSectorId}
-                         onChange={(e) => setFormData({...formData, recordingSectorId: e.target.value})}
-                         disabled={currentUser?.role === 'COORDENADOR'}
-                         className="w-full bg-white/10 border border-indigo-700/50 text-white rounded-2xl p-4 font-bold outline-none focus:bg-white/20 transition-all pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                       >
-                         {sectors.map(s => (
-                           <option key={s.id} value={s.id} className="bg-indigo-900 text-white">
-                             {s.name}
-                           </option>
-                         ))}
-                       </select>
-                       {currentUser?.role === 'COORDENADOR' && (
-                         <p className="text-[9px] text-indigo-300/60 mt-1 italic">* Restrito ao seu setor de coordenação.</p>
-                       )}
-                    </div>
+                {/* Recording / Form Column */}
+                <div className="xl:col-span-5 space-y-6">
+                  <div className="sticky top-8">
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4 px-2">
+                      <Send size={18} className="text-indigo-400" /> Registro de Atendimento
+                    </h3>
 
-                    <div className="space-y-2 relative group-textarea">
-                      <label className="text-[10px] font-black uppercase text-indigo-300 ml-1">Observações Íntimas (Sigilosas)</label>
-                      <div className="relative">
-                        <textarea 
-                          value={formData.notes || ''}
-                          onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                          placeholder="Notas do atendimento fraterno..."
-                          className="w-full min-h-[120px] bg-white rounded-2xl p-4 text-gray-900 border border-indigo-700/30 font-medium outline-none focus:ring-2 focus:ring-white transition-all pr-12"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => improveText('notes')}
-                          disabled={isImprovingNotes || !formData.notes}
-                          className={cn(
-                            "absolute right-3 bottom-3 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95",
-                            isImprovingNotes ? "bg-gray-200 animate-pulse cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600 text-white"
-                          )}
-                          title="Melhorar texto com IA"
-                        >
-                          <ArrowUp size={16} className={cn(isImprovingNotes && "animate-bounce")} />
-                        </button>
-                      </div>
-                    </div>
+                    <form id="evolution-form" onSubmit={handleSaveEvolution} className="bg-white p-8 sm:p-10 rounded-[48px] border-2 border-indigo-50 text-indigo-900 space-y-6 shadow-2xl shadow-indigo-100 relative group overflow-hidden">
+                       {/* Form Background Accent */}
+                       <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full translate-x-16 -translate-y-16 blur-2xl opacity-50 group-hover:opacity-100 transition-opacity" />
 
-                    <div className="space-y-2 relative group-textarea">
-                      <label className="text-[10px] font-black uppercase text-indigo-300 ml-1">Recomendações e Terapias</label>
-                      <div className="relative">
-                        <textarea 
-                          value={formData.recommendations || ''}
-                          onChange={(e) => setFormData({...formData, recommendations: e.target.value})}
-                          placeholder="Passe, Evangelho no Lar, etc..."
-                          className="w-full min-h-[100px] bg-white rounded-2xl p-4 text-gray-900 border border-indigo-700/30 font-medium outline-none focus:ring-2 focus:ring-white transition-all pr-12"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => improveText('recommendations')}
-                          disabled={isImprovingRecs || !formData.recommendations}
-                          className={cn(
-                            "absolute right-3 bottom-3 w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95",
-                            isImprovingRecs ? "bg-gray-200 animate-pulse cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600 text-white"
-                          )}
-                          title="Melhorar texto com IA"
-                        >
-                          <ArrowUp size={16} className={cn(isImprovingRecs && "animate-bounce")} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-indigo-300 ml-1">Encaminhamento Geral (Sessão Doutrinária)</label>
-                      <select 
-                        value={formData.encaminhamento}
-                        onChange={(e) => setFormData({...formData, encaminhamento: e.target.value})}
-                        className="w-full bg-white/10 border border-indigo-700/50 text-white rounded-2xl p-4 font-bold outline-none focus:bg-white/20 transition-all cursor-pointer"
-                      >
-                        <option value="" className="bg-indigo-900 text-white">Nenhum</option>
-                        <option value="Doutrinária" className="bg-indigo-900 text-white">Doutrinária</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 block">Encaminhamentos Específicos (Próximos Setores)</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {sectors.map(s => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => toggleSector(s.id)}
-                            className={cn(
-                              "flex items-center gap-3 p-4 rounded-2xl border transition-all text-left",
-                              formData.referralSectors.includes(s.id)
-                                ? "bg-white text-indigo-900 border-white shadow-lg"
-                                : "bg-white/10 text-indigo-100 border-indigo-700/50 hover:bg-white/20"
-                            )}
-                          >
-                            <div className={cn(
-                              "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
-                              formData.referralSectors.includes(s.id) ? "bg-indigo-600 border-indigo-600 text-white" : "border-indigo-400/50"
-                            )}>
-                              {formData.referralSectors.includes(s.id) && <CheckCircle2 size={12} />}
-                            </div>
-                            <span className="text-xs font-bold">{s.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      className={cn(
-                        "w-full font-black py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 active:scale-95",
-                        editingEvo ? "bg-orange-500 text-white hover:bg-orange-600" : "bg-white text-indigo-900 hover:bg-indigo-50"
+                      {editingEvo && (
+                        <div className="flex items-center justify-between mb-2">
+                           <span className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase italic border border-amber-200">
+                             Modo Edição Ativo
+                           </span>
+                           <button 
+                             type="button"
+                             onClick={() => {
+                               setEditingEvo(null);
+                               setFormData({ recordingSectorId: sectors[0].id, notes: '', recommendations: '', referralSectors: [], encaminhamento: '' });
+                             }}
+                             className="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white p-2 rounded-xl transition-all active:scale-90"
+                           >
+                             <X size={16} />
+                           </button>
+                        </div>
                       )}
-                    >
-                      {editingEvo ? <ClipboardCheck size={18} /> : <Send size={18} fill="currentColor" />}
-                      <span>{editingEvo ? 'Salvar Alterações' : 'Confirmar & Enviar'}</span>
-                    </button>
-                  </form>
+                      
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest">Setor Responsável</label>
+                         <select 
+                           value={formData.recordingSectorId}
+                           onChange={(e) => setFormData({...formData, recordingSectorId: e.target.value})}
+                           disabled={currentUser?.role === 'COORDENADOR'}
+                           className="w-full bg-gray-50/50 border border-indigo-50 text-indigo-900 rounded-2xl p-4 font-bold outline-none focus:bg-white focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600 transition-all pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                         >
+                           {sectors.map(s => (
+                             <option key={s.id} value={s.id} className="bg-white text-indigo-900">
+                               {s.name}
+                             </option>
+                           ))}
+                         </select>
+                      </div>
+
+                      <div className="space-y-2 relative">
+                        <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest flex items-center justify-between">
+                           Observações (Sigilosas)
+                           <Lock size={10} className="opacity-40" />
+                        </label>
+                        <div className="relative group/textarea">
+                          <textarea 
+                            value={formData.notes || ''}
+                            onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                            placeholder="Notas detalhadas do atendimento..."
+                            className="w-full min-h-[160px] bg-gray-50/50 rounded-3xl p-5 text-gray-800 border-2 border-transparent focus:border-indigo-600 focus:bg-white outline-none font-medium transition-all pr-12 shadow-inner leading-relaxed"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => improveText('notes')}
+                            disabled={isImprovingNotes || !formData.notes}
+                            className={cn(
+                              "absolute right-4 bottom-4 w-9 h-9 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-95 group/btn",
+                              isImprovingNotes ? "bg-amber-100 text-amber-600 animate-pulse" : "bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-100"
+                            )}
+                            title="Refinar com IA"
+                          >
+                            <Sparkles size={18} className="group-hover/btn:scale-110 transition-transform" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest flex items-center justify-between">
+                           Orientações para o Atendido
+                           <Heart size={10} className="opacity-40" />
+                        </label>
+                        <div className="relative">
+                          <textarea 
+                            value={formData.recommendations || ''}
+                            onChange={(e) => setFormData({...formData, recommendations: e.target.value})}
+                            placeholder="Prescrições fluídicas, orações, leituras..."
+                            className="w-full min-h-[120px] bg-indigo-50/20 rounded-3xl p-5 text-indigo-900 border-2 border-transparent focus:border-indigo-600 focus:bg-white outline-none font-bold italic transition-all pr-12 shadow-sm leading-relaxed"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => improveText('recommendations')}
+                            disabled={isImprovingRecs || !formData.recommendations}
+                            className={cn(
+                              "absolute right-4 bottom-4 w-9 h-9 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-95",
+                              isImprovingRecs ? "bg-amber-100 text-amber-600 animate-pulse" : "bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-100"
+                            )}
+                            title="Refinar com IA"
+                          >
+                            <Sparkles size={18} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 pt-4 border-t border-indigo-50">
+                        <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest">Encaminhamentos</label>
+                        
+                        <div className="grid grid-cols-1 gap-3">
+                           <div className="relative">
+                              <select 
+                                value={formData.encaminhamento}
+                                onChange={(e) => setFormData({...formData, encaminhamento: e.target.value})}
+                                className="w-full bg-gray-50 border-2 border-transparent focus:border-indigo-600 focus:bg-white rounded-2xl px-5 py-3 outline-none text-xs font-bold transition-all appearance-none cursor-pointer"
+                              >
+                                <option value="">Sem conclusão específica</option>
+                                <option value="Doutrinária">Assistência Espiritual / Doutrinária</option>
+                                <option value="Tratamento">Tratamento de Desobsessão</option>
+                                <option value="Cursos">Cursos / Escola de Aprendizes</option>
+                                <option value="Evangelização">Evangelização Infantil/Juvenil</option>
+                              </select>
+                           </div>
+                        </div>
+
+                        <div className="space-y-3">
+                           <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest ml-1">Encaminhar para novos Setores:</p>
+                           <div className="grid grid-cols-2 gap-2">
+                             {sectors.map(sector => (
+                               <button
+                                 key={sector.id}
+                                 type="button"
+                                 onClick={() => toggleSector(sector.id)}
+                                 className={cn(
+                                   "p-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2 border-2",
+                                   formData.referralSectors.includes(sector.id)
+                                     ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
+                                     : "bg-gray-50 border-gray-50 text-gray-400 hover:bg-white hover:border-indigo-200"
+                                 )}
+                               >
+                                 <div className={cn(
+                                   "w-3 h-3 rounded-sm border flex items-center justify-center",
+                                   formData.referralSectors.includes(sector.id) ? "bg-white border-white text-indigo-600" : "border-gray-300"
+                                 )}>
+                                   {formData.referralSectors.includes(sector.id) && <CheckCircle2 size={8} />}
+                                 </div>
+                                 <span className="truncate">{sector.name}</span>
+                               </button>
+                             ))}
+                           </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className={cn(
+                          "w-full py-5 rounded-[28px] font-black text-sm uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95",
+                          editingEvo ? "bg-amber-500 text-white hover:bg-amber-600 shadow-amber-100" : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100"
+                        )}
+                      >
+                        {editingEvo ? <ClipboardCheck size={20} /> : <Send size={20} />}
+                        <span>{editingEvo ? 'Salvar Edição' : 'Confirmar Registro'}</span>
+                      </button>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>

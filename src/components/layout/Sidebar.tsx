@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, Heart, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { Worker } from '../../types';
 
@@ -11,21 +11,40 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(window.innerWidth >= 1024);
+  const location = useLocation();
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsOpen(true);
+      } else {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  React.useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setIsOpen(false);
+    }
+  }, [location.pathname]);
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'ADM' || user?.email === 'carlostecal35@gmail.com';
 
   const navItems = [
-    { to: '/', icon: Layout, label: 'Painel', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
-    { to: '/atendidos', icon: Users, label: 'Atendidos', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA'] },
+    { to: '/', icon: Layout, label: 'Painel', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
+    { to: '/atendidos', icon: Users, label: 'Atendidos', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/fila', icon: Clock, label: 'Fila de Atendimento', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/atendimentos', icon: ClipboardList, label: 'Atendimentos', roles: ['ADMIN', 'ADM', 'COORDENADOR'] },
-    { to: '/agenda', icon: CalendarIcon, label: 'Agenda', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
-    { to: '/escalas', icon: CalendarCheck, label: 'Escalas', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'ATENDENTE', 'VOLUNTARIO'] },
-    { to: '/palestrantes', icon: Mic2, label: 'Palestrantes', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
-    { to: '/relatorios', icon: BarChart3, label: 'Relatórios', roles: ['ADMIN', 'ADM', 'COORDENADOR'] },
-    { to: '/setores', icon: Building2, label: 'Setores', roles: ['ADMIN', 'ADM'] },
-    { to: '/trabalhadores', icon: Settings, label: 'Trabalhadores/RH', roles: ['ADMIN', 'ADM'] },
+    { to: '/agenda', icon: CalendarIcon, label: 'Agenda', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'PALESTRANTE'] },
+    { to: '/escalas', icon: CalendarCheck, label: 'Escalas', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
+    { to: '/palestrantes', icon: Mic2, label: 'Palestrantes', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'PALESTRANTE'] },
+    { to: '/relatorios', icon: BarChart3, label: 'Relatórios', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
+    { to: '/setores', icon: Building2, label: 'Setores', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
+    { to: '/trabalhadores', icon: Settings, label: 'Trabalhadores/RH', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
     { to: '/logs', icon: ShieldCheck, label: 'Logs de Auditoria', roles: ['ADMIN', 'ADM'] },
   ];
 
@@ -86,11 +105,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
 
             <div className="p-4 border-t border-indigo-800/50 bg-indigo-950/30">
               <div className="flex items-center gap-3 mb-4 px-2">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-md border-2 border-white/10">
-                  {(user.name || '?').charAt(0)}
-                </div>
+                <NavLink 
+                  to="/perfil"
+                  className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-md border-2 border-white/10 overflow-hidden hover:scale-110 transition-transform"
+                >
+                  {user.photoUrl ? (
+                    <img src={user.photoUrl} alt="Me" className="w-full h-full object-cover" />
+                  ) : (
+                    (user.name || '?').charAt(0)
+                  )}
+                </NavLink>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{user.name}</p>
+                  <NavLink to="/perfil" className="text-sm font-semibold truncate hover:text-indigo-300 transition-colors block">
+                    {user.name}
+                  </NavLink>
                   <p className="text-[10px] text-indigo-400 font-bold uppercase">{user.role}</p>
                 </div>
               </div>

@@ -34,35 +34,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFbUser(user);
       if (user) {
+        const normalizedEmail = user.email?.toLowerCase().trim();
+        console.log("Auth State Changed for:", normalizedEmail, "UID:", user.uid);
+        
         try {
           // 1. Email lookup
-          if (user.email) {
-            const q = query(collection(db, 'trabalhadores'), where('email', '==', user.email));
-            const querySnap = await getDocs(q);
+          if (normalizedEmail) {
+            const q = query(collection(db, 'trabalhadores'), where('email', '==', normalizedEmail));
+            const querySnap = await getDocs(q).catch(err => {
+              console.error("Firestore getDocs error:", err);
+              throw err;
+            });
             
             if (!querySnap.empty) {
               const workerData = { id: querySnap.docs[0].id, ...querySnap.docs[0].data() } as Worker;
+              console.log("Found worker profile by email:", workerData.id);
               
               // Ensure role matches for super admin
-              if (user.email === 'carlostecal35@gmail.com') {
+              if (normalizedEmail === 'carlostecal35@gmail.com') {
                 workerData.role = 'ADMIN';
                 workerData.active = true;
-                // Aggressive check for sectors even if profile exists
                 dataService.populateDefaults().catch(err => console.error("Auto-population failed:", err));
               }
 
               if (workerData.id !== user.uid) {
                 console.log("Syncing worker profile to UID path:", user.uid);
                 try {
-                  await setDoc(doc(db, 'trabalhadores', user.uid), { 
+                  const syncedProfile = { 
                     ...workerData, 
                     id: user.uid, 
-                    syncedFrom: workerData.id
-                  });
-                  setCurrentUser({ ...workerData, id: user.uid });
+                    syncedFrom: workerData.id,
+                    email: normalizedEmail // Ensure normalized email is saved
+                  };
+                  await setDoc(doc(db, 'trabalhadores', user.uid), syncedProfile);
+                  setCurrentUser(syncedProfile);
                 } catch (syncErr) {
-                  console.error("Sync failed, using existing profile:", syncErr);
-                  setCurrentUser({ ...workerData, id: user.uid });
+                  console.error("Sync failed, using existing profile memory:", syncErr);
+                  setCurrentUser({ ...workerData, id: user.uid, email: normalizedEmail });
                 }
               } else {
                 setCurrentUser(workerData);
@@ -72,12 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Fallback for special admin bootstrap
-            if (user.email === 'carlostecal35@gmail.com') {
+            if (normalizedEmail === 'carlostecal35@gmail.com') {
               console.log("Bootstrapping super admin profile...");
               const adminUser: Worker = {
                 id: user.uid,
                 name: user.displayName || 'Administrador Principal',
-                email: user.email,
+                email: normalizedEmail,
                 role: 'ADMIN',
                 active: true,
                 createdAt: Date.now(),
@@ -87,7 +95,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await setDoc(doc(db, 'trabalhadores', user.uid), adminUser);
               console.log("Super admin bootstrapped successfully.");
               
-              // Ensure default sectors are present
               try {
                 await dataService.populateDefaults();
               } catch (popErr) {
@@ -101,12 +108,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           // 2. Fallback to UID lookup
+          console.log("Profile not found by email, trying UID fallback...");
           const docRef = doc(db, 'trabalhadores', user.uid);
-          const docSnap = await getDoc(docRef);
+          const docSnap = await getDoc(docRef).catch(err => {
+            console.error("Firestore getDoc error:", err);
+            throw err;
+          });
           
           if (docSnap.exists()) {
-            setCurrentUser({ id: docSnap.id, ...docSnap.data() } as Worker);
+            const data = docSnap.data() as Worker;
+            console.log("Found worker profile by UID:", docSnap.id);
+            setCurrentUser({ ...data, id: docSnap.id });
           } else {
+            console.warn("No worker profile found for user:", user.uid);
             setCurrentUser(null);
           }
         } catch (error) {

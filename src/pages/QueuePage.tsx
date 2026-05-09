@@ -50,10 +50,11 @@ export const QueuePage: React.FC = () => {
   const getSector = (id: string) => sectors.find(s => s.id === id);
 
   const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+  const canManageQueue = isAdmin || ['COORDENADOR', 'ATENDENTE', 'SECRETARIO', 'RECEPCIONISTA'].includes(currentUser?.role || '');
 
   const handleStartService = async (id: string) => {
-    if (!isAdmin) {
-      alert('Acesso Negado: Apenas administradores podem alterar o status da fila.');
+    if (!canManageQueue) {
+      alert('Acesso Negado: Você não tem permissão para gerenciar a fila.');
       return;
     }
     try {
@@ -70,21 +71,21 @@ export const QueuePage: React.FC = () => {
     : queue.filter(item => item.sectorId === activeTab);
 
   return (
-    <div className="p-8 space-y-8 h-full flex flex-col">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="p-4 sm:p-8 space-y-4 sm:space-y-8 h-full flex flex-col">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-bold text-gray-900">Fila Digital</h1>
-            <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">AO VIVO</span>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Fila Digital</h1>
+            <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shrink-0">AO VIVO</span>
           </div>
-          <p className="text-gray-500 font-medium italic">Gerencie o fluxo de irmãos em tempo real.</p>
+          <p className="text-sm sm:text-base text-gray-500 font-medium italic">Gerencie o fluxo em tempo real.</p>
         </div>
 
-        <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex overflow-x-auto no-scrollbar max-w-full">
+        <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex overflow-x-auto no-scrollbar max-w-full touch-pan-x">
           <button
             onClick={() => setActiveSectorId('all')}
             className={cn(
-              "px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+              "px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
               activeTab === 'all' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400 hover:bg-gray-50"
             )}
           >
@@ -95,7 +96,7 @@ export const QueuePage: React.FC = () => {
               key={s.id}
               onClick={() => setActiveSectorId(s.id)}
               className={cn(
-                "px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+                "px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
                 activeTab === s.id ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400 hover:bg-gray-50"
               )}
             >
@@ -105,9 +106,9 @@ export const QueuePage: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pr-4">
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pr-1 sm:pr-4">
         {filteredQueue.length > 0 ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pb-20">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 pb-20">
             <AnimatePresence mode="popLayout">
               {filteredQueue.map((item) => {
                 const p = getParticipant(item.participantId);
@@ -122,7 +123,7 @@ export const QueuePage: React.FC = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     className={cn(
-                      "bg-white p-6 rounded-[32px] border-2 transition-all flex flex-col gap-6",
+                      "bg-white p-4 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all flex flex-col gap-4 sm:gap-6",
                       item.status === 'IN_PROGRESS' 
                         ? "border-indigo-500 shadow-xl shadow-indigo-50" 
                         : "border-gray-50 shadow-sm hover:border-indigo-100"
@@ -131,66 +132,68 @@ export const QueuePage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className={cn(
-                          "w-10 h-10 rounded-2xl flex items-center justify-center border-2 shadow-sm",
+                          "w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center border-2 shadow-sm",
                           item.status === 'IN_PROGRESS' ? "bg-indigo-600 border-indigo-400 text-white rotate-6" : "bg-gray-50 border-gray-100 text-gray-400"
                         )}>
-                          {item.status === 'IN_PROGRESS' ? <Activity size={20} /> : <Clock size={20} />}
+                          {item.status === 'IN_PROGRESS' ? <Activity size={16} className="sm:size-5" /> : <Clock size={16} className="sm:size-5" />}
                         </div>
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Destino</p>
-                          <h4 className="font-bold text-gray-900 leading-none">{s?.name}</h4>
+                          <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Destino</p>
+                          <h4 className="font-bold text-gray-900 leading-none text-sm sm:text-base">{s?.name}</h4>
                         </div>
                       </div>
                       
                       <div className="flex items-center gap-2">
                         {item.priority && (
-                          <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-[10px] font-black uppercase border border-amber-100">
-                            <Zap size={10} fill="currentColor" />
-                            <span>Prioridade</span>
+                          <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase border border-amber-100 italic">
+                            <Zap size={9} fill="currentColor" strokeWidth={3} />
+                            <span>PRIO</span>
                           </div>
                         )}
-                        <button 
-                          onClick={() => navigate(`/atendimentos?participantId=${item.participantId}`)}
-                          title="Ver Prontuário"
-                          className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                        >
-                          <ClipboardList size={20} />
-                        </button>
+                        {currentUser?.role !== 'RECEPCIONISTA' && (
+                          <button 
+                            onClick={() => navigate(`/atendimentos?participantId=${item.participantId}`)}
+                            title="Ver Prontuário"
+                            className="p-1.5 sm:p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          >
+                            <ClipboardList size={18} className="sm:size-5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-5">
-                      <div className="w-16 h-16 rounded-[24px] bg-gradient-to-tr from-gray-100 to-indigo-50 flex items-center justify-center text-indigo-300 font-black text-2xl border-2 border-white shadow-inner">
+                    <div className="flex items-center gap-4 sm:gap-5">
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-[24px] bg-gradient-to-tr from-gray-100 to-indigo-50 flex items-center justify-center text-indigo-300 font-black text-xl sm:text-2xl border-2 border-white shadow-inner shrink-0">
                         {(p.name || '?').charAt(0)}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-xl font-black text-gray-900 leading-tight">{p.name}</h3>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <h3 className="text-base sm:text-xl font-black text-gray-900 leading-tight truncate">{p.name}</h3>
                           <span className={cn(
-                            "text-[10px] font-black uppercase px-2 py-0.5 rounded-full border",
+                            "text-[8px] sm:text-[10px] font-black uppercase px-1.5 sm:px-2 py-0.5 rounded-full border shrink-0",
                             (p.gender === 'Masculino' || p.gender === 'M') ? "bg-blue-50 text-blue-600 border-blue-100" : (p.gender === 'Feminino' || p.gender === 'F') ? "bg-pink-50 text-pink-600 border-pink-100" : "bg-gray-50 text-gray-400 border-gray-100"
                           )}>
                             {(p.gender === 'Masculino' || p.gender === 'M') ? 'Masc' : (p.gender === 'Feminino' || p.gender === 'F') ? 'Fem' : p.gender || 'N/I'}
                           </span>
                         </div>
-                        <p className="text-sm font-medium text-gray-400 mt-1 flex items-center gap-1.5">
-                          <User size={14} className="opacity-50" />
-                          <span>Em espera há {formatDistanceToNow(item.arrivalDate, { locale: ptBR })}</span>
+                        <p className="text-xs font-medium text-gray-400 mt-0.5 sm:mt-1 flex items-center gap-1.5">
+                          <User size={12} className="opacity-50" />
+                          <span className="truncate">Espera: {formatDistanceToNow(item.arrivalDate, { locale: ptBR })}</span>
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 mt-2">
+                    <div className="flex items-center gap-3 mt-1 sm:mt-2">
                        {item.status === 'WAITING' ? (
                          <>
-                          {isAdmin ? (
+                          {canManageQueue ? (
                             <>
                               <button
                                 onClick={() => handleStartService(item.id)}
-                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-[20px] font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 sm:py-4 rounded-[16px] sm:rounded-[20px] font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
                               >
-                                <Play size={18} fill="currentColor" />
-                                <span>Iniciar Atendimento</span>
+                                <Play size={16} fill="currentColor" />
+                                <span>Chamar Irmão</span>
                               </button>
                               <button 
                                 onClick={async () => {
@@ -204,26 +207,26 @@ export const QueuePage: React.FC = () => {
                                     }
                                   }
                                 }}
-                                className="p-4 bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500 rounded-[20px] transition-colors"
+                                className="p-3 sm:p-4 bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500 rounded-[16px] sm:rounded-[20px] transition-colors"
                               >
-                                <XCircle size={20} />
+                                <XCircle size={18} className="sm:size-5" />
                               </button>
                             </>
                           ) : (
-                            <div className="flex-1 py-4 text-center bg-gray-50 text-gray-400 rounded-[20px] font-bold text-xs uppercase tracking-widest italic border border-gray-100">
-                              Aguardando Chamar
+                            <div className="flex-1 py-3 sm:py-4 text-center bg-gray-50 text-gray-400 rounded-[16px] sm:rounded-[20px] font-bold text-[10px] sm:text-xs uppercase tracking-widest italic border border-gray-100">
+                              Aguardando Chamada
                             </div>
                           )}
                          </>
                        ) : (
-                         <div className="w-full flex items-center justify-between p-4 bg-indigo-50 rounded-[20px]">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                                <Activity size={14} className="text-indigo-600" />
+                         <div className="w-full flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-[16px] sm:rounded-[20px]">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
+                                <Activity size={12} className="text-indigo-600" />
                               </div>
-                              <span className="text-sm font-bold text-indigo-800 animate-pulse">Atendimento em Curso...</span>
+                              <span className="text-xs font-bold text-indigo-800 animate-pulse tracking-tight truncate">Em Atendimento...</span>
                             </div>
-                            {isAdmin && (
+                            {canManageQueue && (
                               <button
                                 onClick={async () => {
                                   try {
@@ -234,7 +237,7 @@ export const QueuePage: React.FC = () => {
                                     alert('Erro ao finalizar atendimento.');
                                   }
                                 }}
-                                className="bg-white text-indigo-600 px-5 py-2.5 rounded-xl font-black text-xs shadow-sm hover:shadow-md transition-all active:scale-95 uppercase tracking-tighter"
+                                className="bg-white text-indigo-600 px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs shadow-sm hover:shadow-md transition-all active:scale-95 uppercase tracking-tighter"
                               >
                                 Finalizar
                               </button>

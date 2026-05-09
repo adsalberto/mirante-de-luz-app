@@ -27,6 +27,7 @@ export function SectorsPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [sectors, setSectors] = useState<Sector[]>([]);
+  const [queueCounts, setQueueCounts] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [newSector, setNewSector] = useState<Partial<Sector>>({
@@ -80,6 +81,27 @@ export function SectorsPage() {
     }
   };
 
+  const loadQueueCounts = async () => {
+    try {
+      const queue = await dataService.getQueue();
+      const counts: Record<string, number> = {};
+      queue.forEach(item => {
+        if (item.status === 'WAITING') {
+          counts[item.sectorId] = (counts[item.sectorId] || 0) + 1;
+        }
+      });
+      setQueueCounts(counts);
+    } catch (err) {
+      console.error("Failed to load queue counts:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadQueueCounts();
+    const interval = setInterval(loadQueueCounts, 30000); // Update every 30s
+    return () => clearInterval(interval);
+  }, []);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -130,11 +152,11 @@ export function SectorsPage() {
   );
 
   return (
-    <div className="p-6 lg:p-10 space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight italic">Setores de Trabalho</h1>
-          <p className="text-gray-500 font-medium">Estrutura organizacional e regimentos do Mirante de Luz</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight italic">Setores de Trabalho</h1>
+          <p className="text-sm sm:text-base text-gray-500 font-medium">Estrutura organizacional e regimentos do Mirante de Luz</p>
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -159,52 +181,64 @@ export function SectorsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredSectors.map((sector, index) => (
-          <motion.button
-            key={sector.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            onClick={() => navigate(`/setores/${sector.id}`)}
-            className="bg-white p-6 rounded-[32px] border border-gray-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50 transition-all group text-left relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-50/50 to-transparent rounded-bl-full translate-x-12 -translate-y-12 group-hover:translate-x-8 group-hover:-translate-y-8 transition-transform" />
-            
-            <div className="flex flex-col h-full space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="bg-indigo-50 p-4 rounded-2xl text-indigo-600 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <Building2 size={24} />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        {filteredSectors.map((sector, index) => {
+          const waitingCount = queueCounts[sector.id] || 0;
+          
+          return (
+            <motion.button
+              key={sector.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              onClick={() => navigate(`/setores/${sector.id}`)}
+              className="bg-white p-5 sm:p-6 rounded-[24px] sm:rounded-[32px] border border-gray-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50 transition-all group text-left relative overflow-hidden active:scale-95"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-50/50 to-transparent rounded-bl-full translate-x-12 -translate-y-12 group-hover:translate-x-8 group-hover:-translate-y-8 transition-transform" />
+              
+              <div className="flex flex-col h-full space-y-3 sm:space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="bg-indigo-50 p-3 sm:p-4 rounded-xl sm:rounded-2xl text-indigo-600 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all shrink-0">
+                    <Building2 size={20} className="sm:size-6" />
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="px-2 py-0.5 bg-gray-50 text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 rounded-full border border-gray-100 italic">
+                      {sector.type}
+                    </div>
+                    {waitingCount > 0 && (
+                      <div className="px-2 py-0.5 bg-amber-50 text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-amber-600 rounded-full border border-amber-100 flex items-center gap-1 animate-pulse">
+                        <Users size={10} />
+                        <span>Fila: {waitingCount}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="px-3 py-1 bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 rounded-full">
-                  {sector.type}
+  
+                <div className="space-y-0.5 sm:space-y-1">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors leading-tight">{sector.name}</h3>
+                  <p className="text-xs sm:text-sm text-gray-400 font-medium line-clamp-2 leading-relaxed">
+                    {sector.description}
+                  </p>
+                </div>
+  
+                <div className="pt-3 sm:pt-4 mt-auto flex items-center justify-between border-t border-gray-50 group-hover:border-indigo-50 transition-colors">
+                  <div className="flex items-center gap-2 sm:gap-3 text-gray-300">
+                     <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold">
+                       <Users size={12} className="sm:size-14" /> <span className="hidden sm:inline">Equipe</span>
+                     </div>
+                     <div className="w-1 h-1 rounded-full bg-gray-200" />
+                     <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold">
+                       <ScrollText size={12} className="sm:size-14" /> <span className="hidden sm:inline">Regimento</span>
+                     </div>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all translate-x-2 group-hover:translate-x-0">
+                    <ChevronRight size={16} className="sm:size-5" />
+                  </div>
                 </div>
               </div>
-
-              <div className="space-y-1">
-                <h3 className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">{sector.name}</h3>
-                <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
-                  {sector.description}
-                </p>
-              </div>
-
-              <div className="pt-4 mt-auto flex items-center justify-between">
-                <div className="flex items-center gap-3 text-gray-400">
-                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                     <Users size={14} /> Equipe
-                   </div>
-                   <div className="w-1 h-1 rounded-full bg-gray-200" />
-                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                     <ScrollText size={14} /> Regimento
-                   </div>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all translate-x-4 group-hover:translate-x-0">
-                  <ChevronRight size={20} />
-                </div>
-              </div>
-            </div>
-          </motion.button>
-        ))}
+            </motion.button>
+          );
+        })}
 
         {filteredSectors.length === 0 && (
           <div className="col-span-full py-20 text-center space-y-4">

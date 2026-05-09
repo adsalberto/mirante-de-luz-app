@@ -12,12 +12,14 @@ import {
   UserCircle,
   X,
   Pencil,
-  Lock
+  Lock,
+  Search
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { Worker, Sector, UserRole, SectorType } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
+import { ImageUpload } from '../components/ImageUpload';
 
 export const SettingsPage: React.FC = () => {
   const { currentUser, registerWorker } = useAuth();
@@ -30,6 +32,8 @@ export const SettingsPage: React.FC = () => {
   const [deletingWorkerId, setDeletingWorkerId] = useState<string | null>(null);
   const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
   const [workerPassword, setWorkerPassword] = useState('');
+  
+  const [searchTerm, setSearchTerm] = useState('');
   
   const [newWorker, setNewWorker] = useState({ 
     name: '', 
@@ -218,138 +222,146 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-10">
-      <header>
-        <h1 className="text-3xl font-bold text-gray-900">Trabalhadores & Setores</h1>
-        <p className="text-gray-500 font-medium font-serif">Gerenciamento de equipe e frentes de trabalho do Mirante de Luz.</p>
+    <div className="p-4 sm:p-8 space-y-8 sm:space-y-10 animate-in fade-in duration-500 max-w-7xl mx-auto">
+      <header className="space-y-2">
+        <h1 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tight italic">Configurações & Gestão</h1>
+        <p className="text-sm sm:text-base text-gray-500 font-medium italic">Gerenciamento de equipe e frentes de trabalho do Mirante de Luz.</p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
         {/* Gestão de Voluntários */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
+        <div className="xl:col-span-2 space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Users className="text-indigo-600" size={24} /> Trabalhadores da Casa
+              <Users className="text-indigo-600" size={24} /> Equipe da Casa
             </h2>
-            {isAdmin && (
-              <button 
-                onClick={() => setIsAddingWorker(true)}
-                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                <Plus size={16} /> Novo Trabalhador
-              </button>
-            )}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative w-full sm:w-64">
+                <Search size={14} className="absolute inset-y-0 left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Localizar trabalhador..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-50 transition-all shadow-sm"
+                />
+              </div>
+              {isAdmin && (
+                <button 
+                  onClick={() => setIsAddingWorker(true)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 shrink-0"
+                >
+                  <Plus size={16} /> <span className="uppercase tracking-widest px-1">Novo</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/50">
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100">Colaborador</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100">Acesso</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100">Setor</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-gray-100 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 text-sm">
-                  {workers
-                    .filter(w => {
-                      const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
-                      if (isAdmin) return true;
-                      if (currentUser?.role === 'COORDENADOR') return w.sectorId === currentUser.sectorId;
-                      return false;
-                    })
-                    .map(w => (
-                    <tr key={w.id} className="group hover:bg-indigo-50/30 transition-colors font-medium">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          {w.photoUrl ? (
-                            <img src={w.photoUrl} alt={w.name} className="w-10 h-10 rounded-full border border-indigo-100 shadow-sm object-cover" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold shadow-sm">
-                              {(w.name || '?').charAt(0)}
-                            </div>
-                          )}
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-bold text-gray-900 leading-none">{w.name}</p>
-                              {!w.active && (
-                                <span className="text-[8px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-tighter">Pendente</span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-400 mt-1">{w.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={cn(
-                          "text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-tight border",
-                          (w.role === 'ADMIN' || w.role === 'ADM') ? "bg-purple-50 text-purple-700 border-purple-100" :
-                          w.role === 'COORDENADOR' ? "bg-blue-50 text-blue-700 border-blue-100" :
-                          w.role === 'ATENDENTE' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                          "bg-amber-50 text-amber-700 border-amber-100"
-                        )}>
-                          {(w.role === 'ADMIN' || w.role === 'ADM') ? 'Administrador' :
-                           w.role === 'COORDENADOR' ? 'Coordenador' :
-                           w.role === 'SECRETARIO' ? 'Secretário' :
-                           w.role === 'ATENDENTE' ? 'Atendente' : 'Voluntário'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-bold text-gray-500">
-                        {sectors.find(s => s.id === w.sectorId)?.name || 'Acesso Geral'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.role === 'COORDENADOR' && w.sectorId === currentUser.sectorId)) && (
-                            <>
-                              {!w.active && (
-                                <button 
-                                  onClick={async () => {
-                                    if (confirm(`Deseja ativar o acesso de ${w.name}?`)) {
-                                      await dataService.updateWorker({ ...w, active: true });
-                                      loadData();
-                                    }
-                                  }}
-                                  className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
-                                  title="Ativar Trabalhador"
-                                >
-                                  <CheckCircle2 size={16} />
-                                </button>
-                              )}
-                              <button 
-                                onClick={() => handleEditWorker(w)}
-                                className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteWorker(w.id)}
-                                className={cn(
-                                  "p-2 transition-all rounded-lg flex items-center gap-1",
-                                  deletingWorkerId === w.id ? "bg-red-500 text-white text-[10px] font-bold px-2 py-1" : "text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100"
-                                )}
-                              >
-                                {deletingWorkerId === w.id ? "Confirma?" : <Trash2 size={16} />}
-                              </button>
-                            </>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {workers
+              .filter(w => {
+                const matchesSearch = w.name.toLowerCase().includes(searchTerm.toLowerCase()) || w.email.toLowerCase().includes(searchTerm.toLowerCase());
+                const isUserAllowed = isAdmin || (currentUser?.role === 'COORDENADOR' && w.sectorId === currentUser.sectorId);
+                return matchesSearch && isUserAllowed;
+              })
+              .map(w => {
+                const canEdit = isAdmin || (currentUser?.role === 'COORDENADOR' && w.sectorId === currentUser.sectorId);
+                
+                return (
+                  <motion.div 
+                    layout
+                    key={w.id} 
+                    className="bg-white p-4 sm:p-5 rounded-[28px] border border-gray-50 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all group relative overflow-hidden"
+                  >
+                    <div className="flex items-start gap-4">
+                      {w.photoUrl ? (
+                        <div className="relative group/photo shrink-0">
+                          <img src={w.photoUrl} alt={w.name} className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 border-white shadow-md object-cover ring-4 ring-gray-50" referrerPolicy="no-referrer" />
+                          {canEdit && (
+                            <button 
+                               onClick={() => handleEditWorker(w)}
+                               className="absolute inset-0 bg-indigo-600/60 rounded-2xl flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-all text-white backdrop-blur-[2px]"
+                            >
+                               <Pencil size={18} />
+                            </button>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {workers.filter(w => {
-                    if (isAdmin) return true;
-                    if (currentUser?.role === 'COORDENADOR') return w.sectorId === currentUser.sectorId;
-                    return false;
-                  }).length === 0 && (
-                    <tr>
-                       <td colSpan={4} className="py-20 text-center text-gray-400 font-medium italic">Nenhum trabalhador encontrado.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                      ) : (
+                        <div 
+                           onClick={() => canEdit && handleEditWorker(w)}
+                           className={cn(
+                             "w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-md border-2 border-white ring-4 ring-gray-50 transition-all shrink-0",
+                             canEdit ? "cursor-pointer hover:bg-indigo-600 hover:text-white bg-indigo-50 text-indigo-600" : "bg-gray-50 text-gray-300"
+                           )}
+                        >
+                          {(w.name || '?').charAt(0)}
+                        </div>
+                      )}
+                      
+                      <div className="flex-1 min-w-0 pr-8">
+                         <div className="flex items-center gap-2 mb-1">
+                           <h4 className="font-black text-gray-900 text-sm sm:text-base leading-tight truncate">{w.name}</h4>
+                           {!w.active && (
+                             <span className="text-[7px] font-black bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Pendente</span>
+                           )}
+                         </div>
+                         <p className="text-[10px] sm:text-xs text-gray-400 font-medium truncate mb-2">{w.email}</p>
+                         
+                         <div className="flex flex-wrap gap-2">
+                           <span className={cn(
+                             "text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border",
+                             (w.role === 'ADMIN' || w.role === 'ADM') ? "bg-purple-50 text-purple-600 border-purple-100" :
+                             w.role === 'COORDENADOR' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                             "bg-gray-50 text-gray-500 border-gray-100"
+                           )}>
+                             {w.role}
+                           </span>
+                           <span className="text-[8px] font-black text-indigo-400 bg-indigo-50/50 px-2 py-0.5 rounded-full uppercase tracking-widest italic border border-indigo-50">
+                             {sectors.find(s => s.id === w.sectorId)?.name || 'Geral'}
+                           </span>
+                         </div>
+                      </div>
+
+                      <div className="absolute top-4 right-4 flex flex-col gap-1.5 opacity-40 group-hover:opacity-100 transition-all">
+                        {canEdit && (
+                          <>
+                            <button 
+                              onClick={() => handleEditWorker(w)}
+                              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                              title="Editar"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteWorker(w.id)}
+                              className={cn(
+                                "p-2 rounded-xl transition-all flex items-center justify-center",
+                                deletingWorkerId === w.id ? "bg-red-500 text-white" : "text-gray-300 hover:text-red-500 hover:bg-red-50"
+                              )}
+                              title={deletingWorkerId === w.id ? "Confirmar exclusão?" : "Excluir"}
+                            >
+                               <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            
+            {workers.filter(w => {
+              if (isAdmin) return true;
+              if (currentUser?.role === 'COORDENADOR') return w.sectorId === currentUser.sectorId;
+              return false;
+            }).length === 0 && (
+              <div className="col-span-full py-20 text-center space-y-4">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-200">
+                  <Users size={32} />
+                </div>
+                <p className="text-gray-400 font-medium italic">Nenhum trabalhador encontrado...</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -456,10 +468,11 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">URL da Foto (Opcional)</label>
-                <input value={newWorker.photoUrl} onChange={e => setNewWorker({...newWorker, photoUrl: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" placeholder="https://link-da-imagem.com" />
-              </div>
+              <ImageUpload 
+                label="Foto do Trabalhador"
+                value={newWorker.photoUrl} 
+                onChange={val => setNewWorker({...newWorker, photoUrl: val})} 
+              />
 
               {!editingWorker && (
                 <div className="space-y-1.5">
