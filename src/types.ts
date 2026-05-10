@@ -48,6 +48,16 @@ export interface AgendaEvent {
 
 export type SectorType = 'FRATERNO' | 'PASSE' | 'ESTUDO' | 'INFANCIA' | 'SOCIAL' | 'ADMINISTRATIVO' | 'MEDIUNICO' | 'OUTROS';
 
+export interface SectorDocument {
+  id: string;
+  name: string;
+  uploadDate: number;
+  url: string;
+  size?: number;
+  type: string;
+  uploadedBy: string;
+}
+
 export interface Sector {
   id: string;
   name: string;
@@ -71,6 +81,9 @@ export interface Sector {
   resources?: string;
   goals?: string;
   challenges?: string;
+
+  // Document management
+  documents?: SectorDocument[];
 }
 
 export interface Participant {

@@ -21,6 +21,7 @@ import {
   ServiceQueueEntry, 
   Evolution, 
   Sector, 
+  SectorDocument,
   DashboardStats,
   Speaker,
   AgendaEvent,
@@ -189,6 +190,49 @@ class DataService {
       this.createLog('Exclusão de Setor', `ID: ${id}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  }
+
+  async addSectorDocument(sectorId: string, docData: Omit<SectorDocument, 'id' | 'uploadDate'>) {
+    const path = `setores/${sectorId}`;
+    try {
+      const sectorRef = doc(db, 'setores', sectorId);
+      const sectorSnap = await getDoc(sectorRef);
+      
+      if (!sectorSnap.exists()) throw new Error('Setor não encontrado');
+      
+      const sector = sectorSnap.data() as Sector;
+      const newDoc: SectorDocument = {
+        ...docData,
+        id: Math.random().toString(36).substring(7),
+        uploadDate: Date.now()
+      };
+      
+      const updatedDocs = [...(sector.documents || []), newDoc];
+      await updateDoc(sectorRef, { documents: updatedDocs });
+      
+      this.createLog('Documento Adicionado ao Setor', `Setor: ${sector.name}, Documento: ${docData.name}`);
+      return newDoc;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  }
+
+  async deleteSectorDocument(sectorId: string, documentId: string) {
+    const path = `setores/${sectorId}`;
+    try {
+      const sectorRef = doc(db, 'setores', sectorId);
+      const sectorSnap = await getDoc(sectorRef);
+      
+      if (!sectorSnap.exists()) throw new Error('Setor não encontrado');
+      
+      const sector = sectorSnap.data() as Sector;
+      const updatedDocs = (sector.documents || []).filter(d => d.id !== documentId);
+      
+      await updateDoc(sectorRef, { documents: updatedDocs });
+      this.createLog('Documento Removido do Setor', `Setor: ${sector.name}, DocID: ${documentId}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
     }
   }
 
@@ -576,24 +620,36 @@ class DataService {
     try {
       // Use raw collection access to avoid recursion if getSectors is used
       const snap = await getDocs(collection(db, 'setores'));
-      if (snap.empty) {
-        console.log("Populating default sectors...");
-        const defaultSectors = [
-          { name: 'Atendimento Fraterno', type: 'FRATERNO', description: 'Recepção e primeiro contato' },
-          { name: 'Passe / Fluidoterapia', type: 'PASSE', description: 'Transmissão de energias' },
-          { name: 'Evangelização Infantil', type: 'INFANCIA', description: 'Educação para crianças' },
-          { name: 'Mocidade / Juventude', type: 'INFANCIA', description: 'Educação para jovens' },
-          { name: 'Estudo Sistematizado', type: 'ESTUDO', description: 'ESDE e EADE' },
-          { name: 'Ação Social', type: 'SOCIAL', description: 'Assistência a famílias' },
-          { name: 'Mediúnica', type: 'MEDIUNICO', description: 'Trabalhos práticos' },
-          { name: 'Doutrinária', type: 'ESTUDO', description: 'Palestras e ensinamentos' },
-          { name: 'Administrativo', type: 'ADMINISTRATIVO', description: 'Gestão da casa' }
-        ];
-        for (const s of defaultSectors) {
+      const existingNames = snap.docs.map(d => (d.data() as Sector).name);
+      
+      console.log("Checking for missing default sectors...");
+      const defaultSectors = [
+        { name: 'Atendimento Fraterno', type: 'FRATERNO' as const, description: 'Recepção e primeiro contato' },
+        { name: 'Passe / Fluidoterapia', type: 'PASSE' as const, description: 'Transmissão de energias' },
+        { name: 'Evangelização Infantil', type: 'INFANCIA' as const, description: 'Educação para crianças' },
+        { name: 'Mocidade / Juventude', type: 'INFANCIA' as const, description: 'Educação para jovens' },
+        { name: 'Estudo Sistematizado', type: 'ESTUDO' as const, description: 'ESDE e EADE' },
+        { name: 'Ação Social', type: 'SOCIAL' as const, description: 'Assistência a famílias' },
+        { name: 'Mediúnica', type: 'MEDIUNICO' as const, description: 'Trabalhos práticos' },
+        { name: 'Doutrinária', type: 'ESTUDO' as const, description: 'Palestras e ensinamentos' },
+        { name: 'Administrativo', type: 'ADMINISTRATIVO' as const, description: 'Gestão da casa' },
+        { name: 'Comunicação', type: 'ADMINISTRATIVO' as const, description: 'Divulgação e mídias' },
+        { name: 'Arte Espírita', type: 'OUTROS' as const, description: 'Atividades artísticas e culturais' }
+      ];
+
+      let addedCount = 0;
+      for (const s of defaultSectors) {
+        if (!existingNames.includes(s.name)) {
           await this.addSector(s as any);
+          addedCount++;
         }
-        return true;
       }
+      
+      if (addedCount > 0) {
+        console.log(`${addedCount} new default sectors added.`);
+      }
+
+      return true;
     } catch (error) {
       console.error("Error populating defaults:", error);
     }

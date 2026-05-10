@@ -15,7 +15,15 @@ import {
   Heart,
   ShieldCheck,
   Mic2,
-  Settings
+  Settings,
+  LayoutDashboard,
+  MessageSquare,
+  Palette,
+  BookOpen,
+  Baby,
+  Handshake,
+  Activity,
+  Shield
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -27,7 +35,7 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import { dataService } from '../services/dataService';
-import { DashboardStats, AgendaEvent, Speaker, Worker } from '../types';
+import { DashboardStats, AgendaEvent, Speaker, Sector } from '../types';
 import { format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -39,38 +47,128 @@ import ReceptionistDashboard from './ReceptionistDashboard';
 import VolunteerDashboard from './VolunteerDashboard';
 import SpeakerDashboard from './SpeakerDashboard';
 import AdministrativeDashboard from './AdministrativeDashboard';
+import SectorDashboard from '../components/SectorDashboard';
 
-const ViewSwitcher = ({ current, set }: { current: string, set: (v: any) => void }) => {
-  const views = [
+const ViewSwitcher = ({ current, set, sectors }: { current: string, set: (v: any) => void, sectors: Sector[] }) => {
+  const getSectorIcon = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes('comunicação')) return MessageSquare;
+    if (n.includes('arte')) return Palette;
+    if (n.includes('fraterno')) return Users;
+    if (n.includes('passe')) return Zap;
+    if (n.includes('estudo') || n.includes('doutrinária')) return BookOpen;
+    if (n.includes('infantil') || n.includes('mocidade')) return Baby;
+    if (n.includes('social')) return Handshake;
+    if (n.includes('mediúnica')) return Activity;
+    if (n.includes('administrativo')) return Shield;
+    return LayoutDashboard;
+  };
+
+  const baseViews = [
     { id: 'MASTER', label: 'Visão Master', icon: Sparkles },
     { id: 'RECEPTION', label: 'Simular Recepção', icon: Users },
     { id: 'VOLUNTEER', label: 'Simular Atendimento', icon: HeartHandshake },
-    { id: 'SPEAKER', label: 'Simular Oratória', icon: Mic2 },
+    { id: 'SPEAKER', label: 'Simular Palestra', icon: Mic2 },
     { id: 'ADMIN', label: 'Simular Secretaria', icon: Settings },
   ];
 
+  // Filtra duplicatas por nome e remove setores que já possuem visões base dedicadas
+  const sectorViews = sectors
+    .reduce((acc: Sector[], current) => {
+      // Evita duplicados na lista
+      const isDuplicate = acc.find(s => s.name === current.name);
+      if (isDuplicate) return acc;
+
+      // Evita redundância com visões base (Recepção e Secretaria)
+      const name = current.name.toLowerCase();
+      const isHandledByBase = 
+        name.includes('fraterno') || 
+        name.includes('recepção') || 
+        name.includes('secretaria') || 
+        name.includes('administrativo');
+
+      if (!isHandledByBase) acc.push(current);
+      return acc;
+    }, [])
+    .map(s => ({
+      id: `SECTOR:${s.id}:${s.name}`,
+      label: `Simular ${s.name}`,
+      icon: getSectorIcon(s.name)
+    }));
+
   return (
-    <div className="flex flex-wrap gap-2 mb-6 p-2 bg-indigo-50/50 rounded-2xl border border-indigo-100 overflow-x-auto no-scrollbar">
-      {views.map(v => (
-        <button
-          key={v.id}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            set(v.id);
-          }}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-            current === v.id 
-              ? "bg-indigo-600 text-white shadow-lg" 
-              : "bg-white text-indigo-400 hover:bg-white/80"
-          )}
-        >
-          <v.icon size={14} />
-          {v.label}
-        </button>
-      ))}
+    <div className="space-y-8 mb-12">
+      {/* Ambientes de Gestão Central */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 px-1">
+          <div className="w-1 h-4 bg-indigo-600 rounded-full" />
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-900/60 italic">Gestão e Simulação Base</label>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-3 bg-indigo-50/30 rounded-[32px] border border-indigo-100/50">
+          {baseViews.map(v => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                set(v.id);
+              }}
+              className={cn(
+                "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 active:scale-95 border",
+                current === v.id 
+                  ? "bg-indigo-600 text-white border-indigo-500 shadow-xl shadow-indigo-200 -translate-y-0.5" 
+                  : "bg-white text-indigo-500 border-indigo-50/50 hover:border-indigo-200 hover:bg-white/90 shadow-sm"
+              )}
+            >
+              <div className={cn(
+                "p-2 rounded-xl transition-colors",
+                current === v.id ? "bg-white/20" : "bg-indigo-50 text-indigo-600"
+              )}>
+                <v.icon size={18} className={current === v.id ? "animate-pulse" : ""} />
+              </div>
+              <span className="text-center leading-tight">{v.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Ambientes Específicos por Setor */}
+      {sectorViews.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 px-1">
+            <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 italic">Controle Setorial Dinâmico</label>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3 bg-gray-50/30 rounded-[32px] border border-gray-100/50">
+            {sectorViews.map(v => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  set(v.id);
+                }}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 active:scale-95 border",
+                  current === v.id 
+                    ? "bg-indigo-600 text-white border-indigo-500 shadow-xl shadow-indigo-200 -translate-y-0.5" 
+                    : "bg-white text-indigo-500 border-indigo-50/50 hover:border-indigo-200 hover:bg-white/90 shadow-sm"
+                )}
+              >
+                <div className={cn(
+                    "p-2 rounded-xl transition-colors",
+                    current === v.id ? "bg-white/20" : "bg-indigo-50 text-indigo-600"
+                )}>
+                    <v.icon size={18} className={current === v.id ? "animate-pulse" : ""} />
+                </div>
+                <span className="text-center leading-tight">{v.label.replace('Simular ', '')}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -88,11 +186,12 @@ const dataChart = [
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'MASTER' | 'RECEPTION' | 'VOLUNTEER' | 'SPEAKER' | 'ADMIN'>('MASTER');
+  const [activeView, setActiveView] = useState<string>('MASTER');
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [nextEvents, setNextEvents] = useState<AgendaEvent[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  const [sectors, setSectors] = useState<Sector[]>([]);
   const [dailyReflection, setDailyReflection] = useState(reflections[0]);
 
   useEffect(() => {
@@ -103,12 +202,14 @@ export const Dashboard: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const [s, e, spk] = await Promise.all([
+        const [s, e, spk, sect] = await Promise.all([
           dataService.getStats(),
           dataService.getAgendaEvents(),
-          dataService.getSpeakers()
+          dataService.getSpeakers(),
+          dataService.getSectors()
         ]);
         setStats(s);
+        setSectors(sect || []);
         
         const upcoming = (e || [])
           .filter(event => event.date >= new Date().setHours(0,0,0,0))
@@ -125,10 +226,20 @@ export const Dashboard: React.FC = () => {
 
   // Render sub-dashboards if master wants to "preview" their experience
   // MUST be after all hooks to avoid hook calculation errors
-  if (activeView === 'RECEPTION') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><ReceptionistDashboard /></div>;
-  if (activeView === 'VOLUNTEER') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><VolunteerDashboard /></div>;
-  if (activeView === 'SPEAKER') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><SpeakerDashboard /></div>;
-  if (activeView === 'ADMIN') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} /><AdministrativeDashboard /></div>;
+  if (activeView === 'RECEPTION') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} sectors={sectors} /><ReceptionistDashboard /></div>;
+  if (activeView === 'VOLUNTEER') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} sectors={sectors} /><VolunteerDashboard /></div>;
+  if (activeView === 'SPEAKER') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} sectors={sectors} /><SpeakerDashboard /></div>;
+  if (activeView === 'ADMIN') return <div className="p-8"><ViewSwitcher current={activeView} set={setActiveView} sectors={sectors} /><AdministrativeDashboard /></div>;
+
+  if (activeView.startsWith('SECTOR:')) {
+    const [_, sectorId, sectorName] = activeView.split(':');
+    return (
+      <div className="p-8">
+        <ViewSwitcher current={activeView} set={setActiveView} sectors={sectors} />
+        <SectorDashboard sectorId={sectorId} sectorName={sectorName} />
+      </div>
+    );
+  }
 
   const cards = [
     { title: 'Aguardando', value: stats?.waitingCount || 0, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', shadow: 'shadow-amber-500/5', border: 'border-amber-100/50' },
@@ -149,7 +260,7 @@ export const Dashboard: React.FC = () => {
             Vibrações de Paz
           </h1>
           <p className="text-gray-400 font-medium text-sm sm:text-lg">Gestão administrativa e espiritual.</p>
-          <ViewSwitcher current={activeView} set={setActiveView} />
+          <ViewSwitcher current={activeView} set={setActiveView} sectors={sectors} />
         </div>
         <button 
           id="new-participant-btn-dash"

@@ -67,17 +67,17 @@ export function SectorsPage() {
     try {
       console.log("Loading sectors...");
       let data = await dataService.getSectors();
-      console.log("Sectors loaded:", data?.length);
       
-      if (data && data.length === 0 && (currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || currentUser?.email === 'carlostecal35@gmail.com')) {
-        console.log("Sectors empty, attempting auto-population...");
+      // Proactively check for missing default sectors if admin
+      if (currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM') {
         await dataService.populateDefaults();
+        // Reload data to include newly added sectors
         data = await dataService.getSectors();
       }
+      
       setSectors(data || []);
     } catch (err) {
       console.error("Failed to load sectors:", err);
-      // Fallback or alert could go here
     }
   };
 

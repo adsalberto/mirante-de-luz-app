@@ -193,7 +193,7 @@ export const QueuePage: React.FC = () => {
                                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 sm:py-4 rounded-[16px] sm:rounded-[20px] font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
                               >
                                 <Play size={16} fill="currentColor" />
-                                <span>Chamar Irmão</span>
+                                <span>Iniciar Atendimento</span>
                               </button>
                               <button 
                                 onClick={async () => {

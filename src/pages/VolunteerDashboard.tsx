@@ -58,6 +58,16 @@ export default function VolunteerDashboard() {
     }
   };
 
+  const handleStartService = async (id: string) => {
+    if (!currentUser) return;
+    try {
+      await dataService.updateQueueStatus(id, 'IN_PROGRESS', currentUser.id);
+      loadData();
+    } catch (err) {
+      console.error('Erro ao iniciar atendimento:', err);
+    }
+  };
+
   const quickActions = [
     {
       title: 'Ver Fila de Espera',
@@ -144,8 +154,8 @@ export default function VolunteerDashboard() {
             {waitingQueue.length > 0 ? (
               <div className="divide-y divide-gray-50">
                 {waitingQueue.map((item) => (
-                  <div key={item.id} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-all cursor-pointer group" onClick={() => navigate('/fila')}>
-                    <div className="flex items-center gap-4">
+                  <div key={item.id} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-all cursor-pointer group">
+                    <div className="flex items-center gap-4 flex-1" onClick={() => navigate(`/atendimentos?participantId=${item.participantId}`)}>
                       <div className={`p-3 rounded-2xl ${item.priority ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-400'}`}>
                         <Users size={20} />
                       </div>
@@ -159,7 +169,18 @@ export default function VolunteerDashboard() {
                         </div>
                       </div>
                     </div>
-                    <ArrowRight size={18} className="text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+                    <div className="flex items-center gap-2">
+                       <button
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleStartService(item.id);
+                         }}
+                         className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95"
+                       >
+                         Iniciar Atendimento
+                       </button>
+                       <ArrowRight size={18} className="text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+                    </div>
                   </div>
                 ))}
               </div>

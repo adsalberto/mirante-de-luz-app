@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   History, 
@@ -19,6 +19,7 @@ import {
   Phone,
   MapPin,
   X,
+  Activity,
   ArrowUp,
   Lock,
   AlertCircle,
@@ -53,8 +54,10 @@ export const EvolutionPage: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isImprovingNotes, setIsImprovingNotes] = useState(false);
   const [isImprovingRecs, setIsImprovingRecs] = useState(false);
+  const [isStartingService, setIsStartingService] = useState(false);
   
-  // Note Form
+  const detailsRef = useRef<HTMLDivElement>(null);
+  
   const [formData, setFormData] = useState({
     recordingSectorId: '',
     notes: '',
@@ -73,26 +76,27 @@ export const EvolutionPage: React.FC = () => {
   }, [sectors, currentUser]);
 
   useEffect(() => {
-    // Scroll to top on load
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [selectedP, isLoading]);
+    if (selectedP) {
+      loadHistory(selectedP.id);
+      loadActiveServices(selectedP.id);
+      
+      // On desktop, scroll to top of page. On mobile, scroll to details.
+      if (window.innerWidth < 1024) {
+        detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [selectedP]);
 
   useEffect(() => {
     if (currentUser?.role) {
-      if (['RECEPCIONISTA', 'SECRETARIO', 'ATENDENTE', 'VOLUNTARIO'].includes(currentUser.role)) {
+      if (['RECEPCIONISTA', 'SECRETARIO'].includes(currentUser.role)) {
         setError('Ação não permitida: Seu perfil atual não possui privilégios para esta operação.');
       }
     }
     loadBaseData();
   }, [location.state, location.search, currentUser]);
-
-  useEffect(() => {
-    if (selectedP) {
-      loadHistory(selectedP.id);
-      loadActiveServices(selectedP.id);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [selectedP]);
 
   useEffect(() => {
     if (editingEvo) {
@@ -176,10 +180,27 @@ export const EvolutionPage: React.FC = () => {
   const loadActiveServices = async (pid: string) => {
     try {
       const q = await dataService.getQueueByParticipant(pid);
-      setActiveServices(q || []);
+      setActiveServices(q?.filter(i => i.status !== 'FINISHED' && i.status !== 'CANCELLED') || []);
     } catch (err) {
       console.error('Error loading active services:', err);
       setActiveServices([]);
+    }
+  };
+
+  const handleStartAttendance = async (queueId: string) => {
+    if (!currentUser) return;
+    setIsStartingService(true);
+    try {
+      await dataService.updateQueueStatus(queueId, 'IN_PROGRESS', currentUser.id);
+      if (selectedP) {
+        await loadActiveServices(selectedP.id);
+      }
+      alert('Atendimento iniciado com sucesso!');
+    } catch (err) {
+      console.error('Erro ao iniciar atendimento:', err);
+      alert('Erro ao iniciar atendimento.');
+    } finally {
+      setIsStartingService(false);
     }
   };
 
@@ -437,54 +458,79 @@ export const EvolutionPage: React.FC = () => {
             {filteredParticipants.length > 0 ? filteredParticipants.map(p => {
               const age = getAge(p.birthDate);
               const isActive = getParticipantStatus(p.id);
+              const isSelected = selectedP?.id === p.id;
               
               return (
                 <button
                   key={p.id}
                   onClick={() => setSelectedP(p)}
                   className={cn(
-                    "w-full text-left p-5 rounded-[28px] border-2 transition-all group relative overflow-hidden",
-                    selectedP?.id === p.id 
-                      ? "bg-indigo-600 border-indigo-400 shadow-xl shadow-indigo-100 text-white translate-x-2" 
-                      : "bg-white border-gray-100 text-gray-900 hover:border-indigo-200 shadow-sm hover:shadow-md"
+                    "w-full text-left p-0 rounded-[32px] border-2 transition-all duration-300 group relative overflow-hidden",
+                    isSelected 
+                      ? "bg-indigo-600 border-indigo-400 shadow-2xl shadow-indigo-200 translate-x-2" 
+                      : "bg-white border-gray-100/80 text-gray-900 hover:border-indigo-200 shadow-sm hover:shadow-lg"
                   )}
                 >
-                  <div className="flex items-center gap-4 relative z-10">
+                  {/* Active Indicator Bar */}
+                  {isSelected && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-white shadow-[2px_0_10px_rgba(255,255,255,0.5)]" />
+                  )}
+
+                  <div className="flex items-center gap-4 p-5 relative z-10">
                     <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center font-black border-2 shrink-0 transition-transform group-active:scale-90",
-                      selectedP?.id === p.id ? "bg-white/10 border-white/20 text-white" : "bg-indigo-50 border-indigo-50 text-indigo-600"
+                      "w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg border-2 shrink-0 transition-all duration-500 group-hover:scale-105",
+                      isSelected ? "bg-white/10 border-white/20 text-white" : "bg-indigo-50 border-indigo-50 text-indigo-600"
                     )}>
                       {(p.name || '?').charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <p className="font-black text-sm truncate">{p.name}</p>
+                        <p className={cn(
+                          "font-black text-sm truncate uppercase tracking-tight",
+                          isSelected ? "text-white" : "text-indigo-950"
+                        )}>{p.name}</p>
                         {isActive && (
-                          <div className="animate-pulse w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] shrink-0" />
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                                "text-[7px] font-black uppercase tracking-widest",
+                                isSelected ? "text-indigo-200" : "text-amber-600"
+                            )}>Ativo</span>
+                            <div className="animate-pulse w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] shrink-0" />
+                          </div>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={cn(
-                          "text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md border shrink-0",
-                          selectedP?.id === p.id 
+                          "text-[8px] font-black uppercase px-2 py-0.5 rounded-lg border shrink-0 transition-colors",
+                          isSelected 
                             ? "bg-white/20 border-white/20 text-white" 
                             : (p.gender === 'Masculino' || p.gender === 'M') ? "bg-blue-50 text-blue-600 border-blue-100" : (p.gender === 'Feminino' || p.gender === 'F') ? "bg-pink-50 text-pink-600 border-pink-100" : "bg-gray-50 text-gray-600 border-gray-100"
                         )}>
-                          {(p.gender === 'Masculino' || p.gender === 'M') ? 'Masc' : (p.gender === 'Feminino' || p.gender === 'F') ? 'Fem' : p.gender || 'N/I'}
+                          {(p.gender === 'Masculino' || p.gender === 'M') ? 'MASC' : (p.gender === 'Feminino' || p.gender === 'F') ? 'FEM' : p.gender || 'N/I'}
                         </span>
                         {age !== null && (
-                          <span className={cn("text-[9px] font-bold", selectedP?.id === p.id ? "text-indigo-200" : "text-gray-400")}>
+                          <span className={cn(
+                            "text-[10px] font-bold italic", 
+                            isSelected ? "text-white/70" : "text-gray-400"
+                          )}>
                             {age} anos
                           </span>
                         )}
-                        <span className={cn("text-[9px] font-black uppercase tracking-tighter opacity-70", selectedP?.id === p.id ? "text-white" : "text-gray-300")}>
-                          #{String(p.id).substring(0, 5)}
+                        <span className={cn(
+                            "text-[8px] font-black uppercase tracking-widest opacity-50 ml-auto font-mono", 
+                            isSelected ? "text-white" : "text-gray-300"
+                        )}>
+                          ID: {String(p.id).substring(0, 5)}
                         </span>
                       </div>
                       {isActive && (
-                        <p className={cn("text-[9px] font-bold mt-1 uppercase tracking-wider", selectedP?.id === p.id ? "text-amber-200" : "text-amber-600")}>
-                          Em espera: {sectors.find(s => s.id === isActive.sectorId)?.name}
-                        </p>
+                        <div className={cn(
+                            "mt-2 py-1 px-2 rounded-lg text-[8px] font-black uppercase tracking-[0.1em] border flex items-center gap-2",
+                            isSelected ? "bg-white/10 border-white/20 text-white" : "bg-amber-50 border-amber-100 text-amber-700"
+                        )}>
+                          <Activity size={10} />
+                          <span className="truncate">Espera: {sectors.find(s => s.id === isActive.sectorId)?.name}</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -500,81 +546,135 @@ export const EvolutionPage: React.FC = () => {
         </div>
 
         {/* Lado Direito: Prontuário e Nova Evolução */}
-        <div className="lg:col-span-8 overflow-y-auto no-scrollbar pb-10">
+        <div ref={detailsRef} className="lg:col-span-8 overflow-y-auto no-scrollbar pb-10">
           {selectedP ? (
             <div
               key={selectedP.id}
-              className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-20"
+              className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20"
             >
-              {/* Main Dashboard Header for Participant - Compact Version */}
-              <div className="bg-white rounded-[32px] border border-indigo-50 shadow-sm overflow-hidden group">
-                <div className="px-6 py-6 sm:px-8">
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                    {/* Avatar - Slightly smaller and side-by-side */}
-                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-[28px] bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center text-3xl font-black text-indigo-600 border border-indigo-50 shadow-inner shrink-0 leading-none">
-                      {(selectedP?.name || '?').charAt(0)}
+              {/* Main Dashboard Header for Participant - Enhanced Version */}
+              <div className="bg-white rounded-[40px] border border-indigo-100 shadow-2xl shadow-indigo-500/5 overflow-hidden group relative">
+                {/* Decorative background element */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full translate-x-32 -translate-y-32 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+                
+                <div className="px-6 py-8 sm:px-10 relative z-10">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
+                    {/* Avatar - More prominent */}
+                    <div className="relative group/avatar">
+                      <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center text-4xl sm:text-5xl font-black text-white border-4 border-white shadow-2xl shadow-indigo-200 shrink-0 leading-none group-hover/avatar:scale-105 transition-transform duration-500">
+                        {(selectedP?.name || '?').charAt(0)}
+                      </div>
+                      <div className="absolute -bottom-2 -right-2 bg-white p-2 rounded-xl shadow-lg border border-indigo-50">
+                        <Sparkles size={16} className="text-indigo-600 animate-pulse" />
+                      </div>
                     </div>
 
                     <div className="flex-1 min-w-0 text-center sm:text-left">
-                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
-                          <div className="min-w-0">
-                            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight leading-tight truncate mb-1">{selectedP?.name}</h2>
-                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2 text-gray-400 font-bold text-xs">
-                              <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg">
-                                <Calendar size={13} className="text-indigo-400" />
+                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+                          <div className="min-w-0 space-y-1">
+                            <h2 className="text-3xl sm:text-4xl font-black text-indigo-950 tracking-tight leading-tight truncate">{selectedP?.name}</h2>
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                              <span className="flex items-center gap-1.5 bg-indigo-50/50 text-indigo-600 px-3 py-1.5 rounded-xl font-bold text-xs border border-indigo-100/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
+                                <Calendar size={14} className="opacity-70" />
                                 {getAge(selectedP?.birthDate)} anos
                               </span>
-                              <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg">
-                                <User size={13} className="text-indigo-400" />
+                              <span className="flex items-center gap-1.5 bg-indigo-50/50 text-indigo-600 px-3 py-1.5 rounded-xl font-bold text-xs border border-indigo-100/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
+                                <User size={14} className="opacity-70" />
                                 {selectedP?.gender}
                               </span>
-                              <span className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">
-                                <Search size={13} />
+                              <span className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100">
+                                <Search size={12} strokeWidth={3} />
                                 #{String(selectedP?.id).substring(0, 5)}
                               </span>
                             </div>
                           </div>
                           
-                          <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={exportToPDF}
-                              disabled={isExporting}
-                              className={cn(
-                                "flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95",
-                                isExporting && "opacity-50 cursor-not-allowed"
+                          <div className="flex items-center justify-center gap-3">
+                            <AnimatePresence mode="wait">
+                              {activeServices.find(s => s.status === 'WAITING') && (
+                                <motion.button 
+                                  initial={{ scale: 0.8, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0.8, opacity: 0 }}
+                                  onClick={() => handleStartAttendance(activeServices.find(s => s.status === 'WAITING').id)}
+                                  disabled={isStartingService}
+                                  className={cn(
+                                    "flex items-center gap-3 bg-emerald-600 text-white px-6 py-4 rounded-[22px] font-black text-[10px] uppercase tracking-[0.15em] hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-200 active:scale-95 animate-bounce ring-8 ring-emerald-50/50",
+                                    isStartingService && "opacity-50 cursor-not-allowed"
+                                  )}
+                                >
+                                  <Sparkles size={18} className="fill-white/20" /> 
+                                  {isStartingService ? 'Iniciando...' : 'Iniciar Atendimento'}
+                                </motion.button>
                               )}
-                            >
-                              <Printer size={14} /> 
-                              {isExporting ? '...' : 'PDF'}
-                            </button>
-                            {isAdmin && (
-                              <button className="p-2 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-white border border-gray-100 rounded-xl transition-all shadow-sm">
-                                <ExternalLink size={16} />
-                              </button>
+                            </AnimatePresence>
+
+                            {activeServices.find(s => s.status === 'IN_PROGRESS') && (
+                              <div className="flex items-center gap-3 bg-indigo-100 text-indigo-700 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-indigo-200 shadow-inner">
+                                <Activity size={16} className="animate-pulse" />
+                                Em Atendimento
+                              </div>
                             )}
+
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={exportToPDF}
+                                disabled={isExporting}
+                                className={cn(
+                                  "flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group",
+                                  isExporting && "opacity-50 cursor-not-allowed"
+                                )}
+                                title="Exportar PDF"
+                              >
+                                <Printer size={20} className="group-hover:scale-110 transition-transform" /> 
+                              </button>
+                              {isAdmin && (
+                                <button className="flex items-center justify-center w-12 h-12 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-white border-2 border-gray-100 rounded-2xl transition-all shadow-sm hover:shadow-md active:scale-90 group" title="Mais Opções">
+                                  <ExternalLink size={20} className="group-hover:scale-110 transition-transform" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                        </div>
 
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
-                            <Phone size={14} className="text-indigo-400" />
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-[28px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-500 group/item">
+                            <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
+                              <Phone size={18} />
+                            </div>
                             <div className="min-w-0">
-                              <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest leading-none mb-1">Telefone</p>
-                              <p className="text-xs font-bold text-gray-700 truncate">{selectedP?.phone || 'N/I'}</p>
+                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-1 opacity-60">Contato Principal</p>
+                              <p className="text-sm font-bold text-indigo-950 truncate whitespace-nowrap">{selectedP?.phone || 'Não Informado'}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
-                            <MapPin size={14} className="text-indigo-400" />
-                            <div className="min-w-0">
-                              <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest leading-none mb-1">Endereço</p>
-                              <p className="text-xs font-bold text-gray-700 truncate" title={selectedP?.address}>{selectedP?.address || 'N/I'}</p>
+                          
+                          <div className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-[28px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-500 group/item">
+                            <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
+                              <MapPin size={18} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-1 opacity-60">Endereço Residencial</p>
+                              <p className="text-sm font-bold text-indigo-950 truncate" title={selectedP?.address}>{selectedP?.address || 'Não Informado'}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 p-3 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100/50">
-                            <CheckCircle2 size={14} />
+
+                          <div className={cn(
+                            "flex items-center gap-4 p-4 rounded-[28px] border-2 transition-all duration-500",
+                            activeServices.length > 0 
+                              ? "bg-amber-50 border-amber-100 text-amber-900 shadow-lg shadow-amber-200/20" 
+                              : "bg-emerald-50 border-emerald-100 text-emerald-900"
+                          )}>
+                            <div className={cn(
+                              "p-3 rounded-2xl shadow-sm",
+                              activeServices.length > 0 ? "bg-white text-amber-600" : "bg-white text-emerald-600"
+                            )}>
+                              {activeServices.length > 0 ? <Activity size={18} className="animate-pulse" /> : <CheckCircle2 size={18} />}
+                            </div>
                             <div className="min-w-0">
-                              <p className="text-[9px] font-black uppercase tracking-widest leading-none mb-1 opacity-70">Cadastro</p>
-                              <p className="text-xs font-black uppercase italic">{activeServices.length > 0 ? 'Em Espera' : 'Concluído'}</p>
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-60">Status Atual</p>
+                              <p className="text-sm font-black uppercase italic whitespace-nowrap">
+                                {activeServices.length > 0 ? 'Fluxo de Atendimento' : 'Jornada Concluída'}
+                              </p>
                             </div>
                           </div>
                        </div>
@@ -632,28 +732,32 @@ export const EvolutionPage: React.FC = () => {
                           <motion.div 
                             initial={{ opacity: 0, x: 10 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group/card overflow-hidden"
+                            className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 group/card overflow-hidden relative"
                           >
-                            <div className="flex items-center justify-between mb-5">
-                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-black group-hover/card:bg-indigo-600 group-hover/card:text-white transition-all shadow-sm">
+                            {/* Card Background Decoration */}
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/20 rounded-full translate-x-12 -translate-y-12 blur-2xl group-hover/card:scale-150 transition-transform duration-700" />
+                            
+                            <div className="flex items-center justify-between mb-8 relative z-10">
+                              <div className="flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-[20px] bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-100 group-hover/card:scale-110 transition-transform">
                                   {sectors.find(s => s.id === evo.sectorId)?.name?.charAt(0) || 'S'}
                                 </div>
                                 <div className="min-w-0">
-                                  <span className="text-[10px] font-black tracking-widest text-indigo-600 uppercase block mb-0.5 truncate">
+                                  <span className="text-[10px] font-black tracking-[0.25em] text-indigo-600 uppercase block mb-1 truncate">
                                     {sectors.find(s => s.id === evo.sectorId)?.name || 'Setor Indefinido'}
                                   </span>
-                                  <span className="text-xs text-gray-400 font-bold whitespace-nowrap">
-                                    {safeFormat(evo.date, "dd 'de' MMM 'às' HH:mm")}
+                                  <span className="text-sm text-gray-400 font-bold flex items-center gap-2">
+                                    <Calendar size={14} />
+                                    {safeFormat(evo.date, "dd 'de' MMMM 'às' HH:mm")}
                                   </span>
                                 </div>
                               </div>
                               
-                              <div className="flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-all">
+                              <div className="flex items-center gap-1">
                                 {isAdmin && (
                                   <button 
                                     onClick={() => setEditingEvo(evo)}
-                                    className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                    className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                                   >
                                     <Pencil size={18} />
                                   </button>
@@ -670,42 +774,44 @@ export const EvolutionPage: React.FC = () => {
                                       }
                                     }
                                   }}
-                                  className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                  className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                                 >
                                   <X size={20} />
                                 </button>
                               </div>
                             </div>
 
-                            <div className="space-y-6">
-                              <div className="space-y-2">
+                            <div className="space-y-8 relative z-10">
+                              <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-1 pl-1">
-                                  <ClipboardList size={14} className="text-gray-300" />
-                                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Notas do Atendimento</p>
+                                  <div className="w-1 h-3 bg-indigo-200 rounded-full" />
+                                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Registro Evolutivo</p>
                                 </div>
                                 {isAdmin || (currentUser?.role === 'COORDENADOR' && evo.sectorId === currentUser?.sectorId) ? (
                                   <div 
-                                    className="text-base text-gray-800 font-medium leading-relaxed prose prose-sm max-w-none prose-indigo list-disc pl-4"
+                                    className="text-lg text-indigo-950 font-medium leading-relaxed prose prose-indigo max-w-none pl-1"
                                     dangerouslySetInnerHTML={{ __html: evo.notesEncrypted || '<i>Sem observações detalhadas.</i>' }}
                                   />
                                 ) : (
-                                  <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-4 text-gray-400 italic text-sm">
-                                    <Lock size={18} className="shrink-0" />
+                                  <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex items-center gap-4 text-gray-400 italic text-sm shadow-inner">
+                                    <Lock size={20} className="shrink-0 opacity-50" />
                                     <span className="leading-tight">Conteúdo restrito ao setor de origem ou nível de acesso superior.</span>
                                   </div>
                                 )}
                               </div>
 
-                              <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-200 relative group/evo">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Heart size={14} className="fill-indigo-400 text-indigo-400" />
-                                  <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">
-                                    Recomendações e Orientações
+                              <div className="p-8 bg-indigo-50/40 rounded-[32px] border border-indigo-100/50 relative group/evo hover:bg-indigo-50/60 transition-colors">
+                                <div className="flex items-center gap-2 mb-4">
+                                  <div className="p-2 bg-indigo-600 rounded-lg text-white shadow-md">
+                                    <Heart size={14} className="fill-white/30" />
+                                  </div>
+                                  <p className="text-[10px] font-black uppercase text-indigo-700 tracking-[0.2em]">
+                                    Recomendações Fraternas
                                   </p>
                                 </div>
                                 {isAdmin || (currentUser?.role === 'COORDENADOR' && evo.sectorId === currentUser?.sectorId) ? (
                                   <div 
-                                    className="text-base text-indigo-900 font-bold leading-relaxed prose prose-sm max-w-none prose-indigo italic pl-1"
+                                    className="text-lg text-indigo-900 font-bold leading-relaxed prose prose-indigo italic pl-1"
                                     dangerouslySetInnerHTML={{ __html: evo.recommendations || '<i>Nenhuma recomendação específica para este momento.</i>' }}
                                   />
                                 ) : (
@@ -716,18 +822,19 @@ export const EvolutionPage: React.FC = () => {
                               </div>
 
                               {(evo.encaminhamento || (evo.nextStepSectorIds && evo.nextStepSectorIds.length > 0)) && (
-                                <div className="pt-4 border-t border-gray-50 space-y-3">
-                                  <p className="text-[9px] font-black uppercase text-gray-300 tracking-[0.2em] pl-1">Conclusão e Encaminhamento</p>
+                                <div className="pt-8 border-t border-indigo-50 space-y-4">
+                                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.25em] pl-1">Destinos e Encaminhamentos</p>
                                   
-                                  <div className="flex flex-wrap gap-2">
+                                  <div className="flex flex-wrap gap-3">
                                     {evo.encaminhamento && (
-                                      <div className="flex items-center gap-2 text-[10px] font-black text-indigo-600 bg-white px-3 py-1.5 rounded-lg uppercase border border-indigo-100 shadow-sm">
-                                        <ClipboardCheck size={14} /> {evo.encaminhamento}
+                                      <div className="flex items-center gap-3 text-[11px] font-black text-indigo-700 bg-white px-5 py-2.5 rounded-2xl uppercase border-2 border-indigo-50 shadow-sm transition-all hover:border-indigo-200">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                                        {evo.encaminhamento}
                                       </div>
                                     )}
                                     {evo.nextStepSectorIds && evo.nextStepSectorIds.map(sid => (
-                                      <div key={sid} className="flex items-center gap-2 text-[10px] font-black text-emerald-600 bg-white px-3 py-1.5 rounded-lg uppercase border border-emerald-100 shadow-sm">
-                                        <CheckCircle2 size={14} strokeWidth={3} /> {sectors.find(s => s.id === sid)?.name || 'Setor'}
+                                      <div key={sid} className="flex items-center gap-3 text-[11px] font-black text-emerald-700 bg-emerald-50 px-5 py-2.5 rounded-2xl uppercase border-2 border-emerald-100 shadow-sm transition-all hover:border-emerald-200">
+                                        <CheckCircle2 size={16} strokeWidth={3} /> {sectors.find(s => s.id === sid)?.name || 'Setor'}
                                       </div>
                                     ))}
                                   </div>
