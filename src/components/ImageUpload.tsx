@@ -1,6 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import { Upload, X, Image as ImageIcon, Loader2, Scissors, Check, RotateCw } from 'lucide-react';
+import Cropper from 'react-easy-crop';
 import { cn } from '../lib/utils';
+import getCroppedImg from '../lib/cropImage';
 
 interface ImageUploadProps {
   value?: string;
@@ -19,36 +21,63 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
+  const [tempImage, setTempImage] = useState<string | null>(null);
+  
+  // Cropper state
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onCropComplete = useCallback((_showCroppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate type
     if (!file.type.startsWith('image/')) {
       alert('Por favor, selecione um arquivo de imagem (PNG, JPG, etc).');
       return;
     }
 
-    // Validate size (max 800KB for Firestore base64 safety)
-    if (file.size > 800 * 1024) {
-      alert('A imagem é muito grande. Por favor, escolha uma imagem menor que 800KB.');
-      return;
-    }
-
-    setIsLoading(true);
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64String = reader.result as string;
-      onChange(base64String);
-      setIsLoading(false);
-    };
-    reader.onerror = () => {
-      alert('Erro ao carregar imagem.');
-      setIsLoading(false);
+      setTempImage(reader.result as string);
+      setIsCropping(true);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleDone = async () => {
+    try {
+      if (!tempImage || !croppedAreaPixels) return;
+      setIsLoading(true);
+      setIsCropping(false);
+      
+      const croppedImage = await getCroppedImg(
+        tempImage,
+        croppedAreaPixels,
+        rotation
+      );
+      
+      // Check size after crop (max 800KB)
+      // Since it's base64, we can check the string length or just trust the jpeg quality
+      onChange(croppedImage);
+      setTempImage(null);
+      setRotation(0);
+      setZoom(1);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível processar a imagem recortada.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const clearImage = (e: React.MouseEvent) => {
@@ -62,6 +91,8 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     video: 'aspect-video',
     auto: 'aspect-auto min-h-[150px]'
   };
+
+  const cropperAspect = aspectRatio === 'square' ? 1 : aspectRatio === 'video' ? 16/9 : 1;
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -132,11 +163,110 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
             </div>
             <div>
               <p className="text-xs font-bold text-gray-600">Clique ou arraste uma foto</p>
-              <p className="text-[9px] text-gray-400 font-medium mt-1">PNG, JPG ou GIF (Max. 800KB)</p>
+              <p className="text-[9px] text-gray-400 font-medium mt-1">Ajuste após carregar</p>
             </div>
           </div>
         )}
       </div>
+
+      {/* Cropping Modal */}
+      {isCropping && tempImage && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-lg rounded-[32px] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2 italic">
+                  <Scissors size={20} className="text-indigo-600" />
+                  Ajustar Foto
+                </h3>
+                <p className="text-[10px] uppercase font-black tracking-widest text-gray-400 mt-1">Posicione e recorte sua imagem</p>
+              </div>
+              <button 
+                onClick={() => { setIsCropping(false); setTempImage(null); }}
+                className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="relative h-[300px] sm:h-[400px] bg-gray-900">
+              <Cropper
+                image={tempImage}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={cropperAspect}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onRotationChange={setRotation}
+                onCropComplete={onCropComplete}
+              />
+            </div>
+
+            <div className="p-6 space-y-6 bg-white">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Zoom</span>
+                    <span className="text-[10px] font-bold text-indigo-600">{zoom.toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    value={zoom}
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    aria-labelledby="Zoom"
+                    onChange={(e) => setZoom(Number(e.target.value))}
+                    className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Rotação</span>
+                    <span className="text-[10px] font-bold text-indigo-600">{rotation}°</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      value={rotation}
+                      min={0}
+                      max={360}
+                      step={1}
+                      aria-labelledby="Rotation"
+                      onChange={(e) => setRotation(Number(e.target.value))}
+                      className="flex-1 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                    <button 
+                      onClick={() => setRotation(prev => (prev + 90) % 360)}
+                      className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
+                    >
+                      <RotateCw size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => { setIsCropping(false); setTempImage(null); }}
+                  className="flex-1 py-4 px-6 bg-gray-100 text-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDone}
+                  className="flex-[2] py-4 px-6 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <Check size={18} />
+                  Confirmar Ajuste
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
