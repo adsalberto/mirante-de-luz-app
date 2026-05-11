@@ -38,25 +38,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("Auth State Changed for:", normalizedEmail, "UID:", user.uid);
         
         try {
-          // 1. Email lookup
+          // 1. Check for super admin bootstrap FIRST
+          if (normalizedEmail === 'carlostecal35@gmail.com') {
+            console.log("Super Admin detected. Checking profile...");
+            const adminDocRef = doc(db, 'trabalhadores', user.uid);
+            const adminSnap = await getDoc(adminDocRef);
+            
+            if (!adminSnap.exists()) {
+              console.log("Bootstrapping super admin profile...");
+              const adminUser: Worker = {
+                id: user.uid,
+                name: user.displayName || 'Administrador Principal',
+                email: normalizedEmail,
+                role: 'ADMIN',
+                active: true,
+                createdAt: Date.now(),
+                acceptedTerm: true,
+                termAcceptedAt: Date.now()
+              };
+              await setDoc(adminDocRef, adminUser);
+              
+              try {
+                await dataService.populateDefaults();
+              } catch (popErr) {
+                console.error("Failed to populate default sectors during bootstrap:", popErr);
+              }
+              
+              setCurrentUser(adminUser);
+              setLoading(false);
+              return;
+            } else {
+              // Profile exists, but ensure it has admin powers and is active
+              const adminData = adminSnap.data() as Worker;
+              if (adminData.role !== 'ADMIN' || !adminData.active) {
+                const updatedAdmin = { ...adminData, role: 'ADMIN' as UserRole, active: true };
+                await setDoc(adminDocRef, updatedAdmin, { merge: true });
+                setCurrentUser(updatedAdmin);
+              } else {
+                setCurrentUser({ ...adminData, id: adminSnap.id });
+              }
+              setLoading(false);
+              return;
+            }
+          }
+
+          // 2. Email lookup for existing non-admin profiles
           if (normalizedEmail) {
+            console.log("Looking up profile by email:", normalizedEmail);
             const q = query(collection(db, 'trabalhadores'), where('email', '==', normalizedEmail));
-            const querySnap = await getDocs(q).catch(err => {
-              console.error("Firestore getDocs error:", err);
-              throw err;
-            });
+            const querySnap = await getDocs(q);
             
             if (!querySnap.empty) {
               const workerData = { id: querySnap.docs[0].id, ...querySnap.docs[0].data() } as Worker;
               console.log("Found worker profile by email:", workerData.id);
               
-              // Ensure role matches for super admin
-              if (normalizedEmail === 'carlostecal35@gmail.com') {
-                workerData.role = 'ADMIN';
-                workerData.active = true;
-                dataService.populateDefaults().catch(err => console.error("Auto-population failed:", err));
-              }
-
               if (workerData.id !== user.uid) {
                 console.log("Syncing worker profile to UID path:", user.uid);
                 try {
@@ -64,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     ...workerData, 
                     id: user.uid, 
                     syncedFrom: workerData.id,
-                    email: normalizedEmail // Ensure normalized email is saved
+                    email: normalizedEmail
                   };
                   await setDoc(doc(db, 'trabalhadores', user.uid), syncedProfile);
                   setCurrentUser(syncedProfile);
@@ -78,42 +113,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setLoading(false);
               return;
             }
-
-            // Fallback for special admin bootstrap
-            if (normalizedEmail === 'carlostecal35@gmail.com') {
-              console.log("Bootstrapping super admin profile...");
-              const adminUser: Worker = {
-                id: user.uid,
-                name: user.displayName || 'Administrador Principal',
-                email: normalizedEmail,
-                role: 'ADMIN',
-                active: true,
-                createdAt: Date.now(),
-                acceptedTerm: true,
-                termAcceptedAt: Date.now()
-              };
-              await setDoc(doc(db, 'trabalhadores', user.uid), adminUser);
-              console.log("Super admin bootstrapped successfully.");
-              
-              try {
-                await dataService.populateDefaults();
-              } catch (popErr) {
-                console.error("Failed to populate default sectors during bootstrap:", popErr);
-              }
-
-              setCurrentUser(adminUser);
-              setLoading(false);
-              return;
-            }
           }
 
-          // 2. Fallback to UID lookup
-          console.log("Profile not found by email, trying UID fallback...");
+          // 3. Fallback to UID lookup
+          console.log("Profile not found by email, trying UID direct lookup...");
           const docRef = doc(db, 'trabalhadores', user.uid);
-          const docSnap = await getDoc(docRef).catch(err => {
-            console.error("Firestore getDoc error:", err);
-            throw err;
-          });
+          const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
             const data = docSnap.data() as Worker;
@@ -124,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setCurrentUser(null);
           }
         } catch (error) {
-          console.error("Error loading profile:", error);
+          console.error("Error loading profile in AuthContext:", error);
           setCurrentUser(null);
         }
       } else {

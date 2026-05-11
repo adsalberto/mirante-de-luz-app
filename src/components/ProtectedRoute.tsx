@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, ShieldOff } from 'lucide-react';
@@ -10,11 +10,26 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const { currentUser, loading, fbUser, logout } = useAuth();
+  const [isRetrying, setIsRetrying] = useState(false);
 
-  if (loading) {
+  // Small delay to handle race conditions during new user registration
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (fbUser && !currentUser && !loading && !isRetrying) {
+      setIsRetrying(true);
+      timer = setTimeout(() => {
+        // This will trigger a re-render and useAuth will have the updated state if Firestore synced
+        window.location.reload(); 
+      }, 2500);
+    }
+    return () => clearTimeout(timer);
+  }, [fbUser, currentUser, loading, isRetrying]);
+
+  if (loading || (fbUser && !currentUser && isRetrying)) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin text-indigo-600" size={40} />
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="animate-spin text-indigo-600 mb-4" size={40} />
+        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest animate-pulse">Sincronizando Perfil...</p>
       </div>
     );
   }
