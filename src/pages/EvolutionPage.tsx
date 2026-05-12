@@ -23,7 +23,8 @@ import {
   ArrowUp,
   Lock,
   AlertCircle,
-  Pencil
+  Pencil,
+  ScrollText
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -39,7 +40,10 @@ import { useAuth } from '../context/AuthContext';
 
 export const EvolutionPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+  const isAdmin = 
+    currentUser?.role === 'ADMIN' || 
+    currentUser?.role === 'ADM' || 
+    (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +67,8 @@ export const EvolutionPage: React.FC = () => {
     notes: '',
     recommendations: '',
     referralSectors: [] as string[],
-    encaminhamento: ''
+    encaminhamento: '',
+    attachments: [] as any[]
   });
 
   useEffect(() => {
@@ -105,7 +110,8 @@ export const EvolutionPage: React.FC = () => {
         notes: editingEvo.notesEncrypted,
         recommendations: editingEvo.recommendations,
         referralSectors: editingEvo.nextStepSectorIds || [],
-        encaminhamento: editingEvo.encaminhamento || ''
+        encaminhamento: editingEvo.encaminhamento || '',
+        attachments: editingEvo.attachments || []
       });
       // Scroll to form
       const formElement = document.getElementById('evolution-form');
@@ -329,7 +335,8 @@ export const EvolutionPage: React.FC = () => {
           notesEncrypted: formData.notes,
           recommendations: formData.recommendations,
           nextStepSectorIds: formData.referralSectors,
-          encaminhamento: formData.encaminhamento
+          encaminhamento: formData.encaminhamento,
+          attachments: formData.attachments
         };
         await dataService.updateEvolution(updatedEvo);
         await dataService.createLog('Edição de Prontuário', `ADM ${currentUser?.name || 'Admin'} editou o registro de atendimento do participante ${selectedP.id}`);
@@ -342,7 +349,8 @@ export const EvolutionPage: React.FC = () => {
           notesEncrypted: formData.notes,
           recommendations: formData.recommendations,
           nextStepSectorIds: formData.referralSectors,
-          encaminhamento: formData.encaminhamento
+          encaminhamento: formData.encaminhamento,
+          attachments: formData.attachments
         });
 
         // CRITICAL: Add to Queue for each referral
@@ -363,7 +371,8 @@ export const EvolutionPage: React.FC = () => {
         notes: '', 
         recommendations: '', 
         referralSectors: [],
-        encaminhamento: ''
+        encaminhamento: '',
+        attachments: []
       }));
       await loadHistory(selectedP.id);
       alert(editingEvo ? 'Registro atualizado com sucesso!' : 'Registro salvo e encaminhamentos realizados com sucesso!');
@@ -755,29 +764,31 @@ export const EvolutionPage: React.FC = () => {
                               
                               <div className="flex items-center gap-1">
                                 {isAdmin && (
-                                  <button 
-                                    onClick={() => setEditingEvo(evo)}
-                                    className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                                  >
-                                    <Pencil size={18} />
-                                  </button>
+                                  <>
+                                    <button 
+                                      onClick={() => setEditingEvo(evo)}
+                                      className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                    >
+                                      <Pencil size={18} />
+                                    </button>
+                                    <button 
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (confirm('Excluir este registro permanentemente?')) {
+                                          try {
+                                            await dataService.deleteEvolution(evo.id);
+                                            if (selectedP) loadHistory(selectedP.id);
+                                          } catch (err) {
+                                            console.error('Error deleting evolution:', err);
+                                          }
+                                        }
+                                      }}
+                                      className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                    >
+                                      <X size={20} />
+                                    </button>
+                                  </>
                                 )}
-                                <button 
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (confirm('Excluir este registro permanentemente?')) {
-                                      try {
-                                        await dataService.deleteEvolution(evo.id);
-                                        if (selectedP) loadHistory(selectedP.id);
-                                      } catch (err) {
-                                        console.error('Error deleting evolution:', err);
-                                      }
-                                    }
-                                  }}
-                                  className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                >
-                                  <X size={20} />
-                                </button>
                               </div>
                             </div>
 
@@ -788,10 +799,33 @@ export const EvolutionPage: React.FC = () => {
                                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Registro Evolutivo</p>
                                 </div>
                                 {isAdmin || (currentUser?.role === 'COORDENADOR' && evo.sectorId === currentUser?.sectorId) ? (
-                                  <div 
-                                    className="text-lg text-indigo-950 font-medium leading-relaxed prose prose-indigo max-w-none pl-1"
-                                    dangerouslySetInnerHTML={{ __html: evo.notesEncrypted || '<i>Sem observações detalhadas.</i>' }}
-                                  />
+                                  <>
+                                    <div 
+                                      className="text-lg text-indigo-950 font-medium leading-relaxed prose prose-indigo max-w-none pl-1"
+                                      dangerouslySetInnerHTML={{ __html: evo.notesEncrypted || '<i>Sem observações detalhadas.</i>' }}
+                                    />
+                                    {evo.attachments && evo.attachments.length > 0 && (
+                                      <div className="mt-6 flex flex-wrap gap-4">
+                                        {evo.attachments.map((file, fidx) => (
+                                          <a 
+                                            key={fidx}
+                                            href={file.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex items-center gap-3 p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100 hover:bg-white hover:shadow-lg transition-all group/file"
+                                          >
+                                            <div className="p-2 bg-white rounded-lg text-red-500 shadow-sm border border-red-50">
+                                              <Printer size={16} />
+                                            </div>
+                                            <div className="min-w-0 pr-4">
+                                              <p className="text-[10px] font-bold text-indigo-900 truncate max-w-[120px]">{file.name}</p>
+                                              <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">Documento PDF</p>
+                                            </div>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
                                 ) : (
                                   <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex items-center gap-4 text-gray-400 italic text-sm shadow-inner">
                                     <Lock size={20} className="shrink-0 opacity-50" />
@@ -873,7 +907,7 @@ export const EvolutionPage: React.FC = () => {
                              type="button"
                              onClick={() => {
                                setEditingEvo(null);
-                               setFormData({ recordingSectorId: sectors[0].id, notes: '', recommendations: '', referralSectors: [], encaminhamento: '' });
+                               setFormData({ recordingSectorId: sectors[0].id, notes: '', recommendations: '', referralSectors: [], encaminhamento: '', attachments: [] });
                              }}
                              className="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white p-2 rounded-xl transition-all active:scale-90"
                            >
@@ -953,6 +987,77 @@ export const EvolutionPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-4 pt-4 border-t border-indigo-50">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest">Anexos e Documentos (PDF)</label>
+                          <button 
+                            type="button"
+                            onClick={() => document.getElementById('evolution-file-input')?.click()}
+                            className="text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition-all"
+                          >
+                            + Adicionar PDF
+                          </button>
+                        </div>
+                        
+                        <input 
+                          id="evolution-file-input"
+                          type="file" 
+                          accept=".pdf" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.type !== 'application/pdf') {
+                                alert('Apenas arquivos PDF são permitidos.');
+                                return;
+                              }
+                              const newAttachment = {
+                                id: Math.random().toString(36).substring(7),
+                                name: file.name,
+                                size: file.size,
+                                type: file.type,
+                                url: '#',
+                                uploadDate: Date.now(),
+                                uploadedBy: currentUser?.name || currentUser?.email || 'Sistema'
+                              };
+                              setFormData(prev => ({
+                                ...prev,
+                                attachments: [...prev.attachments, newAttachment]
+                              }));
+                            }
+                          }}
+                        />
+
+                        <div className="space-y-2">
+                          {formData.attachments.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-2">
+                              {formData.attachments.map((file, fidx) => (
+                                <div key={fidx} className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white rounded-lg text-red-500">
+                                      <Printer size={14} />
+                                    </div>
+                                    <p className="text-[10px] font-bold text-indigo-900 truncate max-w-[150px]">{file.name}</p>
+                                  </div>
+                                  <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== fidx) }))}
+                                    className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-all"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-gray-50/50 rounded-2xl border-2 border-dashed border-gray-100 flex flex-col items-center justify-center gap-2 text-center min-h-[80px]">
+                               <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-200">
+                                 <ScrollText size={16} />
+                               </div>
+                               <p className="text-[9px] text-gray-400 font-bold italic">Nenhum arquivo anexado a este registro.</p>
+                            </div>
+                          )}
+                        </div>
+                        
                         <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest">Encaminhamentos</label>
                         
                         <div className="grid grid-cols-1 gap-3">

@@ -60,7 +60,7 @@ export const SchedulesPage: React.FC = () => {
     }
   }, [showAssignmentModal, editingAssignmentId]);
 
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
 
   const canManage = (sectorId?: string) => {
     if (isAdmin) return true;
@@ -428,45 +428,51 @@ export const SchedulesPage: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center gap-1 sm:gap-2">
-                  <button 
-                    onClick={() => {
-                      setEditingSchedule(schedule);
-                      setEditingAssignmentId(null);
-                      setShowAssignmentModal(true);
-                    }}
-                    className="p-2 sm:p-2.5 bg-white text-gray-400 hover:text-indigo-600 rounded-xl sm:rounded-2xl transition-all shadow-sm border border-gray-100 hover:border-indigo-100 hover:shadow-md"
-                    title="Adicionar trabalhador"
-                  >
-                    <Plus size={16} className="sm:size-[18px]" />
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setTargetSector({ id: schedule.sectorId, name: schedule.sectorName });
-                      setNewSectorName(schedule.sectorName);
-                      setIsEditingSector(true);
-                      setIsAddingSector(true);
-                    }}
-                    className="p-1.5 sm:p-2 hover:bg-gray-100 text-gray-300 hover:text-indigo-600 rounded-lg sm:rounded-xl transition-all"
-                    title="Editar nome"
-                  >
-                    <Pencil size={14} className="sm:size-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteSector(schedule.id, schedule.sectorId)}
-                    className={cn(
-                      "p-1.5 sm:p-2 rounded-lg sm:rounded-xl transition-all flex items-center justify-center min-w-[32px] sm:min-w-[36px]",
-                      deletingSectorId === schedule.id 
-                        ? "bg-red-500 text-white px-2 sm:px-3" 
-                        : "hover:bg-red-50 text-gray-300 hover:text-red-500"
-                    )}
-                    title="Remover grupo"
-                  >
-                    {deletingSectorId === schedule.id ? (
-                      <span className="text-[8px] sm:text-[10px] font-black uppercase whitespace-nowrap">Excluir?</span>
-                    ) : (
-                      <Trash2 size={14} className="sm:size-4" />
-                    )}
-                  </button>
+                  {canManage(schedule.sectorId) && (
+                    <button 
+                      onClick={() => {
+                        setEditingSchedule(schedule);
+                        setEditingAssignmentId(null);
+                        setShowAssignmentModal(true);
+                      }}
+                      className="p-2 sm:p-2.5 bg-white text-gray-400 hover:text-indigo-600 rounded-xl sm:rounded-2xl transition-all shadow-sm border border-gray-100 hover:border-indigo-100 hover:shadow-md"
+                      title="Adicionar trabalhador"
+                    >
+                      <Plus size={16} className="sm:size-[18px]" />
+                    </button>
+                  )}
+                  {canManage(schedule.sectorId) && (
+                    <button 
+                      onClick={() => {
+                        setTargetSector({ id: schedule.sectorId, name: schedule.sectorName });
+                        setNewSectorName(schedule.sectorName);
+                        setIsEditingSector(true);
+                        setIsAddingSector(true);
+                      }}
+                      className="p-1.5 sm:p-2 hover:bg-gray-100 text-gray-300 hover:text-indigo-600 rounded-lg sm:rounded-xl transition-all"
+                      title="Editar nome"
+                    >
+                      <Pencil size={14} className="sm:size-4" />
+                    </button>
+                  )}
+                  {canManage(schedule.sectorId) && (
+                    <button 
+                      onClick={() => handleDeleteSector(schedule.id, schedule.sectorId)}
+                      className={cn(
+                        "p-1.5 sm:p-2 rounded-lg sm:rounded-xl transition-all flex items-center justify-center min-w-[32px] sm:min-w-[36px]",
+                        deletingSectorId === schedule.id 
+                          ? "bg-red-500 text-white px-2 sm:px-3" 
+                          : "hover:bg-red-50 text-gray-300 hover:text-red-500"
+                      )}
+                      title="Remover grupo"
+                    >
+                      {deletingSectorId === schedule.id ? (
+                        <span className="text-[8px] sm:text-[10px] font-black uppercase whitespace-nowrap">Excluir?</span>
+                      ) : (
+                        <Trash2 size={14} className="sm:size-4" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -514,34 +520,38 @@ export const SchedulesPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-all shrink-0">
-                          <button 
-                            onClick={() => handleEditAssignment(schedule, assignment)}
-                            className={cn(
-                              "p-1 sm:p-1.5 rounded-lg transition-all",
-                              worksToday ? "text-white hover:bg-white/20" : "text-gray-300 hover:text-indigo-600 hover:bg-white"
-                            )}
-                          >
-                            <Pencil size={12} className="sm:size-[14px]" />
-                          </button>
-                          <button 
-                            onClick={() => {
-                              if (workingAssignmentId === assignment.id) {
-                                handleRemoveAssignment(schedule, assignment.id);
-                                setWorkingAssignmentId(null);
-                              } else {
-                                setWorkingAssignmentId(assignment.id);
-                                setTimeout(() => setWorkingAssignmentId(null), 3000);
-                              }
-                            }}
-                            className={cn(
-                              "p-1 sm:p-1.5 rounded-lg transition-all",
-                              workingAssignmentId === assignment.id 
-                                ? "bg-red-500 text-white" 
-                                : (worksToday ? "text-white hover:bg-white/20" : "text-gray-300 hover:text-red-500 hover:bg-white")
-                            )}
-                          >
-                            <Trash2 size={12} className="sm:size-[14px]" />
-                          </button>
+                          {canManage(schedule.sectorId) && (
+                            <button 
+                              onClick={() => handleEditAssignment(schedule, assignment)}
+                              className={cn(
+                                "p-1 sm:p-1.5 rounded-lg transition-all",
+                                worksToday ? "text-white hover:bg-white/20" : "text-gray-300 hover:text-indigo-600 hover:bg-white"
+                              )}
+                            >
+                              <Pencil size={12} className="sm:size-[14px]" />
+                            </button>
+                          )}
+                          {canManage(schedule.sectorId) && (
+                            <button 
+                              onClick={() => {
+                                if (workingAssignmentId === assignment.id) {
+                                  handleRemoveAssignment(schedule, assignment.id);
+                                  setWorkingAssignmentId(null);
+                                } else {
+                                  setWorkingAssignmentId(assignment.id);
+                                  setTimeout(() => setWorkingAssignmentId(null), 3000);
+                                }
+                              }}
+                              className={cn(
+                                "p-1 sm:p-1.5 rounded-lg transition-all",
+                                workingAssignmentId === assignment.id 
+                                  ? "bg-red-500 text-white" 
+                                  : (worksToday ? "text-white hover:bg-white/20" : "text-gray-300 hover:text-red-500 hover:bg-white")
+                              )}
+                            >
+                              <Trash2 size={12} className="sm:size-[14px]" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -556,17 +566,19 @@ export const SchedulesPage: React.FC = () => {
             </div>
             
             <div className="p-3 sm:p-4 bg-gray-50/50">
-              <button 
-                onClick={() => {
-                  setEditingSchedule(schedule);
-                  setEditingAssignmentId(null);
-                  setShowAssignmentModal(true);
-                }}
-                className="w-full py-2 sm:py-2.5 bg-white text-gray-600 border border-gray-100 font-bold rounded-xl sm:rounded-[16px] text-[9px] sm:text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm"
-              >
-                <UserPlus size={12} className="sm:size-[14px]" />
-                <span>Escalar</span>
-              </button>
+              {canManage(schedule.sectorId) && (
+                <button 
+                  onClick={() => {
+                    setEditingSchedule(schedule);
+                    setEditingAssignmentId(null);
+                    setShowAssignmentModal(true);
+                  }}
+                  className="w-full py-2 sm:py-2.5 bg-white text-gray-600 border border-gray-100 font-bold rounded-xl sm:rounded-[16px] text-[9px] sm:text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm"
+                >
+                  <UserPlus size={12} className="sm:size-[14px]" />
+                  <span>Escalar</span>
+                </button>
+              )}
             </div>
           </motion.div>
         ))}

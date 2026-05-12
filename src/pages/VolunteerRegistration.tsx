@@ -254,6 +254,7 @@ export default function VolunteerRegistration() {
                 </div>
               </div>
 
+
               <div className="space-y-1">
                 <label className="text-[11px] font-black uppercase text-gray-500 tracking-wider ml-1">Tipo de Atividade</label>
                 <select 
@@ -264,7 +265,7 @@ export default function VolunteerRegistration() {
                 >
                   <option value="OUTROS">Selecione...</option>
                   <option value="FRATERNO">Atendimento Fraterno</option>
-                  <option value="ESTUDO">Estudo Doutrinário</option>
+                  <option value="ESTUDO">Estudos</option>
                   <option value="INFANCIA">Infância & Juventude</option>
                   <option value="SOCIAL">Ação Social</option>
                   <option value="ADMINISTRATIVO">Administrativo</option>

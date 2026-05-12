@@ -49,7 +49,7 @@ export const QueuePage: React.FC = () => {
   const getParticipant = (id: string) => participants.find(p => p.id === id);
   const getSector = (id: string) => sectors.find(s => s.id === id);
 
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
   const canManageQueue = isAdmin || ['COORDENADOR', 'ATENDENTE', 'SECRETARIO', 'RECEPCIONISTA'].includes(currentUser?.role || '');
 
   const handleStartService = async (id: string) => {

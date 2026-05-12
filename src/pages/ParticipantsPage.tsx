@@ -180,7 +180,7 @@ export const ParticipantsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM') && (
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position))) && (
             <div className="bg-gray-100 p-1 rounded-2xl flex items-center shadow-inner">
               <button
                 onClick={() => setActiveTab('participants')}

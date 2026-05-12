@@ -74,7 +74,11 @@ export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles) {
-    const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'ADM';
+    const isAdmin = 
+      currentUser.role === 'ADMIN' || 
+      currentUser.role === 'ADM' || 
+      (currentUser.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
+      
     const isAllowed = allowedRoles.includes(currentUser.role) || (isAdmin && allowedRoles.includes('ADMIN'));
     
     if (!isAllowed) {

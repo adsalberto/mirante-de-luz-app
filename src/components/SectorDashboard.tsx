@@ -23,7 +23,8 @@ import {
   Baby,
   Shield,
   ListOrdered,
-  Calendar
+  Calendar,
+  Pencil
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataService } from '../services/dataService';
@@ -125,6 +126,16 @@ export default function SectorDashboard({ sectorId, sectorName }: SectorDashboar
     }
   };
 
+  const canManageDocuments = currentUser && (
+    ['ADMIN', 'ADM'].includes(currentUser.role) || 
+    (currentUser.role === 'COORDENADOR' && currentUser.sectorId === sectorId)
+  );
+
+  const canEditSector = currentUser && (
+    ['ADMIN', 'ADM'].includes(currentUser.role) || 
+    (currentUser.role === 'COORDENADOR' && currentUser.sectorId === sectorId)
+  );
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser) return;
@@ -209,10 +220,20 @@ export default function SectorDashboard({ sectorId, sectorName }: SectorDashboar
       title: 'Relatórios Históricos',
       desc: 'Produtividade e métricas',
       icon: Activity,
-      color: 'bg-purple-500',
+      color: 'bg-indigo-500',
       action: () => navigate('/relatorios')
     }
   ];
+
+  if (canEditSector) {
+    quickActions.push({
+      title: 'Editar Setor',
+      desc: 'Regimento e informações',
+      icon: Pencil,
+      color: 'bg-purple-500',
+      action: () => navigate(`/setores/${sectorId}`)
+    });
+  }
 
   return (
     <div className="space-y-12 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -378,15 +399,17 @@ export default function SectorDashboard({ sectorId, sectorName }: SectorDashboar
                 </div>
                 Biblioteca & Manuais
               </h2>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 pr-6 pl-4 py-3 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl shadow-gray-200 active:scale-95 group"
-              >
-                <div className="p-1 bg-white/10 rounded-lg group-hover:scale-110 transition-transform">
-                  <UploadCloud size={16} />
-                </div>
-                <span>Catalogar PDF</span>
-              </button>
+              {canManageDocuments && (
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 pr-6 pl-4 py-3 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl shadow-gray-200 active:scale-95 group"
+                >
+                  <div className="p-1 bg-white/10 rounded-lg group-hover:scale-110 transition-transform">
+                    <UploadCloud size={16} />
+                  </div>
+                  <span>Catalogar PDF</span>
+                </button>
+              )}
               <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -440,12 +463,14 @@ export default function SectorDashboard({ sectorId, sectorName }: SectorDashboar
                           <Eye size={16} />
                           <span>Luz</span>
                         </a>
-                        <button 
-                          onClick={() => handleDeleteDocument(doc.id)}
-                          className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
-                        >
-                          <Trash2 size={20} />
-                        </button>
+                        {canManageDocuments && (
+                          <button 
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+                          >
+                            <Trash2 size={20} />
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   ))}

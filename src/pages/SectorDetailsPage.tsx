@@ -20,6 +20,8 @@ import {
   LayoutGrid,
   Pencil,
   Save,
+  Plus,
+  Trash2,
   X
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
@@ -55,6 +57,41 @@ export default function SectorDetailsPage() {
     if (found) {
       setSector(found);
       setEditForm(found);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser || !sector) return;
+
+    if (file.type !== 'application/pdf') {
+      alert('Apenas arquivos PDF são permitidos.');
+      return;
+    }
+
+    try {
+      await dataService.addSectorDocument(sector.id, {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url: '#',
+        uploadedBy: currentUser.name || currentUser.email
+      });
+      loadSector();
+      alert('Documento catalogado com sucesso!');
+    } catch (err) {
+      console.error('Erro ao fazer upload:', err);
+      alert('Erro ao enviar documento.');
+    }
+  };
+
+  const handleDeleteDocument = async (docId: string) => {
+    if (!sector || !window.confirm('Tem certeza que deseja excluir este documento?')) return;
+    try {
+      await dataService.deleteSectorDocument(sector.id, docId);
+      loadSector();
+    } catch (err) {
+      console.error('Erro ao excluir documento:', err);
     }
   };
 
@@ -121,7 +158,7 @@ export default function SectorDetailsPage() {
             >
               <ArrowLeft size={16} /> Voltar aos Setores
             </button>
-            {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM') && (
+            {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.role === 'COORDENADOR' && currentUser.sectorId === sector.id)) && (
               <button 
                 onClick={() => setIsEditing(true)}
                 className="flex items-center gap-2 text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-xl transition-all"
@@ -284,6 +321,74 @@ export default function SectorDetailsPage() {
             </div>
           </div>
 
+          <div className="space-y-6 pt-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-gray-900 flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
+                  <FileText size={20} />
+                </div>
+                Biblioteca & Manuais (PDF)
+              </h2>
+              {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.role === 'COORDENADOR' && currentUser.sectorId === sector.id)) && (
+                <>
+                  <button 
+                    onClick={() => document.getElementById('details-file-upload')?.click()}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                  >
+                    <Plus size={16} />
+                    <span>Adicionar PDF</span>
+                  </button>
+                  <input 
+                    id="details-file-upload"
+                    type="file" 
+                    accept=".pdf"
+                    className="hidden" 
+                    onChange={handleFileUpload}
+                  />
+                </>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sector.documents && sector.documents.length > 0 ? sector.documents.map(doc => (
+                <div key={doc.id} className="bg-white p-6 rounded-[32px] border border-gray-100 flex items-center justify-between group hover:shadow-lg transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                      <FileText size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm truncate max-w-[200px]">{doc.name}</h4>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                        {new Date(doc.uploadDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={doc.url} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    >
+                      <Zap size={20} />
+                    </a>
+                    {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.role === 'COORDENADOR' && currentUser.sectorId === sector.id)) && (
+                      <button 
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )) : (
+                <div className="col-span-full py-12 text-center bg-gray-50 rounded-[32px] border border-dashed border-gray-200">
+                  <p className="text-sm font-medium text-gray-400 italic">Nenhum documento cadastrado.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

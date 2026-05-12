@@ -14,6 +14,7 @@ export interface Worker {
   name: string;
   email: string;
   role: UserRole;
+  position?: string; // NEW: Official position/title
   sectorId?: string; // Linked sector
   active: boolean;
   photoUrl?: string; // NEW
@@ -123,6 +124,7 @@ export interface Evolution {
   recommendations: string;
   nextStepSectorIds?: string[]; // Referral
   encaminhamento?: string; // NEW: Specific referral type/destination
+  attachments?: SectorDocument[];
 }
 
 export interface Session {

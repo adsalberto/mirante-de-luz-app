@@ -32,7 +32,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
     }
   }, [location.pathname]);
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'ADM' || user?.email === 'carlostecal35@gmail.com';
+  const isAdmin = 
+    user?.role === 'ADMIN' || 
+    user?.role === 'ADM' || 
+    user?.email === 'carlostecal35@gmail.com' ||
+    (user?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(user.position));
 
   const navItems = [
     { to: '/', icon: Layout, label: 'Painel', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },

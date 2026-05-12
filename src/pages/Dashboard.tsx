@@ -236,7 +236,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Pending Volunteers Alert */}
-          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM') && (stats?.pendingVolunteers || 0) > 0 && (
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position))) && (stats?.pendingVolunteers || 0) > 0 && (
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -387,7 +387,7 @@ export const Dashboard: React.FC = () => {
                     { label: 'Logs de Auditoria', icon: ShieldCheck, color: 'text-rose-600', bg: 'bg-rose-50', path: '/logs', roles: ['ADMIN'] },
                   ].filter(a => {
                     if (!currentUser?.role) return false;
-                    const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'ADM';
+                    const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
                     if (isAdmin && a.roles.includes('ADMIN')) return true;
                     return a.roles.includes(currentUser.role);
                   }).map((action) => (

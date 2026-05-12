@@ -40,6 +40,7 @@ export const SettingsPage: React.FC = () => {
     email: '', 
     phone: '',
     role: 'VOLUNTARIO' as UserRole, 
+    position: '', // NEW
     sectorId: '', 
     photoUrl: '',
     acceptedTerm: false
@@ -66,7 +67,10 @@ export const SettingsPage: React.FC = () => {
     challenges: ''
   });
 
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+  const isAdmin = 
+    currentUser?.role === 'ADMIN' || 
+    currentUser?.role === 'ADM' || 
+    (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
 
   const resetSectorForm = () => {
     setNewSector({ 
@@ -109,6 +113,7 @@ export const SettingsPage: React.FC = () => {
       email: w.email,
       phone: w.phone || '',
       role: w.role,
+      position: w.position || '', // NEW
       sectorId: w.sectorId || '',
       photoUrl: w.photoUrl || '',
       acceptedTerm: w.acceptedTerm || false
@@ -166,7 +171,7 @@ export const SettingsPage: React.FC = () => {
       }
       setIsAddingWorker(false);
       setEditingWorker(null);
-      setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', sectorId: '', photoUrl: '', acceptedTerm: false });
+      setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', position: '', sectorId: '', photoUrl: '', acceptedTerm: false });
       setWorkerPassword('');
       loadData();
     } catch (err: any) {
@@ -305,7 +310,9 @@ export const SettingsPage: React.FC = () => {
                              <span className="text-[7px] font-black bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Pendente</span>
                            )}
                          </div>
-                         <p className="text-[10px] sm:text-xs text-gray-400 font-medium truncate mb-2">{w.email}</p>
+                         <p className="text-[10px] sm:text-xs text-gray-400 font-medium truncate mb-2">
+                           {w.email} {w.position && <span className="text-indigo-600 font-black ml-1">• {w.position}</span>}
+                         </p>
                          
                          <div className="flex flex-wrap gap-2">
                            <span className={cn(
@@ -443,7 +450,7 @@ export const SettingsPage: React.FC = () => {
                 onClick={() => {
                   setIsAddingWorker(false);
                   setEditingWorker(null);
-                  setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', sectorId: '', photoUrl: '', acceptedTerm: false });
+                  setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', position: '', sectorId: '', photoUrl: '', acceptedTerm: false });
                 }} 
                 className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
               >
@@ -452,9 +459,22 @@ export const SettingsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddWorker} className="p-8 space-y-5 overflow-y-auto custom-scrollbar">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Nome do Trabalhador</label>
-                <input required value={newWorker.name} onChange={e => setNewWorker({...newWorker, name: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700" placeholder="Ex: Francisco Cândido" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Nome do Trabalhador</label>
+                  <input required value={newWorker.name} onChange={e => setNewWorker({...newWorker, name: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-sm" placeholder="Ex: Francisco Cândido" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Cargo Institucional</label>
+                  <select value={newWorker.position} onChange={e => setNewWorker({...newWorker, position: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700 text-sm">
+                    <option value="">Nenhum cargo específico</option>
+                    <option value="Presidente(s)">Presidente(s)</option>
+                    <option value="Vice-presidente(s)">Vice-presidente(s)</option>
+                    <option value="1º Secretário(a)">1º Secretário(a)</option>
+                    <option value="Secretário(a) de Planejamento">Secretário(a) de Planejamento</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
@@ -548,7 +568,7 @@ export const SettingsPage: React.FC = () => {
                   onClick={() => {
                     setIsAddingWorker(false);
                     setEditingWorker(null);
-                    setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', sectorId: '', photoUrl: '', acceptedTerm: false });
+                    setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', position: '', sectorId: '', photoUrl: '', acceptedTerm: false });
                   }} 
                   className="flex-1 py-3.5 font-bold text-gray-400 hover:bg-gray-50 rounded-2xl transition-all"
                 >
@@ -602,7 +622,7 @@ export const SettingsPage: React.FC = () => {
                     <select value={newSector.type} onChange={e => setNewSector({...newSector, type: e.target.value as SectorType})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700">
                       <option value="FRATERNO">Atendimento Fraterno</option>
                       <option value="PASSE">Passe & Fluidoterapia</option>
-                      <option value="ESTUDO">Estudo Doutrinário</option>
+                      <option value="ESTUDO">Estudos</option>
                       <option value="INFANCIA">Infância & Juventude</option>
                       <option value="SOCIAL">Ação Social</option>
                       <option value="ADMINISTRATIVO">Administrativo</option>

@@ -144,10 +144,23 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
             />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <div className="flex items-center gap-2">
-                <div className="bg-white/20 backdrop-blur-md p-2 rounded-xl text-white">
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTempImage(value);
+                    setIsCropping(true);
+                  }}
+                  className="bg-white/20 backdrop-blur-md p-2 rounded-xl text-white hover:bg-white/40 transition-all active:scale-95"
+                  title="Ajustar imagem atual"
+                >
+                  <Scissors size={20} />
+                </button>
+                <div className="bg-white/20 backdrop-blur-md p-2 rounded-xl text-white pointer-events-none">
                   <Upload size={20} />
                 </div>
                 <button 
+                  type="button"
                   onClick={clearImage}
                   className="bg-red-500/80 backdrop-blur-md p-2 rounded-xl text-white hover:bg-red-600 transition-colors"
                 >

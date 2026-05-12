@@ -54,7 +54,7 @@ export const AgendaPage: React.FC = () => {
   });
 
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
 
   useEffect(() => {
     if (currentUser) {
@@ -389,7 +389,7 @@ export const AgendaPage: React.FC = () => {
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo</label>
                     <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value as AgendaEvent['type']})} className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none">
                       <option value="DOUTRINARIA">Doutrinária</option>
-                      <option value="ESTUDO">Estudo</option>
+                      <option value="ESTUDO">Estudos</option>
                       <option value="FESTA">Festa/Evento</option>
                       <option value="OUTRO">Outro</option>
                     </select>
