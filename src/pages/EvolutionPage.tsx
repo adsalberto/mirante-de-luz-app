@@ -443,13 +443,13 @@ export const EvolutionPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-8 h-full flex flex-col gap-4 sm:gap-8">
+    <div className="p-4 sm:p-8 min-h-screen lg:h-full flex flex-col gap-4 sm:gap-8">
       <header>
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Evolução & Encaminhamento</h1>
         <p className="text-sm sm:text-base text-gray-500 font-medium">Acompanhe a jornada espiritual e direcione os próximos passos.</p>
       </header>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 min-h-[400px]">
+      <div className="lg:flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 min-h-0">
         {/* Lado Esquerdo: Busca e Seleção */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           <div className="relative group">
@@ -463,7 +463,7 @@ export const EvolutionPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar pb-10 px-2">
+          <div className="lg:flex-1 lg:overflow-y-auto space-y-4 no-scrollbar pb-10 px-2 min-h-0">
             {filteredParticipants.length > 0 ? filteredParticipants.map(p => {
               const age = getAge(p.birthDate);
               const isActive = getParticipantStatus(p.id);
@@ -555,7 +555,7 @@ export const EvolutionPage: React.FC = () => {
         </div>
 
         {/* Lado Direito: Prontuário e Nova Evolução */}
-        <div ref={detailsRef} className="lg:col-span-8 overflow-y-auto no-scrollbar pb-10">
+        <div ref={detailsRef} className="lg:col-span-8 lg:overflow-y-auto no-scrollbar pb-10 min-h-0 w-full">
           {selectedP ? (
             <div
               key={selectedP.id}
@@ -578,8 +578,8 @@ export const EvolutionPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex-1 min-w-0 text-center sm:text-left">
-                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+                    <div className="flex-1 min-w-0 text-center sm:text-left space-y-6">
+                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                           <div className="min-w-0 space-y-1">
                             <h2 className="text-3xl sm:text-4xl font-black text-indigo-950 tracking-tight leading-tight truncate">{selectedP?.name}</h2>
                             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
@@ -637,57 +637,53 @@ export const EvolutionPage: React.FC = () => {
                               >
                                 <Printer size={20} className="group-hover:scale-110 transition-transform" /> 
                               </button>
-                              {isAdmin && (
-                                <button className="flex items-center justify-center w-12 h-12 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-white border-2 border-gray-100 rounded-2xl transition-all shadow-sm hover:shadow-md active:scale-90 group" title="Mais Opções">
-                                  <ExternalLink size={20} className="group-hover:scale-110 transition-transform" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                       </div>
-
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-[28px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-500 group/item">
-                            <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
-                              <Phone size={18} />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-1 opacity-60">Contato Principal</p>
-                              <p className="text-sm font-bold text-indigo-950 truncate whitespace-nowrap">{selectedP?.phone || 'Não Informado'}</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-4 p-4 bg-gray-50/50 rounded-[28px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-500 group/item">
-                            <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
-                              <MapPin size={18} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-1 opacity-60">Endereço Residencial</p>
-                              <p className="text-sm font-bold text-indigo-950 truncate" title={selectedP?.address}>{selectedP?.address || 'Não Informado'}</p>
-                            </div>
-                          </div>
-
-                          <div className={cn(
-                            "flex items-center gap-4 p-4 rounded-[28px] border-2 transition-all duration-500",
-                            activeServices.length > 0 
-                              ? "bg-amber-50 border-amber-100 text-amber-900 shadow-lg shadow-amber-200/20" 
-                              : "bg-emerald-50 border-emerald-100 text-emerald-900"
-                          )}>
-                            <div className={cn(
-                              "p-3 rounded-2xl shadow-sm",
-                              activeServices.length > 0 ? "bg-white text-amber-600" : "bg-white text-emerald-600"
-                            )}>
-                              {activeServices.length > 0 ? <Activity size={18} className="animate-pulse" /> : <CheckCircle2 size={18} />}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-60">Status Atual</p>
-                              <p className="text-sm font-black uppercase italic whitespace-nowrap">
-                                {activeServices.length > 0 ? 'Fluxo de Atendimento' : 'Jornada Concluída'}
-                              </p>
                             </div>
                           </div>
                        </div>
                     </div>
+                  </div>
+
+                  {/* Distributed Info Section to fill space and avoid left gap - Now full width sibling */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-8 border-t border-indigo-50">
+                     <div className="flex items-center gap-3 p-4 bg-gray-50/50 rounded-[24px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300 group/item">
+                       <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
+                         <Phone size={16} />
+                       </div>
+                       <div className="min-w-0 flex-1">
+                         <p className="text-[8px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Contato</p>
+                         <p className="text-xs font-bold text-indigo-950 truncate">{selectedP?.phone || 'Não Informado'}</p>
+                       </div>
+                     </div>
+                     
+                     <div className="flex items-center gap-3 p-4 bg-gray-50/50 rounded-[24px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300 group/item">
+                       <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
+                         <MapPin size={16} />
+                       </div>
+                       <div className="min-w-0 flex-1">
+                         <p className="text-[8px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Endereço</p>
+                         <p className="text-xs font-bold text-indigo-950 truncate" title={selectedP?.address}>{selectedP?.address || 'Não Informado'}</p>
+                       </div>
+                     </div>
+
+                     <div className={cn(
+                       "flex items-center gap-3 p-4 rounded-[24px] border-2 transition-all duration-300",
+                       activeServices.length > 0 
+                         ? "bg-amber-50 border-amber-100/50 text-amber-900" 
+                         : "bg-emerald-50 border-emerald-100 text-emerald-900"
+                     )}>
+                       <div className={cn(
+                         "w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm",
+                         activeServices.length > 0 ? "text-amber-600" : "text-emerald-600"
+                       )}>
+                         {activeServices.length > 0 ? <Activity size={14} className="animate-pulse" /> : <CheckCircle2 size={14} />}
+                       </div>
+                       <div className="min-w-0 flex-1">
+                         <p className="text-[8px] font-black uppercase tracking-wider opacity-60 mb-0.5">Status do Irmão</p>
+                         <p className="text-[10px] font-black italic truncate">
+                           {activeServices.length > 0 ? 'Em Atendimento' : 'Livre / Concluído'}
+                         </p>
+                       </div>
+                     </div>
                   </div>
                 </div>
               </div>
@@ -889,7 +885,7 @@ export const EvolutionPage: React.FC = () => {
 
                 {/* Recording / Form Column */}
                 <div className="xl:col-span-5 space-y-6">
-                  <div className="sticky top-8">
+                  <div className="lg:sticky lg:top-8">
                     <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4 px-2">
                       <Send size={18} className="text-indigo-400" /> Registro de Atendimento
                     </h3>

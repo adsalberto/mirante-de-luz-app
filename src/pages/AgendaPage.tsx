@@ -185,7 +185,7 @@ export const AgendaPage: React.FC = () => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Agenda da Casa</h1>
-          <p className="text-gray-500 font-medium font-serif italic">Controle de doutrinárias, estudos e atividades especiais.</p>
+          <p className="text-gray-500 font-medium font-serif italic">Controle de doutrinárias, estudo e atividades especiais.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex">
@@ -389,7 +389,7 @@ export const AgendaPage: React.FC = () => {
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo</label>
                     <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value as AgendaEvent['type']})} className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none">
                       <option value="DOUTRINARIA">Doutrinária</option>
-                      <option value="ESTUDO">Estudos</option>
+                      <option value="ESTUDO">Estudo</option>
                       <option value="FESTA">Festa/Evento</option>
                       <option value="OUTRO">Outro</option>
                     </select>

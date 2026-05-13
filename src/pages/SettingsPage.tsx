@@ -622,7 +622,7 @@ export const SettingsPage: React.FC = () => {
                     <select value={newSector.type} onChange={e => setNewSector({...newSector, type: e.target.value as SectorType})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700">
                       <option value="FRATERNO">Atendimento Fraterno</option>
                       <option value="PASSE">Passe & Fluidoterapia</option>
-                      <option value="ESTUDO">Estudos</option>
+                      <option value="ESTUDO">Estudo</option>
                       <option value="INFANCIA">Infância & Juventude</option>
                       <option value="SOCIAL">Ação Social</option>
                       <option value="ADMINISTRATIVO">Administrativo</option>

@@ -11,7 +11,14 @@ import {
   MoreVertical,
   Activity,
   Zap,
-  ClipboardList
+  ClipboardList,
+  Printer,
+  ExternalLink,
+  Phone,
+  MapPin,
+  Heart,
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ServiceQueueEntry, Participant, Sector, Worker } from '../types';
@@ -119,131 +126,126 @@ export const QueuePage: React.FC = () => {
                   <motion.div
                     layout
                     key={item.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     className={cn(
-                      "bg-white p-4 sm:p-6 rounded-[24px] sm:rounded-[32px] border-2 transition-all flex flex-col gap-4 sm:gap-6",
+                      "bg-white p-6 sm:p-8 rounded-[40px] border border-gray-100/50 transition-all flex flex-col gap-6",
                       item.status === 'IN_PROGRESS' 
-                        ? "border-indigo-500 shadow-xl shadow-indigo-50" 
-                        : "border-gray-50 shadow-sm hover:border-indigo-100"
+                        ? "shadow-2xl shadow-indigo-100 ring-2 ring-indigo-500/20" 
+                        : "shadow-xl shadow-gray-100/50 hover:shadow-2xl hover:shadow-indigo-100/30"
                     )}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center border-2 shadow-sm",
-                          item.status === 'IN_PROGRESS' ? "bg-indigo-600 border-indigo-400 text-white rotate-6" : "bg-gray-50 border-gray-100 text-gray-400"
-                        )}>
-                          {item.status === 'IN_PROGRESS' ? <Activity size={16} className="sm:size-5" /> : <Clock size={16} className="sm:size-5" />}
-                        </div>
-                        <div>
-                          <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Destino</p>
-                          <h4 className="font-bold text-gray-900 leading-none text-sm sm:text-base">{s?.name}</h4>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {item.priority && (
-                          <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase border border-amber-100 italic">
-                            <Zap size={9} fill="currentColor" strokeWidth={3} />
-                            <span>PRIO</span>
-                          </div>
-                        )}
-                        {currentUser?.role !== 'RECEPCIONISTA' && (
-                          <button 
-                            onClick={() => navigate(`/atendimentos?participantId=${item.participantId}`)}
-                            title="Ver Prontuário"
-                            className="p-1.5 sm:p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                          >
-                            <ClipboardList size={18} className="sm:size-5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 sm:gap-5">
-                      <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-[24px] bg-gradient-to-tr from-gray-100 to-indigo-50 flex items-center justify-center text-indigo-300 font-black text-xl sm:text-2xl border-2 border-white shadow-inner shrink-0">
-                        {(p.name || '?').charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <h3 className="text-base sm:text-xl font-black text-gray-900 leading-tight truncate">{p.name}</h3>
-                          <span className={cn(
-                            "text-[8px] sm:text-[10px] font-black uppercase px-1.5 sm:px-2 py-0.5 rounded-full border shrink-0",
-                            (p.gender === 'Masculino' || p.gender === 'M') ? "bg-blue-50 text-blue-600 border-blue-100" : (p.gender === 'Feminino' || p.gender === 'F') ? "bg-pink-50 text-pink-600 border-pink-100" : "bg-gray-50 text-gray-400 border-gray-100"
-                          )}>
-                            {(p.gender === 'Masculino' || p.gender === 'M') ? 'Masc' : (p.gender === 'Feminino' || p.gender === 'F') ? 'Fem' : p.gender || 'N/I'}
-                          </span>
-                        </div>
-                        <p className="text-xs font-medium text-gray-400 mt-0.5 sm:mt-1 flex items-center gap-1.5">
-                          <User size={12} className="opacity-50" />
-                          <span className="truncate">Espera: {formatDistanceToNow(item.arrivalDate, { locale: ptBR })}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 mt-1 sm:mt-2">
-                       {item.status === 'WAITING' ? (
-                         <>
-                          {canManageQueue ? (
-                            <>
-                              <button
-                                onClick={() => handleStartService(item.id)}
-                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 sm:py-4 rounded-[16px] sm:rounded-[20px] font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
-                              >
-                                <Play size={16} fill="currentColor" />
-                                <span>Iniciar Atendimento</span>
-                              </button>
-                              <button 
-                                onClick={async () => {
-                                  if (confirm('Deseja remover este irmão da fila?')) {
-                                    try {
-                                      await dataService.updateQueueStatus(item.id, 'CANCELLED');
-                                      await loadData();
-                                    } catch (err) {
-                                      console.error('Erro ao cancelar fila:', err);
-                                      alert('Erro ao remover da fila.');
-                                    }
-                                  }
-                                }}
-                                className="p-3 sm:p-4 bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-500 rounded-[16px] sm:rounded-[20px] transition-colors"
-                              >
-                                <XCircle size={18} className="sm:size-5" />
-                              </button>
-                            </>
+                    <div className="flex flex-col sm:flex-row items-start gap-6">
+                      {/* Avatar Section */}
+                      <div className="relative group/avatar">
+                        <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center text-white font-black text-4xl sm:text-5xl shadow-2xl shadow-indigo-200 border-4 border-white transition-transform duration-500 group-hover/avatar:scale-105">
+                          {(p.photoUrl) ? (
+                            <img src={p.photoUrl} className="w-full h-full object-cover rounded-[inherit]" alt={p.name} referrerPolicy="no-referrer" />
                           ) : (
-                            <div className="flex-1 py-3 sm:py-4 text-center bg-gray-50 text-gray-400 rounded-[16px] sm:rounded-[20px] font-bold text-[10px] sm:text-xs uppercase tracking-widest italic border border-gray-100">
-                              Aguardando Chamada
-                            </div>
+                            (p.name || '?').charAt(0)
                           )}
-                         </>
-                       ) : (
-                         <div className="w-full flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-[16px] sm:rounded-[20px]">
-                            <div className="flex items-center gap-2 sm:gap-3">
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
-                                <Activity size={12} className="text-indigo-600" />
-                              </div>
-                              <span className="text-xs font-bold text-indigo-800 animate-pulse tracking-tight truncate">Em Atendimento...</span>
+                        </div>
+                        <div className="absolute -bottom-2 -right-2 bg-white p-2 rounded-xl shadow-lg border border-indigo-50">
+                          <Sparkles size={16} className="text-indigo-600 animate-pulse" />
+                        </div>
+                      </div>
+
+                      {/* Content Section */}
+                      <div className="flex-1 space-y-6">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                          <div className="space-y-1">
+                            <h3 className="text-3xl sm:text-4xl font-black text-indigo-950 leading-tight tracking-tight">
+                              {p.name.split(' ').slice(0, 2).join(' ')}
+                            </h3>
+                            <div className="flex flex-wrap gap-3">
+                              {p.birthDate && (
+                                <span className="flex items-center gap-1.5 bg-indigo-50/50 text-indigo-600 px-3 py-1.5 rounded-xl font-bold text-xs border border-indigo-100/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
+                                  <Clock size={14} className="opacity-70" />
+                                  <span>{Math.floor((new Date().getTime() - new Date(p.birthDate).getTime()) / 31536000000)} anos</span>
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1.5 bg-indigo-50/50 text-indigo-600 px-3 py-1.5 rounded-xl font-bold text-xs border border-indigo-100/50 shadow-sm transition-all hover:bg-white hover:shadow-md">
+                                <User size={14} className="opacity-70" />
+                                <span>{p.gender === 'Feminino' ? 'Feminino' : 'Masculino'}</span>
+                              </span>
+                              <span className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100">
+                                <Search size={12} strokeWidth={3} />
+                                #{item.id.slice(0, 5).toUpperCase()}
+                              </span>
                             </div>
-                            {canManageQueue && (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await dataService.updateQueueStatus(item.id, 'FINISHED');
-                                    await loadData();
-                                  } catch (err) {
-                                    console.error('Erro ao finalizar atendimento:', err);
-                                    alert('Erro ao finalizar atendimento.');
-                                  }
-                                }}
-                                className="bg-white text-indigo-600 px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs shadow-sm hover:shadow-md transition-all active:scale-95 uppercase tracking-tighter"
-                              >
-                                Finalizar
-                              </button>
-                            )}
-                         </div>
-                       )}
+                          </div>
+
+                          <div className="flex items-center justify-center sm:justify-start gap-3">
+                             {item.status === 'WAITING' ? (
+                               <button 
+                                 onClick={() => handleStartService(item.id)}
+                                 className="flex items-center gap-3 bg-emerald-600 text-white px-6 py-4 rounded-[22px] font-black text-[10px] uppercase tracking-[0.15em] hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-200 active:scale-95 group ring-8 ring-emerald-50/50"
+                               >
+                                 <Sparkles size={18} className="fill-white/20" />
+                                 <span>INICIAR ATENDIMENTO</span>
+                               </button>
+                             ) : (
+                               <div className="flex items-center gap-3 bg-indigo-100 text-indigo-700 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-indigo-200 shadow-inner">
+                                 <Activity size={16} className="animate-pulse" />
+                                 EM CURSO
+                               </div>
+                             )}
+                             
+                             <div className="flex items-center gap-2">
+                               <button className="flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group">
+                                 <Printer size={20} className="group-hover:scale-110 transition-transform" />
+                               </button>
+                               <button className="flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group">
+                                 <ExternalLink size={20} className="group-hover:scale-110 transition-transform" />
+                               </button>
+                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Info Grid - Unified Style with EvolutionPage */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-8 border-t border-indigo-50">
+                      <div className="flex items-center gap-3 p-4 bg-gray-50/50 rounded-[24px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300 group/item">
+                        <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
+                          <Phone size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[8px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Contato</p>
+                          <p className="text-xs font-bold text-indigo-950 truncate">{p.phone || 'Não Informado'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 p-4 bg-gray-50/50 rounded-[24px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300 group/item">
+                        <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
+                          <MapPin size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[8px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Endereço</p>
+                          <p className="text-xs font-bold text-indigo-950 truncate" title={p.address}>{p.address || 'Não Informado'}</p>
+                        </div>
+                      </div>
+
+                      <div className={cn(
+                        "flex items-center gap-3 p-4 rounded-[24px] border-2 transition-all duration-300",
+                        item.status === 'IN_PROGRESS'
+                          ? "bg-amber-50 border-amber-100/50 text-amber-900" 
+                          : "bg-emerald-50 border-emerald-100 text-emerald-900"
+                      )}>
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm",
+                          item.status === 'IN_PROGRESS' ? "text-amber-600" : "text-emerald-600"
+                        )}>
+                          {item.status === 'IN_PROGRESS' ? <Activity size={14} className="animate-pulse" /> : <CheckCircle2 size={14} />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[8px] font-black uppercase tracking-wider opacity-60 mb-0.5">Status do Irmão</p>
+                          <p className="text-[10px] font-black italic truncate">
+                            {item.status === 'IN_PROGRESS' ? 'Em Atendimento' : 'Aguardando Fila'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 );

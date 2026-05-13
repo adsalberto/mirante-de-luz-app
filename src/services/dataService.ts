@@ -628,7 +628,7 @@ class DataService {
         { name: 'Passe / Fluidoterapia', type: 'PASSE' as const, description: 'Transmissão de energias' },
         { name: 'Evangelização Infantil', type: 'INFANCIA' as const, description: 'Educação para crianças' },
         { name: 'Mocidade / Juventude', type: 'INFANCIA' as const, description: 'Educação para jovens' },
-        { name: 'Estudos', type: 'ESTUDO' as const, description: 'ESDE e EADE' },
+        { name: 'Estudo', type: 'ESTUDO' as const, description: 'Estudo da Doutrina' },
         { name: 'Ação Social', type: 'SOCIAL' as const, description: 'Assistência a famílias' },
         { name: 'Mediúnica', type: 'MEDIUNICO' as const, description: 'Trabalhos práticos' },
         { name: 'Doutrinária', type: 'ESTUDO' as const, description: 'Palestras e ensinamentos' },
