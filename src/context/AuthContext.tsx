@@ -9,7 +9,7 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, query, where, collection, getDocs } from 'firebase/firestore';
-import { initializeApp, getApp, getApps } from 'firebase/app';
+import { initializeApp, getApp, getApps, deleteApp } from 'firebase/app';
 import { auth, db } from '../lib/firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { dataService } from '../services/dataService';
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         newWorkerId = res.user.uid;
       } catch (authErr: any) {
         // Clean up secondary app even on error
-        try { await (secondaryApp as any).delete(); } catch(e) {}
+        try { await deleteApp(secondaryApp); } catch(e) {}
         
         if (authErr.code === 'auth/email-already-in-use' || authErr.message?.includes('email-already-in-use')) {
           throw new Error('AUTH_EMAIL_ALREADY_IN_USE');
@@ -186,9 +186,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'trabalhadores', newWorkerId), newWorker);
       
       // Clean up secondary app
-      await (secondaryApp as any).delete();
+      await deleteApp(secondaryApp);
     } catch (error: any) {
-      if (error.message === 'AUTH_EMAIL_ALREADY_IN_USE' || error.message?.includes('AUTH_EMAIL_ALREADY_IN_USE')) throw error;
+      const msg = typeof error === 'string' ? error : (error.message || '');
+      if (msg === 'AUTH_EMAIL_ALREADY_IN_USE' || msg.includes('AUTH_EMAIL_ALREADY_IN_USE')) throw error;
       console.error("Error creating secondary user:", error);
       throw error;
     }

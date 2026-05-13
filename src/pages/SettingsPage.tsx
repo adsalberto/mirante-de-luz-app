@@ -204,21 +204,27 @@ export const SettingsPage: React.FC = () => {
       setWorkerPassword('');
       loadData();
     } catch (err: any) {
-      console.error('Registration error details:', err);
-      const msg = (err.message || '').toString();
+      console.log('Interpreting registration error...', err);
+      const msg = (err.message || err || '').toString();
+      console.log('Extracted message:', msg);
       
-      if (msg.includes('AUTH_EMAIL_ALREADY_IN_USE') || msg.includes('auth/email-already-in-use')) {
+      const isDomainError = msg.includes('AUTH_EMAIL_ALREADY_IN_USE') || msg.includes('auth/email-already-in-use') || msg.includes('already-in-use');
+
+      if (isDomainError) {
         // If we reach here, it means the email exists in Firebase Auth but NOT as an active worker profile
         const isCurrentAdmin = normalizedEmail === currentUser?.email?.toLowerCase().trim();
         
         if (isCurrentAdmin) {
           alert('ATENÇÃO: Você está tentando cadastrar o seu PRÓPRIO e-mail de administrador.\n\nSeu perfil já existe. Se quiser alterar seus dados, localize seu nome na lista e use o botão de editar.');
+          setIsSubmittingWorker(false);
           return;
         }
 
+        const friendlyMsg = 'Este e-mail já está em uso. Tente fazer login ou recupere sua senha.';
+
         const dialogMsg = 
+          friendlyMsg + '\n\n' +
           'AVISO: Este e-mail já possui uma conta de acesso (login) registrada no sistema Firebase (provavelmente de um cadastro antigo que foi excluído).\n\n' +
-          'Por segurança, o login não é removido automaticamente quando o perfil é excluído.\n\n' +
           'Deseja REATIVAR o perfil deste colaborador? Ele poderá entrar com a mesma senha que usava antes.';
           
         if (confirm(dialogMsg)) {
@@ -246,8 +252,6 @@ export const SettingsPage: React.FC = () => {
           } catch (profileErr: any) {
              console.error('Manual link error:', profileErr);
              alert('Erro ao vincular perfil: ' + (profileErr.message || 'Erro de permissão ou conexão.'));
-          } finally {
-            setIsSubmittingWorker(false);
           }
         }
       } else if (msg.includes('auth/weak-password')) {
