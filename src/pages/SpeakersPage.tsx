@@ -26,7 +26,8 @@ export const SpeakersPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeletingConfirmOpen, setIsDeletingConfirmOpen] = useState(false);
+  const [speakerToDelete, setSpeakerToDelete] = useState<Speaker | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -47,6 +48,20 @@ export const SpeakersPage: React.FC = () => {
   const loadSpeakers = async () => {
     const data = await dataService.getSpeakers();
     setSpeakers(data);
+  };
+
+  const handleDeleteSpeaker = async () => {
+    if (!speakerToDelete) return;
+    try {
+      await dataService.deleteSpeaker(speakerToDelete.id);
+      setIsDeletingConfirmOpen(false);
+      setSpeakerToDelete(null);
+      await loadSpeakers();
+      alert('Palestrante excluído com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao excluir palestrante:', err);
+      alert('Erro ao excluir palestrante.');
+    }
   };
 
   const handleEdit = (s: Speaker) => {
@@ -149,22 +164,13 @@ export const SpeakersPage: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => {
-                      if (deletingId === s.id) {
-                        dataService.deleteSpeaker(s.id).then(() => {
-                          setDeletingId(null);
-                          loadSpeakers();
-                        });
-                      } else {
-                        setDeletingId(s.id);
-                        setTimeout(() => setDeletingId(null), 3000);
-                      }
+                      setSpeakerToDelete(s);
+                      setIsDeletingConfirmOpen(true);
                     }}
-                    className={cn(
-                      "p-2 transition-all rounded-xl flex items-center gap-1",
-                      deletingId === s.id ? "bg-red-500 text-white text-[10px] font-black px-3 py-1.5" : "text-gray-300 hover:text-red-500"
-                    )}
+                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-white rounded-xl transition-all shadow-none hover:shadow-lg"
+                    title="Excluir Palestrante"
                   >
-                    {deletingId === s.id ? "CONFIRMAR?" : <Trash2 size={18} />}
+                    <Trash2 size={18} />
                   </button>
                 </div>
               )}
@@ -331,6 +337,42 @@ export const SpeakersPage: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal Confirmação Exclusão */}
+        {isDeletingConfirmOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-red-950/40 backdrop-blur-sm" onClick={() => setIsDeletingConfirmOpen(false)} />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="relative w-full max-w-sm bg-white rounded-[32px] shadow-2xl p-8 text-center space-y-6"
+            >
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto text-red-500">
+                <Trash2 size={40} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-gray-900 tracking-tight italic">Confirmar Exclusão</h2>
+                <p className="text-sm text-gray-500 font-medium mt-2">
+                  Deseja realmente excluir <strong>{speakerToDelete?.name}</strong>? Esta ação não pode ser desfeita.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setIsDeletingConfirmOpen(false)}
+                  className="flex-1 py-3.5 font-bold text-gray-400 hover:bg-gray-50 rounded-2xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleDeleteSpeaker}
+                  className="flex-1 py-3.5 bg-red-600 text-white font-black rounded-2xl shadow-xl shadow-red-100 hover:bg-red-700 transition-all"
+                >
+                  Confirmar
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

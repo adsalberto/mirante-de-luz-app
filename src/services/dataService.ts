@@ -142,8 +142,14 @@ class DataService {
   async deleteWorker(id: string) {
     const path = `trabalhadores/${id}`;
     try {
+      const workerDoc = await getDoc(doc(db, 'trabalhadores', id));
+      const workerData = workerDoc.exists() ? workerDoc.data() : null;
+      
       await deleteDoc(doc(db, 'trabalhadores', id));
-      this.createLog('Exclusão de Trabalhador', `ID: ${id}`);
+      
+      this.createLog('Exclusão de Trabalhador', 
+        workerData ? `Nome: ${workerData.name} (ID: ${id})` : `ID: ${id}`
+      );
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }
@@ -599,6 +605,18 @@ class DataService {
      } catch (error) {
        handleFirestoreError(error, OperationType.DELETE, path);
      }
+  }
+
+  async addWorkerManual(worker: Omit<Worker, 'id'>) {
+    const path = 'trabalhadores';
+    try {
+      const docRef = await addDoc(collection(db, path), worker);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Cadastro de Perfil Manual', `Nome: ${worker.name} (E-mail vinculado)`);
+      return docRef.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
   }
 
   async addWorker(worker: Omit<Worker, 'id'> & { id: string }) {

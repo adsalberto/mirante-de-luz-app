@@ -27,9 +27,11 @@ export const SettingsPage: React.FC = () => {
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [isAddingWorker, setIsAddingWorker] = useState(false);
   const [isAddingSector, setIsAddingSector] = useState(false);
+  const [isSubmittingWorker, setIsSubmittingWorker] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [editingSector, setEditingSector] = useState<Sector | null>(null);
-  const [deletingWorkerId, setDeletingWorkerId] = useState<string | null>(null);
+  const [isDeletingConfirmOpen, setIsDeletingConfirmOpen] = useState(false);
+  const [workerToDelete, setWorkerToDelete] = useState<Worker | null>(null);
   const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
   const [workerPassword, setWorkerPassword] = useState('');
   
@@ -149,25 +151,52 @@ export const SettingsPage: React.FC = () => {
 
   const handleAddWorker = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Attempting to save worker...", { editing: !!editingWorker, email: newWorker.email });
+    
     if (newWorker.role === 'VOLUNTARIO' && !newWorker.acceptedTerm) {
       alert('É necessário aceitar o Termo de Adesão ao Trabalho Voluntário.');
       return;
     }
 
+    const normalizedEmail = newWorker.email.toLowerCase().trim();
+
+    setIsSubmittingWorker(true);
     try {
+      // 1. Check if worker already exists in Firestore BEFORE trying to create Auth
+      if (!editingWorker) {
+        console.log("Checking for duplicates for email:", normalizedEmail);
+        const existingWorkers = await dataService.getWorkers();
+        if (!existingWorkers) throw new Error("Não foi possível validar a lista de trabalhadores.");
+        
+        const duplicate = existingWorkers.find(w => w.email.toLowerCase().trim() === normalizedEmail);
+        
+        if (duplicate) {
+          alert(`O trabalhador "${duplicate.name}" já está cadastrado com este e-mail.\n\nSugestão: Tente localizar o cadastro atual na lista e editá-lo se necessário.`);
+          setIsSubmittingWorker(false);
+          return;
+        }
+      }
+
+      console.log("Preparing payload for worker:", normalizedEmail);
       const payload = {
         ...newWorker,
+        email: normalizedEmail,
         termAcceptedAt: newWorker.acceptedTerm ? Date.now() : undefined
       };
 
       if (editingWorker) {
+        console.log("Updating existing worker:", editingWorker.id);
         await dataService.updateWorker({ ...editingWorker, ...payload });
+        alert('Trabalhador atualizado com sucesso!');
       } else {
         if (!workerPassword || workerPassword.length < 6) {
           alert('Senha deve ter no mínimo 6 caracteres.');
+          setIsSubmittingWorker(false);
           return;
         }
+        console.log("Registering new worker auth account...");
         await registerWorker(payload, workerPassword);
+        alert('Trabalhador cadastrado e conta de acesso criada com sucesso!');
       }
       setIsAddingWorker(false);
       setEditingWorker(null);
@@ -175,7 +204,59 @@ export const SettingsPage: React.FC = () => {
       setWorkerPassword('');
       loadData();
     } catch (err: any) {
-      alert('Erro ao cadastrar trabalhador: ' + err.message);
+      console.error('Registration error details:', err);
+      const msg = (err.message || '').toString();
+      
+      if (msg.includes('AUTH_EMAIL_ALREADY_IN_USE') || msg.includes('auth/email-already-in-use')) {
+        // If we reach here, it means the email exists in Firebase Auth but NOT as an active worker profile
+        const isCurrentAdmin = normalizedEmail === currentUser?.email?.toLowerCase().trim();
+        
+        if (isCurrentAdmin) {
+          alert('ATENÇÃO: Você está tentando cadastrar o seu PRÓPRIO e-mail de administrador.\n\nSeu perfil já existe. Se quiser alterar seus dados, localize seu nome na lista e use o botão de editar.');
+          return;
+        }
+
+        const dialogMsg = 
+          'AVISO: Este e-mail já possui uma conta de acesso (login) registrada no sistema Firebase (provavelmente de um cadastro antigo que foi excluído).\n\n' +
+          'Por segurança, o login não é removido automaticamente quando o perfil é excluído.\n\n' +
+          'Deseja REATIVAR o perfil deste colaborador? Ele poderá entrar com a mesma senha que usava antes.';
+          
+        if (confirm(dialogMsg)) {
+          try {
+            console.log("Proceeding with manual profile creation for existing auth user...");
+            setIsSubmittingWorker(true);
+            const profilePayload = {
+              ...newWorker,
+              email: normalizedEmail,
+              active: true,
+              createdAt: Date.now(),
+              termAcceptedAt: newWorker.acceptedTerm ? Date.now() : undefined
+            };
+            
+            await dataService.addWorkerManual(profilePayload);
+            
+            alert('Sucesso! O perfil foi recriado e vinculado ao e-mail existente.');
+            
+            setIsAddingWorker(false);
+            setEditingWorker(null);
+            setNewWorker({ name: '', email: '', phone: '', role: 'VOLUNTARIO', position: '', sectorId: '', photoUrl: '', acceptedTerm: false });
+            setWorkerPassword('');
+            loadData();
+            return;
+          } catch (profileErr: any) {
+             console.error('Manual link error:', profileErr);
+             alert('Erro ao vincular perfil: ' + (profileErr.message || 'Erro de permissão ou conexão.'));
+          } finally {
+            setIsSubmittingWorker(false);
+          }
+        }
+      } else if (msg.includes('auth/weak-password')) {
+        alert('A senha informada é muito fraca. Por favor, use pelo menos 6 caracteres.');
+      } else {
+        alert('Não foi possível concluir o registro:\n' + (msg || 'Erro de conexão ou permissão. Verifique os campos e tente novamente.'));
+      }
+    } finally {
+      setIsSubmittingWorker(false);
     }
   };
 
@@ -204,14 +285,22 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteWorker = async (id: string) => {
-    if (deletingWorkerId === id) {
-      await dataService.deleteWorker(id);
-      setDeletingWorkerId(null);
+  const handleDeleteWorkerAction = async () => {
+    if (!workerToDelete) return;
+    try {
+      await dataService.deleteWorker(workerToDelete.id);
       loadData();
-    } else {
-      setDeletingWorkerId(id);
-      setTimeout(() => setDeletingWorkerId(null), 3000);
+      setIsDeletingConfirmOpen(false);
+      setWorkerToDelete(null);
+      alert('Trabalhador excluído com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao excluir trabalhador:', err);
+      try {
+        const errObj = JSON.parse(err.message);
+        alert(`Erro ao excluir: ${errObj.error || 'Sem permissão'}`);
+      } catch {
+        alert('Ocorreu um erro ao excluir o trabalhador.');
+      }
     }
   };
 
@@ -340,12 +429,12 @@ export const SettingsPage: React.FC = () => {
                               <Pencil size={14} />
                             </button>
                             <button 
-                              onClick={() => handleDeleteWorker(w.id)}
-                              className={cn(
-                                "p-2 rounded-xl transition-all flex items-center justify-center",
-                                deletingWorkerId === w.id ? "bg-red-500 text-white" : "text-gray-300 hover:text-red-500 hover:bg-red-50"
-                              )}
-                              title={deletingWorkerId === w.id ? "Confirmar exclusão?" : "Excluir"}
+                              onClick={() => {
+                                setWorkerToDelete(w);
+                                setIsDeletingConfirmOpen(true);
+                              }}
+                              className="p-2 mr-1 rounded-xl transition-all flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50"
+                              title="Excluir Trabalhador"
                             >
                                <Trash2 size={14} />
                             </button>
@@ -547,7 +636,6 @@ export const SettingsPage: React.FC = () => {
                   <div className="relative">
                     <input 
                       type="checkbox" 
-                      required 
                       checked={newWorker.acceptedTerm}
                       onChange={e => setNewWorker({...newWorker, acceptedTerm: e.target.checked})}
                       className="peer hidden" 
@@ -574,8 +662,19 @@ export const SettingsPage: React.FC = () => {
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="flex-[1.5] py-3.5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
-                  {editingWorker ? 'Salvar Alterações' : 'Salvar Trabalhador'}
+                <button 
+                  type="submit" 
+                  disabled={isSubmittingWorker}
+                  className="flex-[1.5] py-3.5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale"
+                >
+                  {isSubmittingWorker ? (
+                    <div className="flex items-center justify-center gap-2">
+                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                       <span>Processando...</span>
+                    </div>
+                  ) : (
+                    editingWorker ? 'Salvar Alterações' : 'Salvar Trabalhador'
+                  )}
                 </button>
               </div>
             </form>
@@ -723,6 +822,47 @@ export const SettingsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão de Trabalhador */}
+      {isDeletingConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-red-950/40 backdrop-blur-sm" onClick={() => setIsDeletingConfirmOpen(false)} />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="relative w-full max-w-sm bg-white rounded-[32px] shadow-2xl p-8 text-center space-y-6"
+          >
+            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto text-red-500">
+              <Trash2 size={40} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight">Confirmar Exclusão</h2>
+              <p className="text-sm text-gray-500 font-medium mt-2">
+                Tem certeza que deseja excluir o trabalhador <strong className="text-gray-900">{workerToDelete?.name}</strong>?
+              </p>
+              <div className="text-[10px] text-amber-700 bg-amber-50 p-4 rounded-2xl border border-amber-100 italic leading-relaxed text-left">
+                <strong>Nota Importante:</strong> O perfil no banco de dados (Firestore) será eliminado. 
+                Por segurança, o acesso de login (Firebase Auth) não é removido automaticamente para evitar perda acidental de conta. 
+                Se você re-cadastrar este e-mail no futuro, o sistema perguntará se deseja reativar o acesso.
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsDeletingConfirmOpen(false)}
+                className="flex-1 py-3.5 font-bold text-gray-400 hover:bg-gray-50 rounded-2xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleDeleteWorkerAction}
+                className="flex-1 py-3.5 bg-red-600 text-white font-black rounded-2xl shadow-xl shadow-red-100 hover:bg-red-700 transition-all"
+              >
+                Confirmar
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

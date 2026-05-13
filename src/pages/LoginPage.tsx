@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Lock, Mail, Loader2, Sparkles } from 'lucide-react';
+import { Lock, Mail, Loader2, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [success, setSuccess] = useState('');
+  const { login, resetPassword } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,6 +35,29 @@ export default function LoginPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      setError('Por favor, insira seu e-mail primeiro.');
+      return;
+    }
+    setResetLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      await resetPassword(email.toLowerCase().trim());
+      setSuccess('E-mail de redefinição enviado com sucesso!');
+    } catch (err: any) {
+      console.error("Reset password error:", err);
+      if (err.code === 'auth/user-not-found') {
+        setError('Usuário não encontrado com este e-mail.');
+      } else {
+        setError('Erro ao enviar e-mail. Tente novamente mais tarde.');
+      }
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -76,13 +102,30 @@ export default function LoginPage() {
                   <Lock size={18} />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-indigo-600/20 text-gray-700 font-bold transition-all"
+                  className="w-full pl-12 pr-12 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-indigo-600/20 text-gray-700 font-bold transition-all"
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-5 flex items-center text-gray-400 hover:text-indigo-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <div className="flex justify-end mt-2">
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={resetLoading}
+                  className="text-[10px] font-black text-gray-400 hover:text-indigo-600 uppercase tracking-widest transition-colors disabled:opacity-50"
+                >
+                  {resetLoading ? 'Enviando...' : 'Esqueci minha senha'}
+                </button>
               </div>
             </div>
 
@@ -93,6 +136,16 @@ export default function LoginPage() {
                 className="text-red-500 text-xs font-bold text-center bg-red-50 py-3 rounded-xl"
               >
                 {error}
+              </motion.p>
+            )}
+
+            {success && (
+              <motion.p 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-emerald-500 text-xs font-bold text-center bg-emerald-50 py-3 rounded-xl"
+              >
+                {success}
               </motion.p>
             )}
 

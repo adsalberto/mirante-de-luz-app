@@ -13,7 +13,7 @@ service cloud.firestore {
     
     function getUserData() {
       let path = /databases/$(database)/documents/trabalhadores/$(request.auth.uid);
-      return exists(path) ? get(path).data : {"role": "NONE", "sectorId": "NONE"};
+      return exists(path) ? get(path).data : {"role": "NONE", "sectorId": "NONE", "position": "NONE"};
     }
     
     function isSuperAdmin() {
@@ -29,7 +29,12 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && (isSuperAdmin() || getUserData().role in ['ADMIN', 'ADM']);
+      let data = getUserData();
+      return isSignedIn() && (
+        isSuperAdmin() || 
+        data.role in ['ADMIN', 'ADM'] ||
+        (data.position in ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'])
+      );
     }
 
     function isCoordinator() {

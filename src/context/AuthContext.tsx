@@ -5,7 +5,8 @@ import {
   signOut, 
   User,
   createUserWithEmailAndPassword,
-  getAuth
+  getAuth,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, query, where, collection, getDocs } from 'firebase/firestore';
 import { initializeApp, getApp, getApps } from 'firebase/app';
@@ -21,6 +22,7 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   registerWorker: (data: Partial<Worker>, pass: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -145,6 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
+  const resetPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
+  };
+
   const logout = async () => {
     await signOut(auth);
   };
@@ -156,8 +162,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
       
-      const res = await createUserWithEmailAndPassword(secondaryAuth, data.email!, pass);
-      const newWorkerId = res.user.uid;
+      let newWorkerId: string;
+      try {
+        const res = await createUserWithEmailAndPassword(secondaryAuth, data.email!, pass);
+        newWorkerId = res.user.uid;
+      } catch (authErr: any) {
+        // Clean up secondary app even on error
+        try { await (secondaryApp as any).delete(); } catch(e) {}
+        
+        if (authErr.code === 'auth/email-already-in-use' || authErr.message?.includes('email-already-in-use')) {
+          throw new Error('AUTH_EMAIL_ALREADY_IN_USE');
+        }
+        throw authErr;
+      }
       
       const newWorker: Worker = {
         ...data,
@@ -169,16 +186,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'trabalhadores', newWorkerId), newWorker);
       
       // Clean up secondary app
-      await secondaryAuth.signOut();
       await (secondaryApp as any).delete();
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message === 'AUTH_EMAIL_ALREADY_IN_USE' || error.message?.includes('AUTH_EMAIL_ALREADY_IN_USE')) throw error;
       console.error("Error creating secondary user:", error);
       throw error;
     }
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, fbUser, loading, login, logout, registerWorker }}>
+    <AuthContext.Provider value={{ currentUser, fbUser, loading, login, logout, registerWorker, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

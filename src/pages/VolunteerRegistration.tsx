@@ -102,13 +102,13 @@ export default function VolunteerRegistration() {
       
       setIsSuccess(true);
     } catch (err: any) {
-      console.error(err);
+      console.error('Registration error:', err);
       if (err.code === 'auth/email-already-in-use') {
-        alert('Este e-mail já está em uso. Tente outro ou recupere sua senha.');
+        alert('ERRO: Este e-mail já está cadastrado no sistema.\n\nSugestões:\n1. Se você já é cadastrado, tente fazer login.\n2. Se esqueceu sua senha, use a opção "Esqueci minha senha" na tela de login.\n3. Se você nunca se cadastrou, verifique se digitou o e-mail corretamente.');
       } else if (err.code === 'auth/weak-password') {
-        alert('A senha deve ter pelo menos 6 caracteres.');
+        alert('A senha informada é frágil. Por favor, use pelo menos 6 caracteres.');
       } else {
-        alert('Erro ao realizar cadastro. Tente novamente.');
+        alert('Não foi possível completar seu cadastro no momento. Por favor, tente novamente mais tarde ou entre em contato com a coordenação.');
       }
     } finally {
       setIsSubmitting(false);
