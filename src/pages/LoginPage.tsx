@@ -24,7 +24,7 @@ export default function LoginPage() {
       navigate('/');
     } catch (err: any) {
       console.error("Login error detail:", err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('E-mail ou senha incorretos.');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Muitas tentativas sem sucesso. Tente novamente mais tarde.');

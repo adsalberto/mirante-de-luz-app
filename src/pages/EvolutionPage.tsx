@@ -24,7 +24,8 @@ import {
   Lock,
   AlertCircle,
   Pencil,
-  ScrollText
+  ScrollText,
+  Save
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -59,6 +60,8 @@ export const EvolutionPage: React.FC = () => {
   const [isImprovingNotes, setIsImprovingNotes] = useState(false);
   const [isImprovingRecs, setIsImprovingRecs] = useState(false);
   const [isStartingService, setIsStartingService] = useState(false);
+  
+  const [activeTab, setActiveTab] = useState<'HISTORY' | 'FORM'>('HISTORY');
   
   const detailsRef = useRef<HTMLDivElement>(null);
   
@@ -688,7 +691,42 @@ export const EvolutionPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+              {/* Navigation Tabs */}
+              <div className="flex items-center gap-4 border-b border-gray-100 px-4">
+                <button
+                  onClick={() => setActiveTab('HISTORY')}
+                  className={cn(
+                    "px-6 py-4 font-black transition-all relative",
+                    activeTab === 'HISTORY' ? "text-indigo-600" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <History size={18} />
+                    Histórico & Registro
+                  </div>
+                  {activeTab === 'HISTORY' && (
+                    <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('FORM')}
+                  className={cn(
+                    "px-6 py-4 font-black transition-all relative",
+                    activeTab === 'FORM' ? "text-indigo-600" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <ClipboardList size={18} />
+                    Formulário Fraterno
+                  </div>
+                  {activeTab === 'FORM' && (
+                    <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full" />
+                  )}
+                </button>
+              </div>
+
+              {activeTab === 'HISTORY' ? (
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
                 {/* Timeline Column */}
                 <div className="xl:col-span-7 space-y-6">
                   <div className="flex items-center justify-between px-2">
@@ -1114,6 +1152,153 @@ export const EvolutionPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+            ) : (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-white rounded-[48px] border-2 border-indigo-50 shadow-2xl shadow-indigo-100 overflow-hidden">
+                    <div className="p-8 sm:p-12 space-y-10">
+                      {/* Form Header */}
+                      <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                          <ClipboardList size={32} />
+                        </div>
+                        <div>
+                          <h2 className="text-3xl font-black text-indigo-950 tracking-tight italic">Formulário de Atendimento Fraterno</h2>
+                          <p className="text-gray-500 font-medium">Ficha de acolhimento e primeira escuta doutrinária</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        {/* Section: Personal Data (Read Only) */}
+                        <div className="space-y-6">
+                          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                            <User className="text-indigo-400" size={20} />
+                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">1. Dados Pessoais</h3>
+                          </div>
+                          <div className="grid grid-cols-1 gap-4">
+                            <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-1">
+                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Nome Completo</p>
+                              <p className="font-bold text-gray-800">{selectedP.name}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-1">
+                                <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Data de Nascimento</p>
+                                <p className="font-bold text-gray-800">{safeFormat(selectedP.birthDate, 'dd/MM/yyyy')}</p>
+                              </div>
+                              <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-1">
+                                <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Telefone</p>
+                                <p className="font-bold text-gray-800">{selectedP.phone}</p>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-1">
+                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Endereço</p>
+                              <p className="font-bold text-gray-800">{selectedP.address || 'Não informado'}</p>
+                            </div>
+                            <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-1">
+                              <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">E-mail</p>
+                              <p className="font-bold text-gray-800">{selectedP.email || 'Não informado'}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Section: Assessment */}
+                        <div className="space-y-6">
+                          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                            <AlertCircle className="text-amber-400" size={20} />
+                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">2. Motivo da Busca</h3>
+                          </div>
+                          <div className="space-y-4">
+                            <p className="text-sm font-bold text-gray-600 leading-tight">Relate brevemente a necessidade (dificuldades existenciais, conflitos, saúde, etc.):</p>
+                            <textarea 
+                              className="w-full min-h-[140px] bg-white border-2 border-gray-100 rounded-3xl p-5 outline-none focus:border-indigo-600 focus:shadow-xl focus:shadow-indigo-500/5 transition-all text-gray-800 font-medium leading-relaxed"
+                              placeholder="O que trouxe o irmão à nossa casa hoje?"
+                              value={formData.notes}
+                              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Section: Knowledge */}
+                        <div className="space-y-6">
+                          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                            <ScrollText className="text-purple-400" size={20} />
+                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">3. Conhecimento Espírita</h3>
+                          </div>
+                          <div className="space-y-4">
+                            <p className="text-sm font-bold text-gray-600 leading-tight">A pessoa já frequenta ou conhece a casa? Possui conhecimento básico sobre o Espiritismo?</p>
+                            <div className="grid grid-cols-1 gap-3">
+                              {['Primeira vez na casa / Sem conhecimento', 'Já frequentou outras casas', 'Conhece mas não frequenta', 'Frequenta assiduamente', 'Outro'].map((opt) => (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  onClick={() => setFormData({...formData, encaminhamento: opt})}
+                                  className={cn(
+                                    "p-4 rounded-2xl text-left font-bold text-sm transition-all border-2",
+                                    formData.encaminhamento === opt 
+                                      ? "bg-purple-600 border-purple-600 text-white shadow-lg" 
+                                      : "bg-gray-50 border-transparent text-gray-500 hover:border-purple-200"
+                                  )}
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Section: Confidentiality */}
+                        <div className="space-y-6">
+                          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                            <Lock className="text-emerald-400" size={20} />
+                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">4. Termo de Confidencialidade</h3>
+                          </div>
+                          <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100 space-y-6">
+                            <div className="flex gap-4">
+                              <ShieldAlert size={24} className="text-emerald-600 shrink-0" />
+                              <p className="text-sm font-bold text-emerald-900 leading-relaxed italic">
+                                "Garantimos que toda conversa realizada neste setor de Atendimento Fraterno é estritamente privativa, sigilosa e amparada pelo respeito e fraternidade cristã."
+                              </p>
+                            </div>
+                            <label className="flex items-center gap-4 cursor-pointer p-4 bg-white rounded-2xl shadow-sm border border-emerald-100 hover:shadow-md transition-all group">
+                              <div className={cn(
+                                "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+                                formData.referralSectors.length > 0 ? "bg-emerald-600 border-emerald-600 text-white" : "border-emerald-200 group-hover:border-emerald-400"
+                              )}>
+                                {formData.referralSectors.length > 0 && <CheckCircle2 size={16} strokeWidth={3} />}
+                              </div>
+                              <input 
+                                type="checkbox" 
+                                className="hidden"
+                                checked={formData.referralSectors.length > 0}
+                                onChange={(e) => setFormData({...formData, referralSectors: e.target.checked ? ['confidentiality-accepted'] : []})}
+                              />
+                              <span className="text-xs font-black uppercase tracking-tight text-emerald-800">Ciente do Sigilo Fraternal</span>
+                            </label>
+                          </div>
+
+                          <div className="pt-6">
+                             <button
+                               onClick={handleSaveEvolution}
+                               disabled={!formData.notes || formData.referralSectors.length === 0}
+                               className={cn(
+                                 "w-full py-6 rounded-[32px] font-black text-sm uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95",
+                                 !formData.notes || formData.referralSectors.length === 0 
+                                   ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                                   : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100"
+                               )}
+                             >
+                               <Save size={24} />
+                               Finalizar e Arquivar Formulário
+                             </button>
+                             <p className="text-[10px] text-gray-400 font-bold uppercase text-center mt-4 tracking-widest">
+                               Ao salvar, este formulário será registrado no histórico do atendido.
+                             </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center space-y-6 py-20 bg-gray-50/50 rounded-[40px] border-2 border-dashed border-gray-100">
