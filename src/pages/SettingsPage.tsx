@@ -13,15 +13,18 @@ import {
   X,
   Pencil,
   Lock,
-  Search
+  Search,
+  ArrowLeft
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { Worker, Sector, UserRole, SectorType } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { ImageUpload } from '../components/ImageUpload';
+import { useNavigate } from 'react-router-dom';
 
 export const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser, registerWorker } = useAuth();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
@@ -322,6 +325,12 @@ export const SettingsPage: React.FC = () => {
   return (
     <div className="p-4 sm:p-8 space-y-8 sm:space-y-10 animate-in fade-in duration-500 max-w-7xl mx-auto">
       <header className="space-y-2">
+        <button 
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 transition-colors font-bold text-sm mb-2"
+        >
+          <ArrowLeft size={16} /> Voltar ao Painel
+        </button>
         <h1 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tight italic">Configurações & Gestão</h1>
         <p className="text-sm sm:text-base text-gray-500 font-medium italic">Gerenciamento de equipe e frentes de trabalho do Mirante de Luz.</p>
       </header>

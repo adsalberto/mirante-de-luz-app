@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Lock,
   ClipboardCheck,
-  Filter
+  Filter,
+  ArrowLeft
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { Participant, Worker, Sector, Evolution } from '../types';
@@ -39,7 +40,18 @@ export const ParticipantsPage: React.FC = () => {
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'participants' | 'referrals'>('participants');
+  const [activeTab, setActiveTab] = useState<'participants' | 'workers' | 'referrals'>('participants');
+  const [sectorsLoaded, setSectorsLoaded] = useState(false);
+
+  const isCoordenadorMediunico = currentUser?.role === 'COORDENADOR' && sectors.some(s => s.id === currentUser.sectorId && s.type === 'MEDIUNICO');
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM';
+  const canAccessWorkers = isAdmin || isCoordenadorMediunico;
+
+  useEffect(() => {
+    if (sectorsLoaded && activeTab === 'workers' && !canAccessWorkers) {
+      setActiveTab('participants');
+    }
+  }, [activeTab, canAccessWorkers, sectorsLoaded]);
   const [evolutions, setEvolutions] = useState<Evolution[]>([]);
   const [encaminhamentoFilter, setEncaminhamentoFilter] = useState('all');
   const [isCheckinModalOpen, setIsCheckinModalOpen] = useState(false);
@@ -81,6 +93,7 @@ export const ParticipantsPage: React.FC = () => {
   const loadSectors = async () => {
     const s = await dataService.getSectors();
     setSectors(s);
+    setSectorsLoaded(true);
   };
 
   const loadParticipants = async () => {
@@ -135,15 +148,17 @@ export const ParticipantsPage: React.FC = () => {
       if (editingParticipant) {
         await dataService.updateParticipant({
           ...editingParticipant,
-          ...formData
+          ...formData,
+          isWorker: editingParticipant.isWorker
         });
-        alert('Dados do atendido atualizados com sucesso!');
+        alert(editingParticipant.isWorker ? 'Dados do trabalhador atualizados com sucesso!' : 'Dados do atendido atualizados com sucesso!');
       } else {
         await dataService.addParticipant({
           ...formData,
+          isWorker: activeTab === 'workers',
           lgpdDate: Date.now()
         });
-        alert('Novo atendido cadastrado com sucesso!');
+        alert(activeTab === 'workers' ? 'Trabalhador cadastrado no setor mediúnico com sucesso!' : 'Novo atendido cadastrado com sucesso!');
       }
       
       setFormData({ name: '', phone: '', birthDate: '', gender: 'Masculino', address: '', lgpdConsent: false });
@@ -156,41 +171,70 @@ export const ParticipantsPage: React.FC = () => {
         const errObj = JSON.parse(err.message);
         alert(`Erro ao salvar: ${errObj.error || 'Sem permissão'}`);
       } catch {
-        alert('Ocorreu um erro ao salvar os dados do atendido.');
+        alert('Ocorreu um erro ao salvar os dados.');
       }
     }
   };
 
-  const filtered = participants.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.phone.includes(searchTerm)
-  );
+  const filtered = participants.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          p.phone.includes(searchTerm);
+    if (!matchesSearch) return false;
+    
+    if (activeTab === 'workers') {
+      return p.isWorker === true;
+    } else if (activeTab === 'participants') {
+      return !p.isWorker;
+    }
+    return true; // referrals shows all or does something else
+  });
 
   return (
     <div className="p-8 space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
+          {activeTab === 'workers' && (
+            <button 
+              onClick={() => setActiveTab('participants')}
+              className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 transition-colors font-bold text-sm mb-2"
+            >
+              <ArrowLeft size={16} /> Voltar para Atendidos
+            </button>
+          )}
           <h1 className="text-3xl font-bold text-gray-900">
-            {activeTab === 'participants' ? 'Atendidos' : 'Visão de Encaminhamentos'}
+            {activeTab === 'participants' ? 'Atendidos' : activeTab === 'workers' ? 'Trabalhadores' : 'Visão de Encaminhamentos'}
           </h1>
           <p className="text-gray-500 font-medium tracking-tight">
             {activeTab === 'participants' 
               ? 'Gerenciamento de irmãos e irmãs assistidos.' 
+              : activeTab === 'workers'
+              ? 'Gerenciamento de trabalhadores em atendimento do setor mediúnico.'
               : 'Lista consolidada de todas as recomendações e destinos.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position))) && (
-            <div className="bg-gray-100 p-1 rounded-2xl flex items-center shadow-inner">
+          <div className="bg-gray-100 p-1 rounded-2xl flex items-center shadow-inner">
+            <button
+              onClick={() => setActiveTab('participants')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-black uppercase transition-all",
+                activeTab === 'participants' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              Atendidos
+            </button>
+            {canAccessWorkers && (
               <button
-                onClick={() => setActiveTab('participants')}
+                onClick={() => setActiveTab('workers')}
                 className={cn(
                   "px-4 py-2 rounded-xl text-xs font-black uppercase transition-all",
-                  activeTab === 'participants' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                  activeTab === 'workers' ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
                 )}
               >
-                Atendidos
+                Trabalhadores
               </button>
+            )}
+            {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position))) && (
               <button
                 onClick={() => setActiveTab('referrals')}
                 className={cn(
@@ -200,9 +244,9 @@ export const ParticipantsPage: React.FC = () => {
               >
                 Encaminhamentos
               </button>
-            </div>
-          )}
-          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || currentUser?.role === 'COORDENADOR' || currentUser?.role === 'RECEPCIONISTA' || currentUser?.role === 'SECRETARIO') && activeTab === 'participants' && (
+            )}
+          </div>
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || currentUser?.role === 'COORDENADOR' || currentUser?.role === 'RECEPCIONISTA' || currentUser?.role === 'SECRETARIO') && (activeTab === 'participants' || (activeTab === 'workers' && canAccessWorkers)) && (
             <button 
               id="open-register-modal"
               onClick={() => setIsModalOpen(true)}
@@ -215,7 +259,7 @@ export const ParticipantsPage: React.FC = () => {
         </div>
       </header>
 
-      {activeTab === 'participants' ? (
+      {activeTab === 'participants' || activeTab === 'workers' ? (
         <>
           <div className="relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={20} />

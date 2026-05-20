@@ -25,7 +25,8 @@ import {
   AlertCircle,
   Pencil,
   ScrollText,
-  Save
+  Save,
+  ArrowLeft
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -562,8 +563,18 @@ export const EvolutionPage: React.FC = () => {
           {selectedP ? (
             <div
               key={selectedP.id}
-              className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20"
+              className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-20"
             >
+              {/* Back button to search list / main directory */}
+              <div className="flex items-center">
+                <button 
+                  onClick={() => setSelectedP(null)}
+                  className="flex items-center gap-2 text-gray-500 hover:text-indigo-600 transition-colors font-bold text-sm bg-white hover:bg-gray-50 border border-gray-100 shadow-sm rounded-xl px-4 py-2.5"
+                >
+                  <ArrowLeft size={16} /> Voltar para a Busca de Atendidos
+                </button>
+              </div>
+
               {/* Main Dashboard Header for Participant - Enhanced Version */}
               <div className="bg-white rounded-[40px] border border-indigo-100 shadow-2xl shadow-indigo-500/5 overflow-hidden group relative">
                 {/* Decorative background element */}

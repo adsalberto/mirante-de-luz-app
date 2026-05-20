@@ -101,6 +101,7 @@ export interface Participant {
   registrationDate: number;
   currentStatus: 'IDLE' | 'WAITING' | 'IN_SERVICE' | 'COMPLETED' | 'REFERRERED';
   photoUrl?: string;
+  isWorker?: boolean;
 }
 
 export interface ServiceQueueEntry {
