@@ -47,7 +47,25 @@ export interface AgendaEvent {
   speakerName?: string; 
 }
 
+export const AGENDA_EVENT_TYPE_LABELS: Record<'DOUTRINARIA' | 'ESTUDO' | 'FESTA' | 'OUTRO', string> = {
+  DOUTRINARIA: 'Doutrinária',
+  ESTUDO: 'Estudos',
+  FESTA: 'Festa/Evento',
+  OUTRO: 'Outro'
+};
+
 export type SectorType = 'FRATERNO' | 'PASSE' | 'ESTUDO' | 'INFANCIA' | 'SOCIAL' | 'ADMINISTRATIVO' | 'MEDIUNICO' | 'OUTROS';
+
+export const SECTOR_TYPE_LABELS: Record<SectorType, string> = {
+  FRATERNO: 'Atendimento Fraterno',
+  PASSE: 'Passe & Fluidoterapia',
+  ESTUDO: 'Estudos',
+  INFANCIA: 'Infância & Juventude',
+  SOCIAL: 'Ação Social',
+  ADMINISTRATIVO: 'Administrativo',
+  MEDIUNICO: 'Trabalho Mediúnico',
+  OUTROS: 'Outros / Não Especificado'
+};
 
 export interface SectorDocument {
   id: string;
@@ -159,6 +177,44 @@ export interface SectorSchedule {
   assignments: ScheduleAssignment[];
 }
 
+export type InventoryCategory = 'MOBILIARIO' | 'ELETRONICOS' | 'LIVRARIA' | 'COZINHA' | 'LIMPEZA' | 'SUPRIMENTOS' | 'MANUTENCAO' | 'OUTROS';
+
+export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
+  MOBILIARIO: 'Mobiliário & Cadeiras',
+  ELETRONICOS: 'Eletrônicos & Som',
+  LIVRARIA: 'Livraria & Doutrinários',
+  COZINHA: 'Cozinha & Alimentação',
+  LIMPEZA: 'Produtos de Limpeza',
+  SUPRIMENTOS: 'Suprimentos / Escritório',
+  MANUTENCAO: 'Materiais de Manutenção',
+  OUTROS: 'Outros / Diversos'
+};
+
+export type InventoryItemStatus = 'BOM' | 'REGULAR' | 'RUIM' | 'EM_FALTA' | 'EM_MANUTENCAO';
+
+export const INVENTORY_STATUS_LABELS: Record<InventoryItemStatus, string> = {
+  BOM: 'Em Bom Estado',
+  REGULAR: 'Regular / Desgastado',
+  RUIM: 'Ruim',
+  EM_FALTA: 'Em Falta / Acabou',
+  EM_MANUTENCAO: 'Em Manutenção'
+};
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: InventoryCategory;
+  quantity: number;
+  minQuantity: number; // for low stock alerts
+  unit: string; // e.g., 'unidade(s)', 'kg', 'pacote(s)', 'litro(s)'
+  location: string; // e.g., 'Cozinha', 'Livraria', 'Salão'
+  sectorId?: string; // Linked sector of the center
+  status: InventoryItemStatus;
+  observation?: string;
+  lastUpdated: number;
+  updatedBy: string; // Worker's name
+}
+
 export interface DashboardStats {
   waitingCount: number;
   inServiceCount: number;
@@ -168,3 +224,14 @@ export interface DashboardStats {
   pendingVolunteers: number;
   sectorCount: number;
 }
+
+export function formatSectorName(name: string): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('estudo') || lower.includes('sistematizado')) {
+    return 'Estudos';
+  }
+  return trimmed;
+}
+

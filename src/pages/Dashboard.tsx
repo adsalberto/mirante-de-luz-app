@@ -35,7 +35,7 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import { dataService } from '../services/dataService';
-import { DashboardStats, AgendaEvent, Speaker, Sector } from '../types';
+import { DashboardStats, AgendaEvent, Speaker, Sector, AGENDA_EVENT_TYPE_LABELS, formatSectorName } from '../types';
 import { format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -74,27 +74,30 @@ const ViewSwitcher = ({ current, set, sectors }: { current: string, set: (v: any
 
   // Filtra duplicatas por nome e remove setores que já possuem visões base dedicadas
   const sectorViews = sectors
-    .reduce((acc: Sector[], current) => {
-      // Evita duplicados na lista
-      const isDuplicate = acc.find(s => s.name === current.name);
+    .map(s => {
+      const normalizedName = formatSectorName(s.name);
+      return {
+        id: `SECTOR:${s.id}:${normalizedName}`,
+        label: `Simular ${normalizedName}`,
+        icon: getSectorIcon(normalizedName),
+        originalName: s.name
+      };
+    })
+    .reduce((acc: any[], current) => {
+      // Evita duplicados baseados na versão normalizada (label)
+      const isDuplicate = acc.some(item => item.label === current.label);
       if (isDuplicate) return acc;
 
       // Evita redundância com visões base (Recepção e Secretaria)
-      const name = current.name.toLowerCase();
+      const name = current.originalName.toLowerCase();
       const isHandledByBase = 
         name.includes('fraterno') || 
         name.includes('recepção') || 
-        name.includes('secretaria') || 
-        name.includes('administrativo');
+        name.includes('secretaria');
 
       if (!isHandledByBase) acc.push(current);
       return acc;
-    }, [])
-    .map(s => ({
-      id: `SECTOR:${s.id}:${s.name}`,
-      label: `Simular ${s.name}`,
-      icon: getSectorIcon(s.name)
-    }));
+    }, []);
 
   const ButtonGroup = ({ title, items, colorClass }: { title: string, items: any[], colorClass: string }) => (
     <div className="space-y-4">
@@ -181,7 +184,18 @@ export const Dashboard: React.FC = () => {
         setSectors(sect || []);
         
         const upcoming = (e || [])
-          .filter(event => event.date >= new Date().setHours(0,0,0,0))
+          .filter(event => {
+            const eventDate = new Date(event.date);
+            if (event.time) {
+              const [hours, minutes] = event.time.split(':').map(Number);
+              if (!isNaN(hours) && !isNaN(minutes)) {
+                eventDate.setHours(hours, minutes, 0, 0);
+              }
+            } else {
+              eventDate.setHours(23, 59, 59, 999);
+            }
+            return eventDate.getTime() >= Date.now();
+          })
           .sort((a,b) => a.date - b.date)
           .slice(0, 3);
         setNextEvents(upcoming);
@@ -431,7 +445,7 @@ export const Dashboard: React.FC = () => {
                         <h4 className="text-sm font-bold text-gray-800 tracking-tight group-hover:text-indigo-900 transition-colors">
                           {event.title}
                         </h4>
-                        <p className="text-[10px] text-gray-400 font-medium italic">{event.type}</p>
+                        <p className="text-[10px] text-gray-400 font-medium italic">{AGENDA_EVENT_TYPE_LABELS[event.type] || event.type}</p>
                       </div>
                     </div>
                   )) : (

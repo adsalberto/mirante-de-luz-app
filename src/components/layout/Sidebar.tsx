@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, Heart, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck } from 'lucide-react';
+import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { Worker } from '../../types';
+import { CemilLogo } from '../CemilLogo';
 
 interface SidebarProps {
   user: Worker;
@@ -48,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
     { to: '/palestrantes', icon: Mic2, label: 'Palestrantes', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'PALESTRANTE'] },
     { to: '/relatorios', icon: BarChart3, label: 'Relatórios', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
     { to: '/setores', icon: Building2, label: 'Setores', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
+    { to: '/inventario', icon: Package, label: 'Inventário', roles: ['ADMIN', 'ADM', 'SECRETARIO'] },
     { to: '/trabalhadores', icon: Settings, label: 'Trabalhadores/RH', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
     { to: '/logs', icon: ShieldCheck, label: 'Logs de Auditoria', roles: ['ADMIN', 'ADM'] },
   ];
@@ -79,13 +81,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
             exit={{ x: -280 }}
             className="fixed inset-y-0 left-0 z-40 w-64 bg-indigo-900 text-white flex flex-col shadow-2xl transition-all duration-300 ease-in-out lg:relative"
           >
-            <div className="p-6 flex items-center gap-3 border-b border-indigo-800/50">
-              <div className="bg-indigo-500/20 p-2 rounded-xl">
-                <Heart className="text-pink-300" size={24} />
+            <div className="p-5 flex items-center gap-3 border-b border-indigo-800/50 bg-indigo-950/20 animate-in fade-in duration-300">
+              <div className="w-11 h-11 flex-shrink-0 hover:scale-110 transition-transform">
+                <CemilLogo variant="sun-only" size="100%" />
               </div>
-              <div>
-                <h1 className="font-bold text-lg leading-tight tracking-tight">Mirante de Luz</h1>
-                <p className="text-[10px] uppercase tracking-widest text-indigo-400 font-semibold">Gestão Espírita</p>
+              <div className="min-w-0">
+                <h1 className="font-extrabold text-[#FED02F] text-[15px] leading-tight tracking-tight uppercase">Cemil</h1>
+                <p className="text-[9px] uppercase tracking-widest text-indigo-300 font-bold">Mirante de Luz</p>
               </div>
             </div>
 

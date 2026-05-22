@@ -25,7 +25,7 @@ import {
   X
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { Sector, SectorType } from '../types';
+import { Sector, SectorType, SECTOR_TYPE_LABELS, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -172,14 +172,14 @@ export default function SectorDetailsPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-full">
-                  Setor: {sector.type}
+                  Setor: {SECTOR_TYPE_LABELS[sector.type] || sector.type}
                 </div>
                 <div className="text-[10px] font-bold text-gray-300 flex items-center gap-1.5">
                   <History size={12} /> Atualizado em 05/05/2026
                 </div>
               </div>
               <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter italic">
-                {sector.name}
+                {formatSectorName(sector.name)}
               </h1>
             </div>
           </div>
@@ -416,7 +416,7 @@ export default function SectorDetailsPage() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight">Editar Regimento</h2>
-                    <p className="text-sm font-medium text-gray-400">{sector.name}</p>
+                    <p className="text-sm font-medium text-gray-400">{formatSectorName(sector.name)}</p>
                   </div>
                 </div>
                 <button onClick={() => setIsEditing(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">

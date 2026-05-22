@@ -21,7 +21,7 @@ import {
   Search
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { ServiceQueueEntry, Participant, Sector, Worker } from '../types';
+import { ServiceQueueEntry, Participant, Sector, Worker, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -50,7 +50,17 @@ export const QueuePage: React.FC = () => {
     ]);
     setQueue(q.filter(x => x.status !== 'FINISHED' && x.status !== 'CANCELLED'));
     setParticipants(p);
-    setSectors(s);
+    
+    const uniqueS: Sector[] = [];
+    const seenNames = new Set<string>();
+    s?.forEach(item => {
+      const normName = formatSectorName(item.name);
+      if (!seenNames.has(normName)) {
+        seenNames.add(normName);
+        uniqueS.push({ ...item, name: normName });
+      }
+    });
+    setSectors(uniqueS);
   };
 
   const getParticipant = (id: string) => participants.find(p => p.id === id);

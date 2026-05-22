@@ -22,7 +22,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { Participant, Worker, Sector, Evolution } from '../types';
+import { Participant, Worker, Sector, Evolution, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -92,7 +92,16 @@ export const ParticipantsPage: React.FC = () => {
 
   const loadSectors = async () => {
     const s = await dataService.getSectors();
-    setSectors(s);
+    const uniqueS: Sector[] = [];
+    const seenNames = new Set<string>();
+    s?.forEach(item => {
+      const normName = formatSectorName(item.name);
+      if (!seenNames.has(normName)) {
+        seenNames.add(normName);
+        uniqueS.push({ ...item, name: normName });
+      }
+    });
+    setSectors(uniqueS);
     setSectorsLoaded(true);
   };
 

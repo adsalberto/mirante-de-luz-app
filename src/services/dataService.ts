@@ -26,7 +26,8 @@ import {
   Speaker,
   AgendaEvent,
   AuditLog,
-  SectorSchedule
+  SectorSchedule,
+  InventoryItem
 } from '../types';
 
 enum OperationType {
@@ -629,6 +630,51 @@ class DataService {
     }
   }
 
+  // --- INVENTORY ---
+  async getInventoryItems() {
+    const path = 'inventario';
+    try {
+      const snap = await getDocs(collection(db, path));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  }
+
+  async addInventoryItem(item: Omit<InventoryItem, 'id'>) {
+    const path = 'inventario';
+    try {
+      const docRef = await addDoc(collection(db, path), item);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Adição de Item ao Inventário', `Nome: ${item.name}, Qte: ${item.quantity}`);
+      return { id: docRef.id, ...item } as InventoryItem;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateInventoryItem(item: InventoryItem) {
+    const path = `inventario/${item.id}`;
+    try {
+      await setDoc(doc(db, 'inventario', item.id), item);
+      this.createLog('Atualização no Inventário', `Item: ${item.name}, Qte: ${item.quantity}, Status: ${item.status}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  }
+
+  async deleteInventoryItem(id: string) {
+    const path = `inventario/${id}`;
+    try {
+      const docSnap = await getDoc(doc(db, 'inventario', id));
+      const itemName = docSnap.exists() ? (docSnap.data() as InventoryItem).name : id;
+      await deleteDoc(doc(db, 'inventario', id));
+      this.createLog('Exclusão de Item do Inventário', `Item: ${itemName}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  }
+
   async resetToDefaults() {
     await this.populateDefaults();
   }
@@ -646,7 +692,7 @@ class DataService {
         { name: 'Passe / Fluidoterapia', type: 'PASSE' as const, description: 'Transmissão de energias' },
         { name: 'Evangelização Infantil', type: 'INFANCIA' as const, description: 'Educação para crianças' },
         { name: 'Mocidade / Juventude', type: 'INFANCIA' as const, description: 'Educação para jovens' },
-        { name: 'Estudo', type: 'ESTUDO' as const, description: 'Estudo da Doutrina' },
+        { name: 'Estudos', type: 'ESTUDO' as const, description: 'Estudo da Doutrina' },
         { name: 'Ação Social', type: 'SOCIAL' as const, description: 'Assistência a famílias' },
         { name: 'Mediúnica', type: 'MEDIUNICO' as const, description: 'Trabalhos práticos' },
         { name: 'Doutrinária', type: 'ESTUDO' as const, description: 'Palestras e ensinamentos' },

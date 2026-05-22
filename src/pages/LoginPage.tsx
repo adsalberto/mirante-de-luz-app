@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Lock, Mail, Loader2, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
+import { CemilLogo } from '../components/CemilLogo';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -70,11 +71,10 @@ export default function LoginPage() {
       >
         <div className="p-8 sm:p-12">
           <div className="flex flex-col items-center mb-10 text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-3xl flex items-center justify-center text-white mb-6 shadow-xl shadow-indigo-200 rotate-3">
-              <Sparkles size={32} />
+            <div className="w-52 h-56 mb-4 hover:scale-105 transition-transform duration-350 ease-out filter drop-shadow-lg">
+              <CemilLogo variant="full" size="100%" showBackground={true} />
             </div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight italic">CEMIL</h1>
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mt-2">Gestão Institucional</p>
+            <p className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] mt-3">Gestão Institucional</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

@@ -19,7 +19,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { Sector, SectorType } from '../types';
+import { Sector, SectorType, SECTOR_TYPE_LABELS, formatSectorName } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -151,6 +151,17 @@ export function SectorsPage() {
     s.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const uniqueSectors: Sector[] = [];
+  const seenNames = new Set<string>();
+  
+  filteredSectors.forEach(s => {
+    const normName = formatSectorName(s.name);
+    if (!seenNames.has(normName)) {
+      seenNames.add(normName);
+      uniqueSectors.push({ ...s, name: normName });
+    }
+  });
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
@@ -164,7 +175,7 @@ export function SectorsPage() {
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-indigo-600 transition-colors" />
             <input 
               type="text"
-              placeholder="Buscar setor..."
+              placeholder="Buscar sector..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white rounded-xl outline-none focus:ring-4 focus:ring-indigo-50 border border-gray-100 focus:border-indigo-600 transition-all font-medium shadow-sm"
@@ -182,7 +193,7 @@ export function SectorsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-        {filteredSectors.map((sector, index) => {
+        {uniqueSectors.map((sector, index) => {
           const waitingCount = queueCounts[sector.id] || 0;
           
           return (
@@ -203,7 +214,7 @@ export function SectorsPage() {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <div className="px-2 py-0.5 bg-gray-50 text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 rounded-full border border-gray-100 italic">
-                      {sector.type}
+                      {SECTOR_TYPE_LABELS[sector.type] || sector.type}
                     </div>
                     {waitingCount > 0 && (
                       <div className="px-2 py-0.5 bg-amber-50 text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-amber-600 rounded-full border border-amber-100 flex items-center gap-1 animate-pulse">
@@ -215,7 +226,7 @@ export function SectorsPage() {
                 </div>
   
                 <div className="space-y-0.5 sm:space-y-1">
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors leading-tight">{sector.name}</h3>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors leading-tight">{formatSectorName(sector.name)}</h3>
                   <p className="text-xs sm:text-sm text-gray-400 font-medium line-clamp-2 leading-relaxed">
                     {sector.description}
                   </p>
@@ -232,7 +243,7 @@ export function SectorsPage() {
                      </div>
                   </div>
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all translate-x-2 group-hover:translate-x-0">
-                    <ChevronRight size={16} className="sm:size-5" />
+                     <ChevronRight size={16} className="sm:size-5" />
                   </div>
                 </div>
               </div>
@@ -240,7 +251,7 @@ export function SectorsPage() {
           );
         })}
 
-        {filteredSectors.length === 0 && (
+        {uniqueSectors.length === 0 && (
           <div className="col-span-full py-20 text-center space-y-4">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-300">
               <Building2 size={32} />
@@ -297,7 +308,7 @@ export function SectorsPage() {
                       <select value={newSector.type} onChange={e => setNewSector({...newSector, type: e.target.value as SectorType})} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700">
                         <option value="FRATERNO">Atendimento Fraterno</option>
                         <option value="PASSE">Passe & Fluidoterapia</option>
-                        <option value="ESTUDO">Estudo</option>
+                        <option value="ESTUDO">Estudos</option>
                         <option value="INFANCIA">Infância & Juventude</option>
                         <option value="SOCIAL">Ação Social</option>
                         <option value="ADMINISTRATIVO">Administrativo</option>

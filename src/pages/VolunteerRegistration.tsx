@@ -12,7 +12,7 @@ import {
   Info
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { Sector, SectorType } from '../types';
+import { Sector, SectorType, SECTOR_TYPE_LABELS, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 
 import { auth } from '../lib/firebase';
@@ -59,12 +59,32 @@ export default function VolunteerRegistration() {
   const loadSectors = async () => {
     const data = await dataService.getSectors();
     if (data && data.length > 0) {
-      setSectors(data);
+      const uniqueS: Sector[] = [];
+      const seenNames = new Set<string>();
+      data.forEach(item => {
+        const normName = formatSectorName(item.name);
+        if (!seenNames.has(normName)) {
+          seenNames.add(normName);
+          uniqueS.push({ ...item, name: normName });
+        }
+      });
+      setSectors(uniqueS);
     } else {
       // In case they are empty, try to populate defaults
       await dataService.populateDefaults();
       const retryData = await dataService.getSectors();
-      if (retryData) setSectors(retryData);
+      if (retryData) {
+        const uniqueS: Sector[] = [];
+        const seenNames = new Set<string>();
+        retryData.forEach(item => {
+          const normName = formatSectorName(item.name);
+          if (!seenNames.has(normName)) {
+            seenNames.add(normName);
+            uniqueS.push({ ...item, name: normName });
+          }
+        });
+        setSectors(uniqueS);
+      }
     }
   };
 
@@ -265,7 +285,7 @@ export default function VolunteerRegistration() {
                 >
                   <option value="OUTROS">Selecione...</option>
                   <option value="FRATERNO">Atendimento Fraterno</option>
-                  <option value="ESTUDO">Estudo</option>
+                  <option value="ESTUDO">Estudos</option>
                   <option value="INFANCIA">Infância & Juventude</option>
                   <option value="SOCIAL">Ação Social</option>
                   <option value="ADMINISTRATIVO">Administrativo</option>
@@ -281,7 +301,7 @@ export default function VolunteerRegistration() {
                 >
                   <option value="">Selecione ou confirme o setor...</option>
                   {sectors.filter(s => s.type === formData.activityType).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{formatSectorName(s.name)}</option>
                   ))}
                 </select>
               </div>

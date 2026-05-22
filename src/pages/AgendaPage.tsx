@@ -13,7 +13,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { AgendaEvent, Speaker, Worker } from '../types';
+import { AgendaEvent, Speaker, Worker, AGENDA_EVENT_TYPE_LABELS } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -243,7 +243,7 @@ export const AgendaPage: React.FC = () => {
                     event.type === 'ESTUDO' ? "bg-emerald-100 text-emerald-700" : 
                     event.type === 'FESTA' ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-700"
                   )}>
-                    {event.type}
+                    {AGENDA_EVENT_TYPE_LABELS[event.type] || event.type}
                   </span>
                   {isAdmin && (
                     <div className="flex items-center gap-1">
@@ -389,7 +389,7 @@ export const AgendaPage: React.FC = () => {
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo</label>
                     <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value as AgendaEvent['type']})} className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none">
                       <option value="DOUTRINARIA">Doutrinária</option>
-                      <option value="ESTUDO">Estudo</option>
+                      <option value="ESTUDO">Estudos</option>
                       <option value="FESTA">Festa/Evento</option>
                       <option value="OUTRO">Outro</option>
                     </select>

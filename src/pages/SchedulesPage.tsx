@@ -17,7 +17,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { SectorSchedule, Worker, ScheduleAssignment, Sector } from '../types';
+import { SectorSchedule, Worker, ScheduleAssignment, Sector, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 
@@ -81,16 +81,19 @@ export const SchedulesPage: React.FC = () => {
     const cleanedSec: Sector[] = [];
 
     for (const sector of (sec || [])) {
-      const normalizedName = sector.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      const formattedName = formatSectorName(sector.name);
+      const normalizedName = formattedName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
       
       // Fix Mediunidade name
       if (normalizedName === 'mediunidade') {
         sector.name = 'Mediúnica';
         dataService.updateSector(sector);
+      } else {
+        sector.name = formattedName;
       }
 
       // Check for duplicates
-      if (seenNames.has(normalizedName)) {
+      if (seenNames.has(sector.name.toLowerCase().trim())) {
         // Current implementation: hide the duplicate and potentially delete it
         if (isAdmin) {
           dataService.deleteSector(sector.id);
@@ -98,7 +101,7 @@ export const SchedulesPage: React.FC = () => {
         continue;
       }
       
-      seenNames.add(normalizedName);
+      seenNames.add(sector.name.toLowerCase().trim());
       cleanedSec.push(sector);
       
       if (normalizedName === 'doutrinaria') doutrinariaExists = true;

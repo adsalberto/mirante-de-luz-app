@@ -21,6 +21,8 @@ import SectorDetailsPage from './pages/SectorDetailsPage';
 import ProfilePage from './pages/ProfilePage';
 import { SchedulesPage } from './pages/SchedulesPage';
 import { LogsPage } from './pages/LogsPage';
+import { InventoryPage } from './pages/InventoryPage';
+import DonationLandingPage from './pages/DonationLandingPage';
 
 function AppRoutes() {
   const { currentUser, fbUser, loading, logout } = useAuth();
@@ -57,6 +59,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={!fbUser ? <LoginPage /> : <Navigate to="/" />} />
       <Route path="/quero-ser-voluntario" element={<VolunteerRegistration />} />
+      <Route path="/doar/:campaignId" element={<DonationLandingPage />} />
       
       <Route element={<ProtectedRoute />}>
         <Route path="*" element={
@@ -84,6 +87,9 @@ function AppRoutes() {
                   <Route path="/logs" element={<LogsPage />} />
                 </Route>
                 <Route path="/perfil" element={<ProfilePage />} />
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'ADM', 'SECRETARIO']} />}>
+                  <Route path="/inventario" element={<InventoryPage />} />
+                </Route>
 
                 <Route path="/escalas" element={<SchedulesPage />} />
                 <Route path="/setores/:id" element={<SectorDetailsPage />} />

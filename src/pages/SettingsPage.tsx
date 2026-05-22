@@ -17,7 +17,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
-import { Worker, Sector, UserRole, SectorType } from '../types';
+import { Worker, Sector, UserRole, SectorType, SECTOR_TYPE_LABELS, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { ImageUpload } from '../components/ImageUpload';
@@ -108,7 +108,17 @@ export const SettingsPage: React.FC = () => {
   const loadData = async () => {
     const [w, s] = await Promise.all([dataService.getWorkers(), dataService.getSectors()]);
     setWorkers(w);
-    setSectors(s);
+    
+    const uniqueS: Sector[] = [];
+    const seenNames = new Set<string>();
+    s?.forEach(item => {
+      const normName = formatSectorName(item.name);
+      if (!seenNames.has(normName)) {
+        seenNames.add(normName);
+        uniqueS.push({ ...item, name: normName });
+      }
+    });
+    setSectors(uniqueS);
   };
 
   const handleEditWorker = (w: Worker) => {
@@ -497,8 +507,8 @@ export const SettingsPage: React.FC = () => {
                       <ShieldCheck size={24} />
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900 text-sm leading-tight">{s.name}</h4>
-                      <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{s.type}</p>
+                      <h4 className="font-bold text-gray-900 text-sm leading-tight">{formatSectorName(s.name)}</h4>
+                      <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{SECTOR_TYPE_LABELS[s.type] || s.type}</p>
                     </div>
                   </div>
                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM') && (
@@ -632,7 +642,7 @@ export const SettingsPage: React.FC = () => {
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Setor Principal</label>
                   <select value={newWorker.sectorId} onChange={e => setNewWorker({...newWorker, sectorId: e.target.value})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700">
                     <option value="">Acesso Geral</option>
-                    {sectors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {sectors.map(s => <option key={s.id} value={s.id}>{formatSectorName(s.name)}</option>)}
                   </select>
                 </div>
               </div>
@@ -734,7 +744,7 @@ export const SettingsPage: React.FC = () => {
                     <select value={newSector.type} onChange={e => setNewSector({...newSector, type: e.target.value as SectorType})} className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700">
                       <option value="FRATERNO">Atendimento Fraterno</option>
                       <option value="PASSE">Passe & Fluidoterapia</option>
-                      <option value="ESTUDO">Estudo</option>
+                      <option value="ESTUDO">Estudos</option>
                       <option value="INFANCIA">Infância & Juventude</option>
                       <option value="SOCIAL">Ação Social</option>
                       <option value="ADMINISTRATIVO">Administrativo</option>

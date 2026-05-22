@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataService } from '../services/dataService';
-import { AgendaEvent, Speaker } from '../types';
+import { AgendaEvent, Speaker, AGENDA_EVENT_TYPE_LABELS } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -32,9 +32,19 @@ export default function SpeakerDashboard() {
         dataService.getSpeakers()
       ]);
       
-      const today = new Date().setHours(0,0,0,0);
       const upcoming = events
-        .filter(e => e.date >= today)
+        .filter(event => {
+          const eventDate = new Date(event.date);
+          if (event.time) {
+            const [hours, minutes] = event.time.split(':').map(Number);
+            if (!isNaN(hours) && !isNaN(minutes)) {
+              eventDate.setHours(hours, minutes, 0, 0);
+            }
+          } else {
+            eventDate.setHours(23, 59, 59, 999);
+          }
+          return eventDate.getTime() >= Date.now();
+        })
         .sort((a,b) => a.date - b.date)
         .slice(0, 3);
 
@@ -103,7 +113,7 @@ export default function SpeakerDashboard() {
                 <div className="flex flex-col h-full gap-4">
                   <div className="flex items-center justify-between">
                      <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">
-                       {event.type}
+                       {AGENDA_EVENT_TYPE_LABELS[event.type] || event.type}
                      </span>
                      <p className="text-sm font-bold text-gray-400">
                        {format(event.date, "dd/MM", { locale: ptBR })}

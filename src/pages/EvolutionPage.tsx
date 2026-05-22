@@ -32,7 +32,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { GoogleGenAI } from "@google/genai";
 import { dataService } from '../services/dataService';
-import { Participant, Sector, Evolution, Worker } from '../types';
+import { Participant, Sector, Evolution, Worker, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 import { format, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -143,8 +143,18 @@ export const EvolutionPage: React.FC = () => {
       const fetchedParticipants = p || [];
       const fetchedSectors = s || [];
       
+      const uniqueSectors: Sector[] = [];
+      const seenNames = new Set<string>();
+      fetchedSectors.forEach(item => {
+        const normName = formatSectorName(item.name);
+        if (!seenNames.has(normName)) {
+          seenNames.add(normName);
+          uniqueSectors.push({ ...item, name: normName });
+        }
+      });
+      
       setParticipants(fetchedParticipants);
-      setSectors(fetchedSectors);
+      setSectors(uniqueSectors);
       
       // Auto-select from navigation state
       const state = location.state as { participantId?: string };

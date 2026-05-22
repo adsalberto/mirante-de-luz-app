@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { FileText, Download, Table, PieChart, Activity, BarChart3, Filter, CheckCircle2, Users, Calendar, ClipboardList } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { cn } from '../lib/utils';
+import { formatSectorName, Sector } from '../types';
 import { utils, writeFile } from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable, { UserOptions } from 'jspdf-autotable';
@@ -57,7 +58,16 @@ export const ReportsPage: React.FC = () => {
         sheetName = "Auditoria";
       } else if (type === 'sectors') {
         const sectors = await dataService.getSectors();
-        data = sectors.map(s => ({
+        const uniqueS: Sector[] = [];
+        const seenNames = new Set<string>();
+        sectors?.forEach(s => {
+          const normName = formatSectorName(s.name);
+          if (!seenNames.has(normName)) {
+            seenNames.add(normName);
+            uniqueS.push({ ...s, name: normName });
+          }
+        });
+        data = uniqueS.map(s => ({
           'Nome': s.name,
           'Tipo': s.type,
           'Descrição': s.description
@@ -114,9 +124,18 @@ export const ReportsPage: React.FC = () => {
         body = events.map(e => [new Date(e.date).toLocaleDateString('pt-BR'), e.title, e.type, e.speakerId || 'N/A']);
       } else if (type === 'sectors') {
         const sectors = await dataService.getSectors();
+        const uniqueS: Sector[] = [];
+        const seenNames = new Set<string>();
+        sectors?.forEach(s => {
+          const normName = formatSectorName(s.name);
+          if (!seenNames.has(normName)) {
+            seenNames.add(normName);
+            uniqueS.push({ ...s, name: normName });
+          }
+        });
         title = "Quadro de Setores";
         head = [['Nome', 'Tipo', 'Descrição']];
-        body = sectors.map(s => [s.name, s.type, s.description]);
+        body = uniqueS.map(s => [s.name, s.type, s.description]);
       } else {
         const participants = await dataService.getParticipants();
         title = "Relatório de Atendimentos";
