@@ -83,9 +83,29 @@ export const QueuePage: React.FC = () => {
     }
   };
 
-  const filteredQueue = activeTab === 'all' 
+  let filteredQueue = activeTab === 'all' 
     ? queue 
     : queue.filter(item => item.sectorId === activeTab);
+
+  if (activeTab === 'all') {
+    // Sort so IN_PROGRESS takes priority over WAITING, then by oldest arrivalDate to maintain true chronological priority
+    const sortedQueue = [...filteredQueue].sort((a, b) => {
+      if (a.status === 'IN_PROGRESS' && b.status !== 'IN_PROGRESS') return -1;
+      if (a.status !== 'IN_PROGRESS' && b.status === 'IN_PROGRESS') return 1;
+      const timeA = new Date(a.arrivalDate || 0).getTime();
+      const timeB = new Date(b.arrivalDate || 0).getTime();
+      return timeA - timeB;
+    });
+
+    const seenParticipants = new Set<string>();
+    filteredQueue = sortedQueue.filter(item => {
+      if (seenParticipants.has(item.participantId)) {
+        return false;
+      }
+      seenParticipants.add(item.participantId);
+      return true;
+    });
+  }
 
   return (
     <div className="p-4 sm:p-8 space-y-4 sm:space-y-8 h-full flex flex-col">
@@ -131,6 +151,28 @@ export const QueuePage: React.FC = () => {
                 const p = getParticipant(item.participantId);
                 const s = getSector(item.sectorId);
                 if (!p) return null;
+
+                // Find all active queue entries for this participant to show their referred sectors under "Todos"
+                const participantOtherEntries = queue.filter(x => x.participantId === item.participantId);
+                const participantSectors = participantOtherEntries
+                  .map(entry => getSector(entry.sectorId))
+                  .filter((sec): sec is Sector => !!sec);
+
+                // Find relative queue position for this specific sector (only amongst WAITING status items)
+                const targetSectorWaitingEntries = queue.filter(
+                  x => x.sectorId === item.sectorId && x.status === 'WAITING'
+                );
+                // Sort by priority first (true), and then by arrival date/time to find accurate position
+                const sortedSectorWaiting = [...targetSectorWaitingEntries].sort((a, b) => {
+                  if (a.priority && !b.priority) return -1;
+                  if (!a.priority && b.priority) return 1;
+                  const timeA = new Date(a.arrivalDate || 0).getTime();
+                  const timeB = new Date(b.arrivalDate || 0).getTime();
+                  return timeA - timeB;
+                });
+                const sectorQueuePosition = item.status === 'WAITING'
+                  ? sortedSectorWaiting.findIndex(x => x.id === item.id) + 1
+                  : null;
 
                 return (
                   <motion.div
@@ -184,17 +226,37 @@ export const QueuePage: React.FC = () => {
                                 #{item.id.slice(0, 5).toUpperCase()}
                               </span>
                             </div>
+
+                            {/* Render referred sectors badges */}
+                            {participantSectors.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-2">
+                                {participantSectors.map((sec) => (
+                                  <span key={sec.id} className="flex items-center gap-1 bg-indigo-50 text-indigo-850 px-2.5 py-1 rounded-lg text-[10px] uppercase font-black tracking-wider border border-indigo-105">
+                                    <MapPin size={10} className="text-indigo-500 animate-pulse" />
+                                    <span>{sec.name}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-center sm:justify-start gap-3">
                              {item.status === 'WAITING' ? (
-                               <button 
-                                 onClick={() => handleStartService(item.id)}
-                                 className="flex items-center gap-3 bg-emerald-600 text-white px-6 py-4 rounded-[22px] font-black text-[10px] uppercase tracking-[0.15em] hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-200 active:scale-95 group ring-8 ring-emerald-50/50"
-                               >
-                                 <Sparkles size={18} className="fill-white/20" />
-                                 <span>INICIAR ATENDIMENTO</span>
-                               </button>
+                               <div className="flex flex-col sm:flex-row items-center gap-3">
+                                 <button 
+                                   onClick={() => handleStartService(item.id)}
+                                   className="flex items-center gap-3 bg-emerald-600 text-white px-6 py-4 rounded-[22px] font-black text-[10px] uppercase tracking-[0.15em] hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-200 active:scale-95 group ring-8 ring-emerald-50/50 cursor-pointer"
+                                 >
+                                   <Sparkles size={18} className="fill-white/20" />
+                                   <span>INICIAR ATENDIMENTO</span>
+                                 </button>
+                                 {sectorQueuePosition && activeTab !== 'all' && (
+                                   <span className="flex items-center gap-1.5 bg-amber-500 text-white px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-100">
+                                     <ClipboardList size={14} />
+                                     <span>{sectorQueuePosition}º na Fila</span>
+                                   </span>
+                                 )}
+                               </div>
                              ) : (
                                <div className="flex items-center gap-3 bg-indigo-100 text-indigo-700 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-indigo-200 shadow-inner">
                                  <Activity size={16} className="animate-pulse" />
@@ -203,10 +265,10 @@ export const QueuePage: React.FC = () => {
                              )}
                              
                              <div className="flex items-center gap-2">
-                               <button className="flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group">
+                               <button className="flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group cursor-pointer">
                                  <Printer size={20} className="group-hover:scale-110 transition-transform" />
                                </button>
-                               <button className="flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group">
+                               <button className="flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group cursor-pointer">
                                  <ExternalLink size={20} className="group-hover:scale-110 transition-transform" />
                                </button>
                              </div>
@@ -252,7 +314,11 @@ export const QueuePage: React.FC = () => {
                         <div className="min-w-0 flex-1">
                           <p className="text-[8px] font-black uppercase tracking-wider opacity-60 mb-0.5">Status do Irmão</p>
                           <p className="text-[10px] font-black italic truncate">
-                            {item.status === 'IN_PROGRESS' ? 'Em Atendimento' : 'Aguardando Fila'}
+                            {item.status === 'IN_PROGRESS' 
+                              ? 'Em Atendimento' 
+                              : (sectorQueuePosition && activeTab !== 'all') 
+                                ? `${sectorQueuePosition}º na Fila` 
+                                : 'Aguardando Fila'}
                           </p>
                         </div>
                       </div>

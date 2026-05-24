@@ -113,6 +113,44 @@ interface OnlineDonation {
   status: 'Pendente' | 'Aprovada';
 }
 
+function getSectorDescription(name: string): string {
+  const normalized = (name || '').toLowerCase();
+  
+  if (normalized.includes('mediun') || normalized.includes('mediúnica')) {
+    return 'Área dedicada aos trabalhos mediúnicos de amparo, desobsessão e passes magnéticos. Monitore atendimentos espirituais, equipe de médiuns e relatórios de assistência.';
+  }
+  if (normalized.includes('fraterno') || normalized.includes('atendimento') || normalized.includes('recep')) {
+    return 'Espaço de acolhimento fraterno e diálogo consolar. Monitore a fila de triagem, agendamento de conversas, aconselhamentos e prontuários de assistência.';
+  }
+  if (normalized.includes('livraria') || normalized.includes('bazar') || normalized.includes('venda')) {
+    return 'Gerenciamento do acervo de obras espíritas e bazar beneficente. Monitore o controle de estoque, fluxo de vendas de livros, arrecadação e faturamento.';
+  }
+  if (normalized.includes('cantina') || normalized.includes('evento') || normalized.includes('cozinha') || normalized.includes('artesanato')) {
+    return 'Coordenação de eventos festivos, galinhadas beneficentes e cantina fraterna. Controle as arrecadações, venda de ingressos e custos operacionais.';
+  }
+  if (normalized.includes('financeiro') || normalized.includes('tesouraria') || normalized.includes('caixa')) {
+    return 'Gestão contábil e de transparência de recursos da casa. Monitore o fluxo de caixa, boletos gerados para colaboradores, receitas de doações e despesas gerais.';
+  }
+  if (normalized.includes('patrimôn') || normalized.includes('manuten')) {
+    return 'Conservação predial, instalações e obras de infraestrutura física. Planeje melhorias, registre despesas de manutenção física e acompanhe o fluxo patrimonial.';
+  }
+  if (normalized.includes('estudo') || normalized.includes('doutrin') || normalized.includes('palestra') || normalized.includes('escla')) {
+    return 'Promoção do estudo doutrinário e palestras públicas. Acompanhe a escala de palestrantes, turmas do ESDE/EADE e frequência dos estudantes da doutrina.';
+  }
+  if (normalized.includes('infân') || normalized.includes('juven') || normalized.includes('evangeliz')) {
+    return 'Evangelização infantil e juventude espírita. Monitore turmas de estudos, frequência dos alunos, atividades pedagógicas e coordenação das aulas.';
+  }
+  if (normalized.includes('social') || normalized.includes('assistênc')) {
+    return 'Promoção social espírita e distribuição de cestas básicas. Monitore o cadastro de famílias assistidas, donativos recebidos e entregas de amparo social.';
+  }
+  if (normalized.includes('administrat') || normalized.includes('secretar')) {
+    return 'Centro de operações administrativas, regulação de voluntários e segurança de dados. Monitore cadastros gerais, emissão de relatórios e documentações.';
+  }
+
+  // Fallback default
+  return `Ambiente de controle para o setor de ${formatSectorName(name)}. Acompanhe as atividades operacionais, fluxo de pessoas, equipe de voluntários e documentações do setor.`;
+}
+
 const StatCard = ({ title, value, icon: Icon, color, bg, shadow, delay }: any) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
@@ -1229,7 +1267,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
           </h1>
           
           <p className="text-lg text-indigo-100 font-medium max-w-xl">
-            Ambiente de controle para o setor de {formatSectorName(sectorName)}. Monitore o fluxo de caixa, as vendas, o estoque e documentações em tempo real.
+            {getSectorDescription(sectorName)}
           </p>
 
           <div className="flex flex-wrap gap-4 pt-4">

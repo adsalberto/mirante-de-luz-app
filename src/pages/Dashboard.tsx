@@ -266,7 +266,7 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={() => navigate('/trabalhadores')}
+                onClick={() => navigate('/trabalhadores', { state: { filterPending: true } })}
                 className="px-8 py-3 bg-white text-amber-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-amber-50 transition-all shadow-lg active:scale-95"
               >
                 Analisar Solicitações

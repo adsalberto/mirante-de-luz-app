@@ -68,14 +68,14 @@ export default function ReceptionistDashboard() {
       desc: 'Novo registro de participante no sistema',
       icon: UserPlus,
       color: 'bg-indigo-500',
-      action: () => navigate('/participantes?action=new')
+      action: () => navigate('/atendidos?action=new')
     },
     {
       title: 'Lista de Atendidos',
       desc: 'Buscar e gerenciar cadastros existentes',
       icon: Users,
       color: 'bg-emerald-500',
-      action: () => navigate('/participantes')
+      action: () => navigate('/atendidos')
     },
     {
       title: 'Fila de Espera',

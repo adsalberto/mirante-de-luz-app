@@ -1,65 +1,82 @@
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  MapPin, 
-  Plus, 
-  X, 
+import React, { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  Calendar as CalendarIcon,
+  Clock,
+  MapPin,
+  Plus,
+  X,
   ChevronRight,
   Mic2,
   Trash2,
   CalendarDays,
-  Pencil
-} from 'lucide-react';
-import { dataService } from '../services/dataService';
-import { AgendaEvent, Speaker, Worker, AGENDA_EVENT_TYPE_LABELS } from '../types';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { cn } from '../lib/utils';
+  Pencil,
+  Check,
+} from "lucide-react";
+import { dataService } from "../services/dataService";
+import {
+  AgendaEvent,
+  Speaker,
+  Worker,
+  AGENDA_EVENT_TYPE_LABELS,
+} from "../types";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "../lib/utils";
 
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export const AgendaPage: React.FC = () => {
   const navigate = useNavigate();
   const [events, setEvents] = useState<AgendaEvent[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  const [activeTab, setActiveTab] = useState<'events' | 'speakers'>('events');
-  
+  const [activeTab, setActiveTab] = useState<"events" | "speakers">("events");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSpeakerModalOpen, setIsSpeakerModalOpen] = useState(false);
-  
+
   const [editingEvent, setEditingEvent] = useState<AgendaEvent | null>(null);
   const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null);
-  
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deletingSpeakerId, setDeletingSpeakerId] = useState<string | null>(null);
-  
+  const [deletingSpeakerId, setDeletingSpeakerId] = useState<string | null>(
+    null,
+  );
+
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    date: '',
-    time: '',
-    type: 'DOUTRINARIA' as AgendaEvent['type'],
-    speakerId: ''
+    title: "",
+    description: "",
+    date: "",
+    time: "",
+    type: "DOUTRINARIA" as AgendaEvent["type"],
+    speakerId: "",
   });
 
   const [speakerFormData, setSpeakerFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    spiritistCenter: '',
-    observations: ''
+    name: "",
+    phone: "",
+    email: "",
+    spiritistCenter: "",
+    observations: "",
   });
 
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
+  const isAdmin =
+    currentUser?.role === "ADMIN" ||
+    currentUser?.role === "ADM" ||
+    (currentUser?.position &&
+      [
+        "Presidente(s)",
+        "Vice-presidente(s)",
+        "1º Secretário(a)",
+        "Secretário(a) de Planejamento",
+      ].includes(currentUser.position));
 
   useEffect(() => {
     if (currentUser) {
-      if (currentUser.role === 'RECEPCIONISTA') {
-        navigate('/');
+      if (currentUser.role === "RECEPCIONISTA") {
+        navigate("/");
       }
     }
     loadData();
@@ -68,21 +85,54 @@ export const AgendaPage: React.FC = () => {
   const loadData = async () => {
     const [e, s] = await Promise.all([
       dataService.getAgendaEvents(),
-      dataService.getSpeakers()
+      dataService.getSpeakers(),
     ]);
-    setEvents(e.sort((a,b) => a.date - b.date));
+    setEvents(e.sort((a, b) => a.date - b.date));
     setSpeakers(s);
+  };
+
+  const getEventStatus = (eventDate: number, eventTime: string) => {
+    const now = new Date();
+    
+    // start of today (midnight)
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const eventMidnight = new Date(eventDate);
+    const eventMidnightTime = new Date(eventMidnight.getFullYear(), eventMidnight.getMonth(), eventMidnight.getDate()).getTime();
+    
+    if (eventMidnightTime < today) {
+      return 'FINALIZADO';
+    } else if (eventMidnightTime === today) {
+      if (eventTime) {
+        try {
+          const [hours, minutes] = eventTime.split(':').map(Number);
+          const eventFullDate = new Date(eventMidnight.getFullYear(), eventMidnight.getMonth(), eventMidnight.getDate(), hours, minutes);
+          const bufferTime = eventFullDate.getTime() + (2 * 60 * 60 * 1000); // 2-hour event buffer
+          if (now.getTime() > bufferTime) {
+            return 'FINALIZADO';
+          }
+        } catch (err) {
+          // Fallback
+        }
+      }
+      return 'HOJE';
+    } else {
+      const threeDaysFromNow = today + 3 * 24 * 60 * 60 * 1000;
+      if (eventMidnightTime <= threeDaysFromNow) {
+        return 'EM_BREVE';
+      }
+      return 'AGENDADO';
+    }
   };
 
   const handleEdit = (event: AgendaEvent) => {
     setEditingEvent(event);
     setFormData({
-      title: event.title,
-      description: event.description || '',
-      date: new Date(event.date).toISOString().split('T')[0],
-      time: event.time,
-      type: event.type,
-      speakerId: event.speakerId || ''
+      title: event.title || "",
+      description: event.description || "",
+      date: event.date ? new Date(event.date).toISOString().split("T")[0] : "",
+      time: event.time || "",
+      type: event.type || "DOUTRINARIA",
+      speakerId: event.speakerId || "",
     });
     setIsModalOpen(true);
   };
@@ -90,11 +140,11 @@ export const AgendaPage: React.FC = () => {
   const handleEditSpeaker = (s: Speaker) => {
     setEditingSpeaker(s);
     setSpeakerFormData({
-      name: s.name,
-      phone: s.phone,
-      email: s.email,
-      spiritistCenter: s.spiritistCenter,
-      observations: s.observations || ''
+      name: s.name || "",
+      phone: s.phone || "",
+      email: s.email || "",
+      spiritistCenter: s.spiritistCenter || "",
+      observations: s.observations || "",
     });
     setIsSpeakerModalOpen(true);
   };
@@ -104,28 +154,35 @@ export const AgendaPage: React.FC = () => {
     try {
       const eventData = {
         ...formData,
-        date: new Date(formData.date + 'T00:00:00').getTime()
+        date: new Date(formData.date + "T00:00:00").getTime(),
       };
 
       if (editingEvent) {
         await dataService.updateAgendaEvent({ ...editingEvent, ...eventData });
-        alert('Atividade atualizada com sucesso!');
+        alert("Atividade atualizada com sucesso!");
       } else {
         await dataService.addAgendaEvent(eventData);
-        alert('Atividade agendada com sucesso!');
+        alert("Atividade agendada com sucesso!");
       }
-      
-      setFormData({ title: '', description: '', date: '', time: '', type: 'DOUTRINARIA', speakerId: '' });
+
+      setFormData({
+        title: "",
+        description: "",
+        date: "",
+        time: "",
+        type: "DOUTRINARIA",
+        speakerId: "",
+      });
       setEditingEvent(null);
       setIsModalOpen(false);
       await loadData();
     } catch (err: any) {
-      console.error('Erro ao salvar atividade:', err);
+      console.error("Erro ao salvar atividade:", err);
       try {
         const errObj = JSON.parse(err.message);
-        alert(`Erro ao salvar: ${errObj.error || 'Sem permissão'}`);
+        alert(`Erro ao salvar: ${errObj.error || "Sem permissão"}`);
       } catch {
-        alert('Ocorreu um erro ao salvar a atividade.');
+        alert("Ocorreu um erro ao salvar a atividade.");
       }
     }
   };
@@ -134,24 +191,33 @@ export const AgendaPage: React.FC = () => {
     e.preventDefault();
     try {
       if (editingSpeaker) {
-        await dataService.updateSpeaker({ ...editingSpeaker, ...speakerFormData });
-        alert('Palestrante atualizado com sucesso!');
+        await dataService.updateSpeaker({
+          ...editingSpeaker,
+          ...speakerFormData,
+        });
+        alert("Palestrante atualizado com sucesso!");
       } else {
         await dataService.addSpeaker(speakerFormData);
-        alert('Palestrante cadastrado com sucesso!');
+        alert("Palestrante cadastrado com sucesso!");
       }
-      
-      setSpeakerFormData({ name: '', phone: '', email: '', spiritistCenter: '', observations: '' });
+
+      setSpeakerFormData({
+        name: "",
+        phone: "",
+        email: "",
+        spiritistCenter: "",
+        observations: "",
+      });
       setEditingSpeaker(null);
       setIsSpeakerModalOpen(false);
       await loadData();
     } catch (err: any) {
-      console.error('Erro ao salvar palestrante:', err);
+      console.error("Erro ao salvar palestrante:", err);
       try {
         const errObj = JSON.parse(err.message);
-        alert(`Erro ao salvar: ${errObj.error || 'Sem permissão'}`);
+        alert(`Erro ao salvar: ${errObj.error || "Sem permissão"}`);
       } catch {
-        alert('Ocorreu um erro ao salvar os dados do palestrante.');
+        alert("Ocorreu um erro ao salvar os dados do palestrante.");
       }
     }
   };
@@ -178,178 +244,262 @@ export const AgendaPage: React.FC = () => {
     }
   };
 
-  const getSpeakerName = (id?: string) => speakers.find(s => s.id === id)?.name || 'Nenhum palestrante cadastrado';
+  const getSpeakerName = (id?: string) =>
+    speakers.find((s) => s.id === id)?.name || "Nenhum palestrante cadastrado";
 
   return (
     <div className="p-8 space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Agenda da Casa</h1>
-          <p className="text-gray-500 font-medium font-serif italic">Controle de doutrinárias, estudo e atividades especiais.</p>
+          <p className="text-gray-500 font-medium font-serif italic">
+            Controle de doutrinárias, estudo e atividades especiais.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex">
-            <button 
-              onClick={() => setActiveTab('events')}
+            <button
+              onClick={() => setActiveTab("events")}
               className={cn(
                 "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
-                activeTab === 'events' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400 hover:bg-gray-50"
+                activeTab === "events"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100"
+                  : "text-gray-400 hover:bg-gray-50",
               )}
             >
               Atividades
             </button>
-            <button 
-              onClick={() => setActiveTab('speakers')}
+            <button
+              onClick={() => setActiveTab("speakers")}
               className={cn(
                 "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
-                activeTab === 'speakers' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100" : "text-gray-400 hover:bg-gray-50"
+                activeTab === "speakers"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100"
+                  : "text-gray-400 hover:bg-gray-50",
               )}
             >
               Palestrantes
             </button>
           </div>
           {isAdmin && (
-            <button 
-              onClick={() => activeTab === 'events' ? setIsModalOpen(true) : setIsSpeakerModalOpen(true)}
+            <button
+              onClick={() =>
+                activeTab === "events"
+                  ? setIsModalOpen(true)
+                  : setIsSpeakerModalOpen(true)
+              }
               className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
             >
               <Plus size={20} />
-              <span>{activeTab === 'events' ? 'Marcar Atividade' : 'Cadastrar Palestrante'}</span>
+              <span>
+                {activeTab === "events"
+                  ? "Marcar Atividade"
+                  : "Cadastrar Palestrante"}
+              </span>
             </button>
           )}
         </div>
       </header>
 
-      {activeTab === 'events' ? (
+      {activeTab === "events" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {events.length > 0 ? events.map((event) => (
-            <motion.div
-              layout
-              key={event.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all flex flex-col group overflow-hidden"
-            >
-              <div className={cn(
-                "p-6 flex flex-col gap-4 flex-1",
-                event.type === 'DOUTRINARIA' ? "bg-indigo-50/30" : 
-                event.type === 'ESTUDO' ? "bg-emerald-50/30" : 
-                event.type === 'FESTA' ? "bg-pink-50/30" : "bg-gray-50/30"
-              )}>
-                <div className="flex items-center justify-between">
-                  <span className={cn(
-                    "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
-                    event.type === 'DOUTRINARIA' ? "bg-indigo-100 text-indigo-700" : 
-                    event.type === 'ESTUDO' ? "bg-emerald-100 text-emerald-700" : 
-                    event.type === 'FESTA' ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-700"
-                  )}>
-                    {AGENDA_EVENT_TYPE_LABELS[event.type] || event.type}
-                  </span>
-                  {isAdmin && (
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={() => handleEdit(event)}
-                        className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(event.id)}
-                        className={cn(
-                          "p-2 transition-all rounded-lg flex items-center gap-1",
-                          deletingId === event.id ? "bg-red-500 text-white text-[10px] font-bold px-3 py-1" : "text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"
+          {events.length > 0 ? (
+            events.map((event) => {
+              const status = getEventStatus(event.date, event.time);
+              return (
+                <motion.div
+                  layout
+                  key={event.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={cn(
+                    "bg-white rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all flex flex-col group overflow-hidden",
+                    status === "FINALIZADO" && "opacity-70 hover:opacity-95 transition-all"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "p-6 flex flex-col gap-4 flex-1",
+                      event.type === "DOUTRINARIA"
+                        ? "bg-indigo-50/30"
+                        : event.type === "ESTUDO"
+                          ? "bg-emerald-50/30"
+                          : event.type === "FESTA"
+                            ? "bg-pink-50/30"
+                            : "bg-gray-50/30",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                            event.type === "DOUTRINARIA"
+                              ? "bg-indigo-100 text-indigo-700"
+                              : event.type === "ESTUDO"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : event.type === "FESTA"
+                                  ? "bg-pink-100 text-pink-700"
+                                  : "bg-gray-200 text-gray-700",
+                          )}
+                        >
+                          {AGENDA_EVENT_TYPE_LABELS[event.type] || event.type}
+                        </span>
+
+                        {status === "FINALIZADO" && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200/40">
+                            <Check size={10} className="stroke-[3]" /> Concluído
+                          </span>
                         )}
-                      >
-                        {deletingId === event.id ? "Confirma?" : <Trash2 size={16} />}
-                      </button>
-                    </div>
-                  )}
-                </div>
+                        {status === "HOJE" && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-amber-500 text-white border border-amber-600 rounded-lg animate-pulse shadow-sm">
+                            <span className="w-1 h-1 rounded-full bg-white shrink-0 animate-ping" /> Hoje
+                          </span>
+                        )}
+                        {status === "EM_BREVE" && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-emerald-500 text-white border border-emerald-600 shadow-sm font-black">
+                            Em Breve
+                          </span>
+                        )}
+                        {status === "AGENDADO" && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-indigo-50/80 text-indigo-600 border border-indigo-110">
+                            Agendado
+                          </span>
+                        )}
+                      </div>
 
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-sm font-black text-gray-900 tracking-tight leading-tight line-clamp-1">{event.title}</h3>
-                  <p className="text-[10px] text-gray-500 font-medium line-clamp-2 leading-relaxed">{event.description}</p>
-                </div>
-
-                <div className="mt-auto pt-4 space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
-                    <CalendarDays size={16} className="text-gray-400" />
-                    <span>{format(event.date, "EEEE, dd 'de' MMMM", { locale: ptBR })}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
-                    <Clock size={16} className="text-gray-400" />
-                    <span>{event.time}</span>
-                  </div>
-                  {event.speakerId && (
-                    <div className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-indigo-50 p-3 rounded-2xl border border-indigo-100/50 mt-4">
-                      <Mic2 size={16} />
-                      <span>{getSpeakerName(event.speakerId)}</span>
+                      {isAdmin && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEdit(event)}
+                            className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(event.id)}
+                            className={cn(
+                              "p-2 transition-all rounded-lg flex items-center gap-1",
+                              deletingId === event.id
+                                ? "bg-red-500 text-white text-[10px] font-bold px-3 py-1"
+                                : "text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100",
+                            )}
+                          >
+                            {deletingId === event.id ? (
+                              "Confirma?"
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-sm font-black text-gray-900 tracking-tight leading-tight line-clamp-1">
+                      {event.title}
+                    </h3>
+                    <p className="text-[10px] text-gray-500 font-medium line-clamp-2 leading-relaxed">
+                      {event.description}
+                    </p>
+                  </div>
+
+                  <div className="mt-auto pt-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                      <CalendarDays size={16} className="text-gray-400" />
+                      <span>
+                        {format(event.date, "EEEE, dd 'de' MMMM", {
+                          locale: ptBR,
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                      <Clock size={16} className="text-gray-400" />
+                      <span>{event.time}</span>
+                    </div>
+                    {event.speakerId && (
+                      <div className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-indigo-50 p-3 rounded-2xl border border-indigo-100/50 mt-4">
+                        <Mic2 size={16} />
+                        <span>{getSpeakerName(event.speakerId)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )) : (
+              </motion.div>
+            )})
+          ) : (
             <div className="col-span-full py-20 text-center space-y-4">
               <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto">
                 <CalendarIcon className="text-gray-200" size={40} />
               </div>
-              <p className="text-gray-400 font-bold">Nenhuma atividade agendada.</p>
+              <p className="text-gray-400 font-bold">
+                Nenhuma atividade agendada.
+              </p>
             </div>
           )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {speakers.length > 0 ? speakers.map((s) => (
-            <motion.div
-              layout
-              key={s.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 hover:border-indigo-100 transition-all group overflow-hidden"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100 font-black">
-                  {(s.name || '?').charAt(0)}
-                </div>
-                {isAdmin && (
-                  <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => handleEditSpeaker(s)}
-                      className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteSpeaker(s.id)}
-                      className={cn(
-                        "p-2 transition-all rounded-lg flex items-center gap-1",
-                        deletingSpeakerId === s.id ? "bg-red-500 text-white text-[10px] font-bold px-3 py-1" : "text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"
-                      )}
-                    >
-                      {deletingSpeakerId === s.id ? "Confirma?" : <Trash2 size={16} />}
-                    </button>
+          {speakers.length > 0 ? (
+            speakers.map((s) => (
+              <motion.div
+                layout
+                key={s.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 hover:border-indigo-100 transition-all group overflow-hidden"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100 font-black">
+                    {(s.name || "?").charAt(0)}
                   </div>
-                )}
-              </div>
-
-              <h3 className="text-lg font-bold text-gray-900 mb-1">{s.name}</h3>
-              <div className="flex items-center gap-2 text-indigo-600 text-[10px] font-black uppercase tracking-wider mb-4 bg-indigo-50/50 px-3 py-1 rounded-full w-fit">
-                <span>{s.spiritistCenter}</span>
-              </div>
-
-              <div className="space-y-2 text-xs text-gray-500 font-medium">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-300 font-black">TEL:</span>
-                  <span>{s.phone}</span>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleEditSpeaker(s)}
+                        className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSpeaker(s.id)}
+                        className={cn(
+                          "p-2 transition-all rounded-lg flex items-center gap-1",
+                          deletingSpeakerId === s.id
+                            ? "bg-red-500 text-white text-[10px] font-bold px-3 py-1"
+                            : "text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100",
+                        )}
+                      >
+                        {deletingSpeakerId === s.id ? (
+                          "Confirma?"
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-300 font-black">EMAIL:</span>
-                  <span className="truncate">{s.email}</span>
+
+                <h3 className="text-lg font-bold text-gray-900 mb-1">
+                  {s.name}
+                </h3>
+                <div className="flex items-center gap-2 text-indigo-600 text-[10px] font-black uppercase tracking-wider mb-4 bg-indigo-50/50 px-3 py-1 rounded-full w-fit">
+                  <span>{s.spiritistCenter}</span>
                 </div>
-              </div>
-            </motion.div>
-          )) : (
+
+                <div className="space-y-2 text-xs text-gray-500 font-medium">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-300 font-black">TEL:</span>
+                    <span>{s.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-300 font-black">EMAIL:</span>
+                    <span className="truncate">{s.email}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))
+          ) : (
             <div className="col-span-full py-20 text-center text-gray-400 font-bold">
               Nenhum palestrante cadastrado.
             </div>
@@ -361,33 +511,103 @@ export const AgendaPage: React.FC = () => {
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-indigo-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-indigo-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
               <div className="p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <h2 className="text-2xl font-bold text-gray-900">{editingEvent ? 'Editar Atividade' : 'Agendar Atividade'}</h2>
-                <button onClick={() => { setIsModalOpen(false); setEditingEvent(null); setFormData({ title: '', description: '', date: '', time: '', type: 'DOUTRINARIA', speakerId: '' }); }} className="p-2 hover:bg-gray-100 rounded-full">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {editingEvent ? "Editar Atividade" : "Agendar Atividade"}
+                </h2>
+                <button
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingEvent(null);
+                    setFormData({
+                      title: "",
+                      description: "",
+                      date: "",
+                      time: "",
+                      type: "DOUTRINARIA",
+                      speakerId: "",
+                    });
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
                   <X size={24} className="text-gray-400" />
                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="p-8 space-y-5 overflow-y-auto custom-scrollbar">
+              <form
+                onSubmit={handleSubmit}
+                className="p-8 space-y-5 overflow-y-auto custom-scrollbar"
+              >
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Título da Atividade</label>
-                  <input required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all" />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    Título da Atividade
+                  </label>
+                  <input
+                    required
+                    value={formData.title}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
+                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data</label>
-                    <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all" />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Data
+                    </label>
+                    <input
+                      required
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, date: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Horário</label>
-                    <input required type="time" value={formData.time} onChange={(e) => setFormData({...formData, time: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all" />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Horário
+                    </label>
+                    <input
+                      required
+                      type="time"
+                      value={formData.time}
+                      onChange={(e) =>
+                        setFormData({ ...formData, time: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo</label>
-                    <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value as AgendaEvent['type']})} className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Tipo
+                    </label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          type: e.target.value as AgendaEvent["type"],
+                        })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none"
+                    >
                       <option value="DOUTRINARIA">Doutrinária</option>
                       <option value="ESTUDO">Estudos</option>
                       <option value="FESTA">Festa/Evento</option>
@@ -395,20 +615,52 @@ export const AgendaPage: React.FC = () => {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Palestrante</label>
-                    <select value={formData.speakerId} onChange={(e) => setFormData({...formData, speakerId: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Palestrante
+                    </label>
+                    <select
+                      value={formData.speakerId}
+                      onChange={(e) =>
+                        setFormData({ ...formData, speakerId: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none"
+                    >
                       <option value="">Nenhum/Interno</option>
-                      {speakers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {speakers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Descrição</label>
-                  <textarea rows={2} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all resize-none" />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    Descrição
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all resize-none"
+                  />
                 </div>
                 <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl">Cancelar</button>
-                  <button type="submit" className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all">Salvar</button>
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                  >
+                    Salvar
+                  </button>
                 </div>
               </form>
             </motion.div>
@@ -417,36 +669,125 @@ export const AgendaPage: React.FC = () => {
 
         {isSpeakerModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSpeakerModalOpen(false)} className="absolute inset-0 bg-indigo-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSpeakerModalOpen(false)}
+              className="absolute inset-0 bg-indigo-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
               <div className="p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <h2 className="text-2xl font-bold text-gray-900">{editingSpeaker ? 'Editar Palestrante' : 'Novo Palestrante'}</h2>
-                <button onClick={() => { setIsSpeakerModalOpen(false); setEditingSpeaker(null); setSpeakerFormData({ name: '', phone: '', email: '', spiritistCenter: '', observations: '' }); }} className="p-2 hover:bg-gray-100 rounded-full">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {editingSpeaker ? "Editar Palestrante" : "Novo Palestrante"}
+                </h2>
+                <button
+                  onClick={() => {
+                    setIsSpeakerModalOpen(false);
+                    setEditingSpeaker(null);
+                    setSpeakerFormData({
+                      name: "",
+                      phone: "",
+                      email: "",
+                      spiritistCenter: "",
+                      observations: "",
+                    });
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
                   <X size={24} className="text-gray-400" />
                 </button>
               </div>
-              <form onSubmit={handleSpeakerSubmit} className="p-8 space-y-5 overflow-y-auto custom-scrollbar">
+              <form
+                onSubmit={handleSpeakerSubmit}
+                className="p-8 space-y-5 overflow-y-auto custom-scrollbar"
+              >
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome</label>
-                  <input required value={speakerFormData.name} onChange={(e) => setSpeakerFormData({...speakerFormData, name: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all" />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    Nome
+                  </label>
+                  <input
+                    required
+                    value={speakerFormData.name}
+                    onChange={(e) =>
+                      setSpeakerFormData({
+                        ...speakerFormData,
+                        name: e.target.value,
+                      })
+                    }
+                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Telefone</label>
-                    <input required value={speakerFormData.phone} onChange={(e) => setSpeakerFormData({...speakerFormData, phone: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all" />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Telefone
+                    </label>
+                    <input
+                      required
+                      value={speakerFormData.phone}
+                      onChange={(e) =>
+                        setSpeakerFormData({
+                          ...speakerFormData,
+                          phone: e.target.value,
+                        })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
-                    <input required type="email" value={speakerFormData.email} onChange={(e) => setSpeakerFormData({...speakerFormData, email: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all" />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      E-mail
+                    </label>
+                    <input
+                      required
+                      type="email"
+                      value={speakerFormData.email}
+                      onChange={(e) =>
+                        setSpeakerFormData({
+                          ...speakerFormData,
+                          email: e.target.value,
+                        })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Centro Espírita</label>
-                  <input required value={speakerFormData.spiritistCenter} onChange={(e) => setSpeakerFormData({...speakerFormData, spiritistCenter: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all" />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    Centro Espírita
+                  </label>
+                  <input
+                    required
+                    value={speakerFormData.spiritistCenter}
+                    onChange={(e) =>
+                      setSpeakerFormData({
+                        ...speakerFormData,
+                        spiritistCenter: e.target.value,
+                      })
+                    }
+                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                  />
                 </div>
                 <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setIsSpeakerModalOpen(false)} className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl">Cancelar</button>
-                  <button type="submit" className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all">Salvar</button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSpeakerModalOpen(false)}
+                    className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                  >
+                    Salvar
+                  </button>
                 </div>
               </form>
             </motion.div>

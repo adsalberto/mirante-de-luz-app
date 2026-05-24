@@ -21,7 +21,9 @@ import {
   Clock, 
   HelpCircle,
   ShieldCheck,
-  Building
+  Building,
+  ShieldAlert,
+  Heart
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -73,6 +75,7 @@ export const ReportsPage: React.FC = () => {
   const [selectedSectorId, setSelectedSectorId] = useState<string>('all');
   const [isExporting, setIsExporting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [complianceView, setComplianceView] = useState<'workers' | 'ledger' | 'evolutions'>('workers');
 
   // Raw data vectors
   const [workers, setWorkers] = useState<any[]>([]);
@@ -291,20 +294,30 @@ export const ReportsPage: React.FC = () => {
     ? evolutions 
     : evolutions.filter(e => e.sectorId === selectedSectorId);
 
+  // Filter participants relevant to the chosen sector (participants having at least one evolution record in that sector)
+  const filteredParticipants = selectedSectorId === 'all'
+    ? participants
+    : participants.filter(p => 
+        evolutions.some(e => e.participantId === p.id && e.sectorId === selectedSectorId)
+      );
+
   // Financial filtering simulation: if 'all', show comprehensive finances, if specific sector, show estimations/simulations of sector budget
   const filteredTransactions = selectedSectorId === 'all'
     ? transactions
-    : transactions.filter(t => 
-        t.category.toLowerCase().includes(activeSector?.name.substring(0, 5).toLowerCase() || '___') ||
-        t.description.toLowerCase().includes(activeSector?.name.substring(0, 5).toLowerCase() || '___')
-      );
+    : transactions.filter(t => {
+        const sectName = activeSector?.name || '___';
+        return t.category.toLowerCase().includes(sectName.substring(0, 5).toLowerCase()) ||
+               t.description.toLowerCase().includes(sectName.substring(0, 5).toLowerCase()) ||
+               (t.category.toLowerCase() === 'manutenção' && sectName.toLowerCase().includes('apoio')) ||
+               (t.category.toLowerCase() === 'utilitários' && sectName.toLowerCase().includes('apoio'));
+      });
 
   // Stats Counters
-  const totalFinancialIn = transactions
+  const totalFinancialIn = filteredTransactions
     .filter(t => t.type === 'ENTRADA')
     .reduce((acc, t) => acc + (t.amountRealized || t.amount), 0);
 
-  const totalFinancialOut = transactions
+  const totalFinancialOut = filteredTransactions
     .filter(t => t.type === 'SAÍDA' || t.type === 'SAIDA')
     .reduce((acc, t) => acc + (t.amountRealized || t.amount), 0);
 
@@ -315,7 +328,7 @@ export const ReportsPage: React.FC = () => {
   const groupTransactionsByMonth = () => {
     const monthsMap: Record<string, { month: string, Receitas: number, Despesas: number }> = {};
     
-    transactions.forEach(t => {
+    filteredTransactions.forEach(t => {
       // Date format YYYY-MM-DD -> extracts month name
       const dateObj = new Date(t.date);
       const label = dateObj.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
@@ -336,18 +349,30 @@ export const ReportsPage: React.FC = () => {
     // If empty list, put a static reference
     if (list.length === 0) {
       return [
-        { month: 'Mar/26', Receitas: 800, Despesas: 520 },
-        { month: 'Abr/26', Receitas: 1200, Despesas: 900 },
-        { month: 'Mai/26', Receitas: 2500, Despesas: 1300 }
+        { month: 'Mar/26', Receitas: 0, Despesas: 0 },
+        { month: 'Abr/26', Receitas: 0, Despesas: 0 },
+        { month: 'Mai/26', Receitas: 0, Despesas: 0 }
       ];
     }
     return list;
   };
 
-  // 2. Chart Data: Volunteers per Sector BarChart
+  // 2. Chart Data: Volunteers per Sector BarChart (or Roles inside Sector if filtered)
   const getVolunteersPerSectorData = () => {
     const countsMap: Record<string, number> = {};
     
+    if (selectedSectorId !== 'all') {
+      // Show distribution of workers by role/position in the selected sector
+      filteredWorkers.forEach(w => {
+        const key = w.position || w.role || 'Voluntário';
+        countsMap[key] = (countsMap[key] || 0) + 1;
+      });
+      return Object.entries(countsMap).map(([name, count]) => ({
+        name: name,
+        'Voluntários': count
+      }));
+    }
+
     // Initialize with all parsed sectors so they always render even if empty
     sectors.forEach(s => {
       countsMap[s.name] = 0;
@@ -368,7 +393,7 @@ export const ReportsPage: React.FC = () => {
     }));
   };
 
-  // 3. Chart Data: Attended Participant status distribution PieChart
+  // 3. Chart Data: Attended Participant status distribution PieChart (Reacting to chosen sector)
   const getParticipantStatusData = () => {
     const count = {
       Livre: 0,
@@ -378,7 +403,7 @@ export const ReportsPage: React.FC = () => {
       Encaminhado: 0
     };
 
-    participants.forEach(p => {
+    filteredParticipants.forEach(p => {
       if (p.currentStatus === 'IDLE' || !p.currentStatus) count.Livre += 1;
       else if (p.currentStatus === 'WAITING') count['Em Espera'] += 1;
       else if (p.currentStatus === 'IN_SERVICE') count['Em Atendimento'] += 1;
@@ -386,14 +411,10 @@ export const ReportsPage: React.FC = () => {
       else if (p.currentStatus === 'REFERRERED') count.Encaminhado += 1;
     });
 
-    // Fallbacks if no data exists
-    if (participants.length === 0) {
+    const hasValues = Object.values(count).some(val => val > 0);
+    if (!hasValues) {
       return [
-        { name: 'Livre', value: 8 },
-        { name: 'Em Espera', value: 3 },
-        { name: 'Em Atendimento', value: 2 },
-        { name: 'Concluído', value: 12 },
-        { name: 'Encaminhado', value: 1 }
+        { name: 'Nenhum Atendimento', value: 0 }
       ];
     }
 
@@ -419,31 +440,28 @@ export const ReportsPage: React.FC = () => {
 
     if (list.length === 0) {
       return [
-        { period: 'Mar', 'Prontuários': 5 },
-        { period: 'Abr', 'Prontuários': 12 },
-        { period: 'Mai', 'Prontuários': 24 }
+        { period: 'Sem dados', 'Prontuários': 0 }
       ];
     }
     return list;
   };
 
-  // 5. Chart Data: Demographic Gender Breakdown
+  // 5. Chart Data: Demographic Gender Breakdown (Reacting to chosen sector)
   const getDemographicsData = () => {
     let masc = 0;
     let fem = 0;
     let fallbackOutros = 0;
 
-    participants.forEach(p => {
+    filteredParticipants.forEach(p => {
       const g = p.gender ? p.gender.toLowerCase() : '';
       if (g.startsWith('m')) masc += 1;
       else if (g.startsWith('f')) fem += 1;
       else fallbackOutros += 1;
     });
 
-    if (participants.length === 0) {
+    if (filteredParticipants.length === 0) {
       return [
-        { name: 'Feminino', value: 65 },
-        { name: 'Masculino', value: 35 }
+        { name: 'Sem registros', value: 0 }
       ];
     }
 
@@ -458,120 +476,302 @@ export const ReportsPage: React.FC = () => {
   // Generate Executive Comprehensive PDF Analytics (Joint or Individual)
   const generateJointExecutivePDF = () => {
     try {
-      const doc = new jsPDF();
-      const timestamp = new Date().toLocaleString('pt-BR');
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
       
-      // Header Section
-      doc.setFillColor(30, 41, 59); // Indigo/Slate header
-      doc.rect(0, 0, 210, 40, 'F');
+      const timestamp = new Date().toLocaleString('pt-BR');
+      const isJoint = selectedSectorId === 'all';
+      const scopeLabel = isJoint ? "CONJUNTO OPERACIONAL GERAL" : `SETORIAL INDIVIDUAL - ${activeSector?.name.toUpperCase()}`;
+      const auditorName = currentUser?.name || currentUser?.email || "Administrador do Sistema";
+      
+      // ==========================================
+      // PAGE 1: EXECUTIVE BRIEF & CONTABILIDADE
+      // ==========================================
+      
+      // Top elegant blue ribbon
+      doc.setFillColor(30, 41, 59); // Slate escuro
+      doc.rect(0, 0, 210, 38, 'F');
+      
+      // Header brand
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text("LIVRO RAZÃO & AUDITORIA DE DESEMPENHO", 14, 15);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(200, 200, 200);
+      doc.text("PORTAL DO VOLUNTÁRIO CEMIL • CNPJ 14.238.112/0001-90", 14, 22);
+      doc.text(`CARTA DE CONFORMIDADE FISCAL E PRIVACIDADE • RELATÓRIO PENSADO PARA AUDITORIA TÉCNICA`, 14, 27);
+      doc.text(`GERADO EM: ${timestamp} | USUÁRIO EMISSOR: ${auditorName.toUpperCase()}`, 14, 32);
+
+      // Audit status stamp
+      doc.setFillColor(245, 158, 11); // Amber accent
+      doc.rect(162, 11, 34, 6, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.text("PARECER CERTIFICADO", 164.5, 15);
+
+      // Metadata section
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text("I. SUMÁRIO DA SOLICITAÇÃO DE AUDITORIA", 14, 48);
+      
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(14, 51, 196, 51);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Este relatório destina-se à validação do conselho deliberativo sobre o contingente de recursos humanos, fluxos de triagem espiritual, evoluções de prontuários em conformidade com as regras de privacidade e correspondência econômica líquida.`, 14, 56, { maxWidth: 182 });
+      doc.text(`• Filtro de Escopo: ${scopeLabel}`, 14, 66);
+      doc.text(`• Nível de Acesso Auditado: GESTÃO E ADMINISTRAÇÃO CLASSE A-1`, 14, 71);
+      doc.text(`• Métricas Operacionais Ativas: ${filteredWorkers.length} voluntários alocados, ${filteredEvolutions.length} prontuários de assistência.`, 14, 76);
+
+      // KPIs Block (Boxes)
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(14, 82, 182, 28, 2, 2, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text("RECEITAS LIQUIDADAS", 20, 89);
+      doc.text("DESPESAS DA CASA", 70, 89);
+      doc.text("SALDO DE TRANSPARÊNCIA", 120, 89);
+
+      doc.setFontSize(14);
+      doc.setTextColor(16, 185, 129); // Emerald
+      doc.text(`R$ ${totalFinancialIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, 97);
+      
+      doc.setTextColor(239, 68, 68); // Rose
+      doc.text(`R$ ${totalFinancialOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 70, 97);
+      
+      const balance = totalFinancialIn - totalFinancialOut;
+      doc.setTextColor(balance >= 0 ? 37 : 239, balance >= 0 ? 99 : 68, balance >= 0 ? 235 : 68); // Blue or Red
+      doc.text(`R$ ${balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 120, 97);
+
+      // Table 1: Financial ledgers inside the current range
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text("II. RELAÇÃO DE CONTAS E CRÉDITOS DO LIVRO DIÁRIO", 14, 120);
+      
+      doc.line(14, 123, 196, 123);
+
+      const fHeaders = [['Data Lanc.', 'Categoria', 'Descrição da Operação', 'Fluxo', 'Valor Realizado']];
+      const fRows = filteredTransactions.map(t => {
+        const sign = t.type === 'ENTRADA' ? '+ ' : '- ';
+        return [
+          new Date(t.date).toLocaleDateString('pt-BR'),
+          t.category,
+          t.description,
+          t.type,
+          `${sign}R$ ${(t.amountRealized || t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        ];
+      });
+
+      if (fRows.length === 0) {
+        fRows.push(['-', '-', 'Nenhuma movimentação para o setor no intervalo.', 'N/A', 'R$ 0,00']);
+      }
+
+      autoTable(doc, {
+        startY: 127,
+        head: fHeaders,
+        body: fRows,
+        theme: 'grid',
+        headStyles: { fillColor: [67, 56, 202] }, // Indigo
+        styles: { 
+          fontSize: 8.5,
+          lineColor: [226, 232, 240], // Light gray divider/border
+          lineWidth: 0.15
+        },
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 70 },
+          3: { cellWidth: 20 },
+          4: { cellWidth: 37, halign: 'right' }
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const rowData = data.row.raw as string[];
+            if (rowData && rowData.length >= 5) {
+              const flowType = rowData[3];
+              if (flowType === 'ENTRADA') {
+                if (data.column.index === 3 || data.column.index === 4) {
+                  data.cell.styles.textColor = [16, 185, 129]; // Emerald (green)
+                  data.cell.styles.fontStyle = 'bold';
+                }
+              } else if (flowType === 'SAÍDA' || flowType === 'SAIDA') {
+                if (data.column.index === 3 || data.column.index === 4) {
+                  data.cell.styles.textColor = [239, 68, 68]; // Rose (red)
+                  data.cell.styles.fontStyle = 'bold';
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // ==========================================
+      // PAGE 2: HUMAN RESOURCES AUDIT
+      // ==========================================
+      doc.addPage();
+      
+      doc.setFillColor(30, 41, 59); // Slate ribbon
+      doc.rect(0, 0, 210, 15, 'F');
       
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.text("RELATÓRIO DE INTELIGÊNCIA INSTITUCIONAL", 14, 18);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text("ASSOCIAÇÃO ESPÍRITA MIRANTE DE LUZ - CNPJ: 14.238.112/0001-90", 14, 25);
-      doc.text(`AUDITORIA E MÉTRICAS INTEGRANTES DE PROCESSOS • GERADO EM: ${timestamp}`, 14, 30);
-
-      // Metas and Details
-      doc.setTextColor(50, 50, 50);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      
-      const isJoint = selectedSectorId === 'all';
-      const scopeLabel = isJoint ? "CONJUNTO GERAL (TODOS OS SETORE)" : `SETORIAL INDIVIDUAL - ${activeSector?.name.toUpperCase()}`;
-      doc.text(`ESCOPO DOS APONTAMENTOS DE DESEMPENHO:`, 14, 52);
-      doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(`Filtro Selecionado: ${scopeLabel}`, 14, 58);
-      doc.text(`Auditado sob Responsabilidade do Administrador: ${currentUser?.name || currentUser?.email}`, 14, 64);
+      doc.text("QUADRO DE RECURSOS HUMANOS E FILIADOS PARCEIROS (Pág. 2)", 14, 10);
 
-      // Section: Core Indicators
-      doc.setFillColor(243, 244, 246);
-      doc.roundedRect(14, 72, 182, 35, 3, 3, 'F');
-      
-      doc.setFontSize(10);
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text("INDICADORES DE CAPACIDADE:", 18, 79);
+      doc.text("III. ALOCAÇÃO DE COLABORADORES E VOLUNTÁRIOS ATIVOS", 14, 28);
+      
+      doc.line(14, 31, 196, 31);
       
       doc.setFont('helvetica', 'normal');
-      doc.text(`Cadastros no Livro de Atendidos Totais: ${participants.length}`, 18, 86);
-      doc.text(`Trabalhadores/Voluntários Alocados: ${isJoint ? workers.length : sectorTargetWorkers} filiados`, 18, 92);
-      doc.text(`Registros de Prontuários Clinico/Espíritas: ${isJoint ? evolutions.length : sectorTargetEvolutions} evoluções`, 18, 98);
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Abaixo constam as pessoas certificadas e alocadas na prestação dos serviços do escopo em foco. O envolvimento e as funções são restritos conforme o estatuto de admissão de pessoal.`, 14, 36, { maxWidth: 182 });
 
-      // Section: Financial Ledger Statistics
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text("BALANÇO FINANCEIRO DE AMOR DE TRANSPARÊNCIA", 14, 120);
-      
-      const financialHeaders = [['Status', 'Movimentações de Caixa', 'Valor Liquidado']];
-      const financialRows = [
-        ['Entradas Realizadas', 'Doações, Mensalidades e Eventos', `R$ ${totalFinancialIn.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
-        ['Saídas Realizadas', 'Aluguel, Reforma, Insumos Sociais e Utilitários', `R$ ${totalFinancialOut.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
-        ['Saldo de Caixa Realizado', 'Resultante Disponível na Conta Institucional', `R$ ${(totalFinancialIn - totalFinancialOut).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
-      ];
+      const wHeaders = [['Nome do Voluntário', 'Função / Cargo', 'Setor de Atividade', 'E-mail de Cadastro', 'Status']];
+      const wRows = filteredWorkers.map(w => {
+        const sect = sectors.find(s => s.id === w.sectorId)?.name || 'Geral / Apoio';
+        return [
+          w.name,
+          w.position || w.role || 'Membro do Corpo',
+          sect,
+          w.email || 'N/I',
+          w.active ? 'Ativo e Habilitado' : 'Aguardando Aprovação'
+        ];
+      });
+
+      if (wRows.length === 0) {
+        wRows.push(['-', 'Não foram encontrados trabalhadores alocados sob esta rubrica.', '-', '-', '-']);
+      }
 
       autoTable(doc, {
-        startY: 125,
-        head: financialHeaders,
-        body: financialRows,
+        startY: 44,
+        head: wHeaders,
+        body: wRows,
         theme: 'grid',
-        headStyles: { fillColor: [79, 70, 229] },
-        styles: { fontSize: 9.5 }
+        headStyles: { fillColor: [15, 23, 42] }, // Slate escuro
+        styles: { fontSize: 8 },
+        columnStyles: {
+          0: { cellWidth: 45 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 45 },
+          4: { cellWidth: 22 }
+        }
       });
 
-      // Section: Detailed Counts of Personnel & Services
-      const tableSectorsHeaders = [['Setores Espíritas Disponibilizados', 'Descrição Funcional', 'Frequência Trabalhadores']];
-      const tableSectorsRows = sectors.map((s) => {
-        const cWorkers = workers.filter(w => w.sectorId === s.id).length;
-        return [s.name, s.description || 'Sem descrição cadastrada', `${cWorkers} voluntários`];
-      });
-
-      const lastY = (doc as any).lastAutoTable.finalY || 160;
-      doc.setFontSize(14);
+      // ==========================================
+      // PAGE 3: DEMAND & TRIAGE AUDIT & SIGNATURE
+      // ==========================================
+      doc.addPage();
+      
+      doc.setFillColor(30, 41, 59); // Slate ribbon
+      doc.rect(0, 0, 210, 15, 'F');
+      
+      doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
-      doc.text("COBERTURA INTEGRAL DOS TRABALHOS", 14, lastY + 15);
+      doc.setFontSize(11);
+      doc.text("MONITORAMENTO DE ATENDIMENTOS E HOMOLOGAÇÃO FISCAL (Pág. 3)", 14, 10);
+
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text("IV. AUDITORIA DE PRONTUÁRIOS E SEGURANÇA GERAL DOS METADADOS", 14, 28);
+      
+      doc.line(14, 31, 196, 31);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`As anotações psicológicas e terapêuticas lavradas em prontuários e acompanhamentos espirituais passam por auditoria fria (contagem métrica) sem a violação da privacidade dos assistidos conforme dispõe a LGPD local.`, 14, 36, { maxWidth: 182 });
+
+      const eHeaders = [['ID', 'Data Prontuário', 'Status Assistência', 'Consentimento LGPD', 'Anotação Sintética']];
+      const eRows = filteredEvolutions.slice(0, 11).map((e, index) => {
+        const participantId = e.participantId;
+        const participant = participants.find(p => p.id === participantId);
+        const namePart = participant ? participant.name : `Cód #${participantId?.substring(0, 5)}`;
+        const consent = participant?.lgpdConsent ? 'Sim - Autorizado' : 'Falta Termo';
+        return [
+          `#0${index + 1}`,
+          new Date(e.date).toLocaleDateString('pt-BR'),
+          participant?.currentStatus || 'Finalizado',
+          consent,
+          `Atendimento prestado em fichagem espírita sob supervisão. - Atendido: ${namePart}`
+        ];
+      });
+
+      if (eRows.length === 0) {
+        eRows.push(['-', '-', '-', '-', 'Nenhum prontuário registrado para este filtro no histórico recente.']);
+      }
 
       autoTable(doc, {
-        startY: lastY + 20,
-        head: tableSectorsHeaders,
-        body: tableSectorsRows,
+        startY: 44,
+        head: eHeaders,
+        body: eRows,
         theme: 'striped',
-        headStyles: { fillColor: [15, 23, 42] },
-        styles: { fontSize: 8.5 }
+        headStyles: { fillColor: [99, 102, 241] }, // Indigo claro
+        styles: { fontSize: 7.5 },
+        columnStyles: {
+          0: { cellWidth: 12 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 31 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 84 }
+        }
       });
 
-      // Signature Block on next page or bottom
-      const signatureY = (doc as any).lastAutoTable.finalY || 240;
-      const isOverflown = signatureY > 230;
-      
-      const workingDoc = isOverflown ? doc.addPage() : doc;
-      const targetY = isOverflown ? 40 : signatureY + 25;
+      // Parecer and Approval block
+      const lastY = (doc as any).lastAutoTable.finalY || 135;
+      const targetY = lastY + 12;
 
-      workingDoc.setFontSize(10);
-      workingDoc.setFont('helvetica', 'bold');
-      workingDoc.text("DECLARAÇÃO DE AUDITORIA:", 14, targetY);
-      workingDoc.setFont('helvetica', 'italic');
-      workingDoc.setFontSize(9);
-      workingDoc.text("Declaramos que as estatísticas contábeis, cadastrais e de alocação apresentadas neste painel representam as atividades reais, auditadas e guardadas sob conformidade dos estatutos da casa espírita e normas de privacidade locais (LGPD).", 14, targetY + 6, { maxWidth: 182 });
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(14, targetY, 182, 30, 2, 2, 'F');
       
-      workingDoc.line(14, targetY + 32, 90, targetY + 32);
-      workingDoc.line(120, targetY + 32, 196, targetY + 32);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(51, 65, 85);
+      doc.text("PARECER CONCLUSIVO DO CONSELHO DE CONTAS:", 18, targetY + 6);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7.8);
+      doc.setTextColor(100, 100, 100);
+      doc.text("Certificamos para os devidos fins de transparência perante a Receita Federal e a Federação que os lançamentos contábeis coletados de forma eletrônica, doações liquidas, frequência do corpo de obreiros e prontuários estão salvaguardados e de acordo com as normas tributárias e do terceiro setor vigentes nesta data.", 18, targetY + 11, { maxWidth: 174 });
+
+      // Signatures
+      doc.line(14, targetY + 54, 90, targetY + 54);
+      doc.line(120, targetY + 54, 196, targetY + 54);
       
-      workingDoc.setFont('helvetica', 'bold');
-      workingDoc.setFontSize(9.5);
-      workingDoc.text("Presidente / Coord. Geral da Diretoria", 14, targetY + 38);
-      workingDoc.text("Conselho Fiscal de Contas CEMIL", 120, targetY + 38);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(51, 65, 85);
+      doc.text("Coordenação Administrativa / Presidência", 14, targetY + 59);
+      doc.text("Auditor Assistente / Conselho Fiscal CEMIL", 120, targetY + 59);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text("ASSOCIAÇÃO ESPÍRITA MIRANTE DE LUZ", 14, targetY + 63);
+      doc.text(`Data da Auditoria: ${timestamp.split(' ')[0]}`, 120, targetY + 63);
 
-      workingDoc.text("MIRANTE DE LUZ - CNPJ 14.238.112/0001-90", 14, targetY + 44);
-      workingDoc.text(timestamp.split(' ')[0], 120, targetY + 44);
-
-      doc.save(`Painel_Inteligencia_${selectedSectorId}_${Date.now()}.pdf`);
-      alert('Relatório de Inteligência para tomada de decisões gerado com sucesso!');
+      doc.save(`Painel_Auditoria_CEMIL_Setor_${selectedSectorId}_${Date.now()}.pdf`);
+      alert('Relatório técnico consolidado para Auditoria (PDF) gerado com sucesso!');
     } catch (e) {
-      console.error(e);
-      alert('Erro inesperado na geração do PDF analítico.');
+      console.error("PDF Fail:", e);
+      alert('Houve uma falha inesperada ao tentar estruturar o PDF de auditoria contábil e de prontuários.');
     }
   };
 
@@ -586,7 +786,7 @@ export const ReportsPage: React.FC = () => {
   // Static options for PDF exporting menu
   const reportTypes = [
     { id: 'all', title: 'Prontuário Geral', desc: 'Dados consolidados de todos os atendidos e setores.', icon: FileText, color: 'indigo' },
-    { id: 'workers', title: 'Quadro de Voluntários', desc: 'Listing completa de trabalhadores ativos por setor.', icon: Users, color: 'emerald' },
+    { id: 'workers', title: 'Quadro de Voluntários', desc: 'Listagem completa de trabalhadores ativos por setor.', icon: Users, color: 'emerald' },
     { id: 'agenda', title: 'Calendário de Atividades', desc: 'Programação de palestras, cursos e eventos.', icon: Calendar, color: 'blue' },
     { id: 'logs', title: 'Logs de Auditoria', desc: 'Histórico de acessos e modificações no sistema.', icon: ClipboardList, color: 'rose' },
     { id: 'sectors', title: 'Acreção de Setores', desc: 'Estatísticas e descrição de finalidade de cada setor.', icon: Building, color: 'orange' },
@@ -849,7 +1049,7 @@ export const ReportsPage: React.FC = () => {
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-[9px] font-black uppercase text-gray-400 tracking-widest">Triados</span>
                   <span className="text-2xl font-black text-gray-900 leading-none mt-0.5">{participants.length || 26}</span>
-                  <span className="text-[8px] font-semibold text-emerald-500 mt-1 uppercase tracking-tighter">Real-time</span>
+                  <span className="text-[8px] font-semibold text-emerald-500 mt-1 uppercase tracking-tighter">Tempo Real</span>
                 </div>
               </div>
 
@@ -960,6 +1160,194 @@ export const ReportsPage: React.FC = () => {
 
           </div>
 
+          {/* Section 3.5: Realtime Auditor Compliance Ledger Grid */}
+          <div className="bg-white rounded-[32px] border border-gray-150 p-6 sm:p-8 shadow-sm space-y-6 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-gray-100 pb-5">
+              <div>
+                <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg tracking-wider inline-flex items-center gap-1">
+                  <ShieldAlert size={11} className="text-indigo-500 animate-pulse" /> Auditoria Geral & Transparência Contábil
+                </span>
+                <h3 className="text-xl font-black text-gray-950 mt-1.5 leading-none">Registros Consolidados do Filtro Ativo</h3>
+                <p className="text-gray-400 font-semibold text-xs mt-1">Valide um por um os lançamentos eletrônicos em tempo real que geram as curvas e as volumetrias dos gráficos acima.</p>
+              </div>
+              
+              {/* Micro internal view switcher */}
+              <div className="flex gap-1.5 p-1 bg-gray-50 rounded-xl border border-gray-100 self-start sm:self-center">
+                {(['workers', 'ledger', 'evolutions'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setComplianceView(mode)}
+                    className={cn(
+                      "px-3 py-1.5 text-[10px] uppercase font-black tracking-wider transition-all rounded-lg cursor-pointer",
+                      complianceView === mode
+                        ? "bg-indigo-600 text-white shadow-sm font-extrabold"
+                        : "text-gray-500 hover:text-gray-800"
+                    )}
+                  >
+                    {mode === 'workers' ? '👥 Voluntários' : mode === 'ledger' ? '💰 Transações' : '📜 Prontuários'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Compliance details grid rendering */}
+            <div>
+              {complianceView === 'workers' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400 font-bold uppercase">Total de Filiados no Escopo: <span className="text-indigo-600 font-black">{filteredWorkers.length} membros</span></span>
+                  </div>
+                  <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-black text-[9px] uppercase tracking-wider">
+                          <th className="p-3.5 pl-5">Nome do Voluntário</th>
+                          <th className="p-3.5">Cargo / Atividade</th>
+                          <th className="p-3.5">Área / Setor</th>
+                          <th className="p-3.5">E-mail Cadastrado</th>
+                          <th className="p-3.5 pr-5 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                        {filteredWorkers.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-10 text-center text-gray-400 uppercase tracking-widest text-[10px] font-black">Nenhum voluntário vinculado a este escopo de forma direta.</td>
+                          </tr>
+                        ) : (
+                          filteredWorkers.map((w) => {
+                            const sectorName = sectors.find(s => s.id === w.sectorId)?.name || 'Geral/Apoio';
+                            return (
+                              <tr key={w.id} className="hover:bg-gray-50/50 transition-all">
+                                <td className="p-3.5 pl-5 flex items-center gap-2">
+                                  <div className="w-7 h-7 uppercase rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black flex items-center justify-center shrink-0">
+                                    {w.name.substring(0, 2)}
+                                  </div> 
+                                  <span className="truncate max-w-[150px]">{w.name}</span>
+                                </td>
+                                <td className="p-3.5">
+                                  <span className="bg-slate-100/80 text-slate-700 px-2 py-0.5 rounded-lg text-[10px]">{w.position || w.role || 'Geral'}</span>
+                                </td>
+                                <td className="p-3.5 text-gray-400 text-[11px] font-medium">{sectorName}</td>
+                                <td className="p-3.5 text-gray-500 font-mono text-[10px]">{w.email || 'Não informado'}</td>
+                                <td className="p-3.5 pr-5 text-right">
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider", 
+                                    w.active ? "bg-emerald-50 text-emerald-650 border border-emerald-110" : "bg-amber-50 text-amber-650 border border-amber-110"
+                                  )}>
+                                    {w.active ? 'Ativo' : 'Pendente'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {complianceView === 'ledger' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400 font-bold uppercase">Lançamentos de Caixa: <span className="text-indigo-600 font-black">{filteredTransactions.length} registros</span></span>
+                  </div>
+                  <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-black text-[9px] uppercase tracking-wider">
+                          <th className="p-3.5 pl-5">Data Lançamento</th>
+                          <th className="p-3.5">Categoria Livro Caixa</th>
+                          <th className="p-3.5">Descrição da Operação</th>
+                          <th className="p-3.5">Sentido do Caixa</th>
+                          <th className="p-3.5 pr-5 text-right">Valor em R$</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                        {filteredTransactions.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-10 text-center text-gray-400 uppercase tracking-widest text-[10px] font-black">Nenhum lançamento financeiro atrelado ou rotulado para este departamento espírita.</td>
+                          </tr>
+                        ) : (
+                          filteredTransactions.map((t) => (
+                            <tr key={t.id} className="hover:bg-gray-50/50 transition-all">
+                              <td className="p-3.5 pl-5 font-mono text-gray-400 text-[11px]">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                              <td className="p-3.5"><span className="bg-indigo-50/80 text-indigo-700 px-2 py-0.5 rounded-lg text-[10px]">{t.category}</span></td>
+                              <td className="p-3.5 text-gray-600 max-w-[200px] truncate">{t.description}</td>
+                              <td className="p-3.5">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
+                                  t.type === 'ENTRADA' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-rose-50 text-rose-600 border border-rose-100"
+                                )}>
+                                  {t.type}
+                                </span>
+                              </td>
+                              <td className={cn("p-3.5 pr-5 text-right font-mono font-black", t.type === 'ENTRADA' ? "text-emerald-600" : "text-rose-500")}>R$ {(t.amountRealized || t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {complianceView === 'evolutions' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400 font-bold uppercase">Relatos Clínicos/Espíritas: <span className="text-indigo-600 font-black">{filteredEvolutions.length} anotações descritas</span></span>
+                  </div>
+                  <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-black text-[9px] uppercase tracking-wider">
+                          <th className="p-3.5 pl-5">Código ID</th>
+                          <th className="p-3.5">Data Triagem</th>
+                          <th className="p-3.5">Assistido Vinculado</th>
+                          <th className="p-3.5">Fase Diagnóstica</th>
+                          <th className="p-3.5 pr-5">Anotação Sintética do Atendimento</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                        {filteredEvolutions.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-10 text-center text-gray-400 uppercase tracking-widest text-[10px] font-black font-mono">Nenhum prontuário registrado para este setor até o momento.</td>
+                          </tr>
+                        ) : (
+                          filteredEvolutions.map((e, idx) => {
+                            const part = participants.find(p => p.id === e.participantId);
+                            const namePart = part ? part.name : `Necessitado #${e.participantId?.substring(0, 5)}`;
+                            return (
+                              <tr key={e.id} className="hover:bg-gray-50/50 transition-all">
+                                <td className="p-3.5 pl-5 font-mono text-gray-400">#0{idx+1}</td>
+                                <td className="p-3.5 font-mono text-gray-400 text-[11px]">{new Date(e.date).toLocaleDateString('pt-BR')}</td>
+                                <td className="p-3.5 font-black text-gray-950 flex items-center gap-1.5"><Heart size={10} className="text-rose-400 shrink-0" /> <span className="truncate max-w-[120px]">{namePart}</span></td>
+                                <td className="p-3.5">
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
+                                    part?.currentStatus === 'IN_SERVICE' ? "bg-blue-50 text-blue-650 border border-blue-100" :
+                                    part?.currentStatus === 'WAITING' ? "bg-amber-50 text-amber-650 border border-amber-100" :
+                                    "bg-emerald-50 text-emerald-650 border border-emerald-100"
+                                  )}>
+                                    {part?.currentStatus === 'IN_SERVICE' ? 'Em Atendimento' :
+                                     part?.currentStatus === 'WAITING' ? 'Em Espera' :
+                                     part?.currentStatus === 'REFERRERED' ? 'Encaminhado' :
+                                     part?.currentStatus === 'IDLE' ? 'Livre' : 'Concluído'}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 pr-5 text-gray-400 text-xs truncate max-w-[280px]" title={e.notes}>{e.notes || 'Consulta e passe prestado.'}</td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Institutional note on GDPR Security and transparency */}
           <div className="p-6 bg-slate-900 text-white rounded-[36px] flex flex-col md:flex-row md:items-center justify-between gap-6 overflow-hidden relative shadow-lg">
             <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
@@ -1033,7 +1421,7 @@ export const ReportsPage: React.FC = () => {
                   <span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Sincronizado</span>
                   <div className="flex items-center gap-1.5 text-emerald-600">
                     <CheckCircle2 size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-tighter">Real-time</span>
+                    <span className="text-[10px] font-black uppercase tracking-tighter">Tempo Real</span>
                   </div>
                 </div>
               </motion.div>
