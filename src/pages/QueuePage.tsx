@@ -18,7 +18,8 @@ import {
   MapPin,
   Heart,
   Sparkles,
-  Search
+  Search,
+  ArrowLeft
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ServiceQueueEntry, Participant, Sector, Worker, formatSectorName } from '../types';
@@ -110,12 +111,21 @@ export const QueuePage: React.FC = () => {
   return (
     <div className="p-4 sm:p-8 space-y-4 sm:space-y-8 h-full flex flex-col">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Fila Digital</h1>
-            <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shrink-0">AO VIVO</span>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer animate-in fade-in"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Fila Digital</h1>
+              <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shrink-0">AO VIVO</span>
+            </div>
+            <p className="text-sm sm:text-base text-gray-500 font-medium italic">Gerencie o fluxo em tempo real.</p>
           </div>
-          <p className="text-sm sm:text-base text-gray-500 font-medium italic">Gerencie o fluxo em tempo real.</p>
         </div>
 
         <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex overflow-x-auto no-scrollbar max-w-full touch-pan-x">

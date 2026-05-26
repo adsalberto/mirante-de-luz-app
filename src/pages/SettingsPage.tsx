@@ -30,6 +30,18 @@ import { useAuth } from "../context/AuthContext";
 import { ImageUpload } from "../components/ImageUpload";
 import { useNavigate, useLocation } from "react-router-dom";
 
+const getRemainingTempTimeLabel = (expiry: number) => {
+  const diffMs = expiry - Date.now();
+  if (diffMs <= 0) return "";
+  const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+  if (diffHours >= 24) {
+    const days = Math.floor(diffHours / 24);
+    const hours = diffHours % 24;
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  }
+  return `${diffHours}h`;
+};
+
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,6 +57,10 @@ export const SettingsPage: React.FC = () => {
   const [workerToDelete, setWorkerToDelete] = useState<Worker | null>(null);
   const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
   const [workerPassword, setWorkerPassword] = useState("");
+  const [hasTempPermission, setHasTempPermission] = useState(false);
+  const [tempRole, setTempRole] = useState<UserRole>("SECRETARIO");
+  const [tempDurationValue, setTempDurationValue] = useState<number>(1);
+  const [tempDurationUnit, setTempDurationUnit] = useState<'hours' | 'days'>("days");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [workerFilter, setWorkerFilter] = useState<'all' | 'active' | 'pending'>('all');
@@ -122,6 +138,25 @@ export const SettingsPage: React.FC = () => {
     });
   };
 
+  const resetWorkerForm = () => {
+    setEditingWorker(null);
+    setNewWorker({
+      name: "",
+      email: "",
+      phone: "",
+      role: "VOLUNTARIO",
+      position: "",
+      sectorId: "",
+      photoUrl: "",
+      acceptedTerm: false,
+    });
+    setWorkerPassword("");
+    setHasTempPermission(false);
+    setTempRole("SECRETARIO");
+    setTempDurationValue(1);
+    setTempDurationUnit("days");
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -157,6 +192,30 @@ export const SettingsPage: React.FC = () => {
       photoUrl: w.photoUrl || "",
       acceptedTerm: w.acceptedTerm || false,
     });
+
+    const active = !!(w.tempRole && w.tempRoleExpiry && Date.now() < w.tempRoleExpiry);
+    setHasTempPermission(active);
+    if (w.tempRole) {
+      setTempRole(w.tempRole);
+    } else {
+      setTempRole("SECRETARIO");
+    }
+
+    if (active && w.tempRoleExpiry) {
+      const msLeft = w.tempRoleExpiry - Date.now();
+      const hoursLeft = Math.ceil(msLeft / (60 * 60 * 1000));
+      if (hoursLeft > 24) {
+        setTempDurationValue(Math.ceil(hoursLeft / 24));
+        setTempDurationUnit("days");
+      } else {
+        setTempDurationValue(hoursLeft);
+        setTempDurationUnit("hours");
+      }
+    } else {
+      setTempDurationValue(1);
+      setTempDurationUnit("days");
+    }
+
     setIsAddingWorker(true);
   };
 
@@ -227,11 +286,35 @@ export const SettingsPage: React.FC = () => {
         ...newWorker,
         email: normalizedEmail,
         termAcceptedAt: newWorker.acceptedTerm ? Date.now() : undefined,
+        tempRole: hasTempPermission ? tempRole : null,
+        tempRoleExpiry: hasTempPermission
+          ? Date.now() +
+            (tempDurationUnit === "days"
+              ? tempDurationValue * 24 * 60 * 60 * 1000
+              : tempDurationValue * 60 * 60 * 1000)
+          : null,
       };
 
       if (editingWorker) {
         console.log("Updating existing worker:", editingWorker.id);
+        const oldTempActive = !!(editingWorker.tempRole && editingWorker.tempRoleExpiry && Date.now() < editingWorker.tempRoleExpiry);
+        
         await dataService.updateWorker({ ...editingWorker, ...payload });
+        
+        // Audit log for temporary permission assignment/revocation
+        if (hasTempPermission) {
+          const validityStr = `${tempDurationValue} ${tempDurationUnit === 'days' ? 'dia(s)' : 'hora(s)'}`;
+          await dataService.createLog(
+            'Permissão Temporária Concedida',
+            `Administrador ${currentUser?.name || currentUser?.email} CONCEDEU permissão temporária de [${tempRole}] para [${payload.name}] com duração de ${validityStr}. Logins efetuados por este trabalhador: ${editingWorker.loginCount || 0} vez(es)`
+          );
+        } else if (oldTempActive && !hasTempPermission) {
+          await dataService.createLog(
+            'Permissão Temporária Removida',
+            `Administrador ${currentUser?.name || currentUser?.email} REMOVEU permissão temporária de [${editingWorker.tempRole}] para [${payload.name}]. Logins efetuados por este trabalhador: ${editingWorker.loginCount || 0} vez(es)`
+          );
+        }
+
         alert("Trabalhador atualizado com sucesso!");
       } else {
         if (!workerPassword || workerPassword.length < 6) {
@@ -241,21 +324,19 @@ export const SettingsPage: React.FC = () => {
         }
         console.log("Registering new worker auth account...");
         await registerWorker(payload, workerPassword);
+        
+        if (hasTempPermission) {
+          const validityStr = `${tempDurationValue} ${tempDurationUnit === 'days' ? 'dia(s)' : 'hora(s)'}`;
+          await dataService.createLog(
+            'Permissão Temporária Concedida',
+            `Administrador ${currentUser?.name || currentUser?.email} CONCEDEU permissão temporária de [${tempRole}] para o novo trabalhador [${payload.name}] com duração de ${validityStr}. Logins efetuados por este trabalhador: 0 vez(es)`
+          );
+        }
+
         alert("Trabalhador cadastrado e conta de acesso criada com sucesso!");
       }
       setIsAddingWorker(false);
-      setEditingWorker(null);
-      setNewWorker({
-        name: "",
-        email: "",
-        phone: "",
-        role: "VOLUNTARIO",
-        position: "",
-        sectorId: "",
-        photoUrl: "",
-        acceptedTerm: false,
-      });
-      setWorkerPassword("");
+      resetWorkerForm();
       loadData();
     } catch (err: any) {
       console.log("Interpreting registration error...", err);
@@ -301,27 +382,31 @@ export const SettingsPage: React.FC = () => {
               active: true,
               createdAt: Date.now(),
               termAcceptedAt: newWorker.acceptedTerm ? Date.now() : undefined,
+              tempRole: hasTempPermission ? tempRole : null,
+              tempRoleExpiry: hasTempPermission
+                ? Date.now() +
+                  (tempDurationUnit === "days"
+                    ? tempDurationValue * 24 * 60 * 60 * 1000
+                    : tempDurationValue * 60 * 60 * 1000)
+                : null,
             };
 
             await dataService.addWorkerManual(profilePayload);
+
+            if (hasTempPermission) {
+              const validityStr = `${tempDurationValue} ${tempDurationUnit === 'days' ? 'dia(s)' : 'hora(s)'}`;
+              await dataService.createLog(
+                'Permissão Temporária Concedida',
+                `Administrador ${currentUser?.name || currentUser?.email} CONCEDEU permissão temporária de [${tempRole}] para [${profilePayload.name}] (perfil reativado) com duração de ${validityStr}. Logins efetuados por este trabalhador: 0 vez(es)`
+              );
+            }
 
             alert(
               "Sucesso! O perfil foi recriado e vinculado ao e-mail existente.",
             );
 
             setIsAddingWorker(false);
-            setEditingWorker(null);
-            setNewWorker({
-              name: "",
-              email: "",
-              phone: "",
-              role: "VOLUNTARIO",
-              position: "",
-              sectorId: "",
-              photoUrl: "",
-              acceptedTerm: false,
-            });
-            setWorkerPassword("");
+            resetWorkerForm();
             loadData();
             return;
           } catch (profileErr: any) {
@@ -607,6 +692,12 @@ export const SettingsPage: React.FC = () => {
                             >
                               {w.role}
                             </span>
+                            {w.tempRole && w.tempRoleExpiry && Date.now() < w.tempRoleExpiry && (
+                              <span className="text-[8px] font-black bg-gradient-to-r from-amber-500 to-amber-600 text-white px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1">
+                                <span className="w-1 h-1 rounded-full bg-white animate-ping shrink-0" />
+                                🔓 Temp: {w.tempRole} ({getRemainingTempTimeLabel(w.tempRoleExpiry)})
+                              </span>
+                            )}
                             <span className="text-[8px] font-black text-indigo-400 bg-indigo-50/50 px-2 py-0.5 rounded-full uppercase tracking-widest italic border border-indigo-50">
                               {sectors.find((s) => s.id === w.sectorId)?.name ||
                                 "Geral"}
@@ -796,17 +887,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 onClick={() => {
                   setIsAddingWorker(false);
-                  setEditingWorker(null);
-                  setNewWorker({
-                    name: "",
-                    email: "",
-                    phone: "",
-                    role: "VOLUNTARIO",
-                    position: "",
-                    sectorId: "",
-                    photoUrl: "",
-                    acceptedTerm: false,
-                  });
+                  resetWorkerForm();
                 }}
                 className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
               >
@@ -963,6 +1044,85 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Permissão Temporária Especial */}
+              <div className="p-5 bg-amber-50/50 rounded-[24px] border border-amber-100 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-black uppercase text-amber-950 flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-amber-600" /> Permissão Temporária Especial
+                  </h3>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasTempPermission}
+                      onChange={(e) => setHasTempPermission(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                  </label>
+                </div>
+
+                <p className="text-[10px] text-amber-700/80 leading-relaxed font-medium">
+                  Ative esta opção para conceder temporariamente poderes de outros cargos para visualização ou edição de abas restritas (como inventário, relatórios, etc). Após o tempo expirar, o voluntário retornará ao seu nível de acesso padrão.
+                </p>
+
+                {hasTempPermission && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 animate-in fade-in duration-200">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase text-amber-800 tracking-wider">
+                        Cargo Temporário
+                      </label>
+                      <select
+                        value={tempRole}
+                        onChange={(e) => setTempRole(e.target.value as UserRole)}
+                        className="w-full px-3 py-2 bg-white rounded-xl border border-amber-200 outline-none text-xs font-bold text-gray-700"
+                      >
+                        <option value="VOLUNTARIO">Voluntário</option>
+                        <option value="ATENDENTE">Atendente</option>
+                        <option value="RECEPCIONISTA">Recepcionista</option>
+                        <option value="SECRETARIO">Secretário</option>
+                        <option value="COORDENADOR">Coordenador</option>
+                        <option value="ADMIN">Administrador</option>
+                        <option value="ADM">ADM (Admin)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase text-amber-800 tracking-wider">
+                        Duração
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={tempDurationValue}
+                        onChange={(e) => setTempDurationValue(parseInt(e.target.value) || 1)}
+                        className="w-full px-3 py-2 bg-white rounded-xl border border-amber-200 outline-none text-xs font-bold text-gray-700"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase text-amber-800 tracking-wider">
+                        Unidade
+                      </label>
+                      <select
+                        value={tempDurationUnit}
+                        onChange={(e) => setTempDurationUnit(e.target.value as 'hours' | 'days')}
+                        className="w-full px-3 py-2 bg-white rounded-xl border border-amber-200 outline-none text-xs font-bold text-gray-700"
+                      >
+                        <option value="hours">Horas</option>
+                        <option value="days">Dias</option>
+                      </select>
+                    </div>
+
+                    {editingWorker?.tempRoleExpiry && editingWorker?.tempRole && Date.now() < editingWorker.tempRoleExpiry && (
+                      <div className="col-span-1 sm:col-span-3 p-2.5 bg-amber-100/50 rounded-lg text-[10px] text-amber-950 font-bold border border-amber-200/50 flex justify-between items-center">
+                        <span>Acesso ativo como {editingWorker.tempRole} até {new Date(editingWorker.tempRoleExpiry).toLocaleString('pt-BR')}</span>
+                        <span className="text-[9px] px-2 py-0.5 bg-amber-600 text-white rounded font-black uppercase tracking-wider animate-pulse">Ativo</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="p-5 bg-indigo-50/50 rounded-[24px] border border-indigo-100 space-y-4">
                 <h3 className="text-xs font-black uppercase text-indigo-900 flex items-center gap-2">
                   <ShieldCheck size={14} /> Termo de Adesão ao Trabalho
@@ -1012,17 +1172,7 @@ export const SettingsPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setIsAddingWorker(false);
-                    setEditingWorker(null);
-                    setNewWorker({
-                      name: "",
-                      email: "",
-                      phone: "",
-                      role: "VOLUNTARIO",
-                      position: "",
-                      sectorId: "",
-                      photoUrl: "",
-                      acceptedTerm: false,
-                    });
+                    resetWorkerForm();
                   }}
                   className="flex-1 py-3.5 font-bold text-gray-400 hover:bg-gray-50 rounded-2xl transition-all"
                 >

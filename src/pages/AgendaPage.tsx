@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Pencil,
   Check,
+  ArrowLeft,
 } from "lucide-react";
 import { dataService } from "../services/dataService";
 import {
@@ -224,9 +225,15 @@ export const AgendaPage: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (deletingId === id) {
-      await dataService.deleteAgendaEvent(id);
-      setDeletingId(null);
-      loadData();
+      try {
+        await dataService.deleteAgendaEvent(id);
+        setDeletingId(null);
+        loadData();
+        alert("Evento excluído com sucesso!");
+      } catch (err: any) {
+        console.error("Erro ao excluir evento:", err);
+        alert("Erro ao excluir evento. Verifique suas permissões.");
+      }
     } else {
       setDeletingId(id);
       setTimeout(() => setDeletingId(null), 3000);
@@ -235,9 +242,15 @@ export const AgendaPage: React.FC = () => {
 
   const handleDeleteSpeaker = async (id: string) => {
     if (deletingSpeakerId === id) {
-      await dataService.deleteSpeaker(id);
-      setDeletingSpeakerId(null);
-      loadData();
+      try {
+        await dataService.deleteSpeaker(id);
+        setDeletingSpeakerId(null);
+        loadData();
+        alert("Palestrante excluído com sucesso!");
+      } catch (err: any) {
+        console.error("Erro ao excluir palestrante:", err);
+        alert("Erro ao excluir palestrante. Verifique suas permissões.");
+      }
     } else {
       setDeletingSpeakerId(id);
       setTimeout(() => setDeletingSpeakerId(null), 3000);
@@ -250,11 +263,20 @@ export const AgendaPage: React.FC = () => {
   return (
     <div className="p-8 space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Agenda da Casa</h1>
-          <p className="text-gray-500 font-medium font-serif italic">
-            Controle de doutrinárias, estudo e atividades especiais.
-          </p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Agenda da Casa</h1>
+            <p className="text-gray-500 font-medium font-serif italic">
+              Controle de doutrinárias, estudo e atividades especiais.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex">

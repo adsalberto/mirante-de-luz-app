@@ -157,5 +157,10 @@ service cloud.firestore {
       allow read: if hasBasicAccess();
       allow write: if isAdmin() || isCoordinator() || isSecretary();
     }
+    // Inventário
+    match /inventario/{itemId} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
   }
 }

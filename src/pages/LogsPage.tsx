@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ShieldCheck, Search, Clock, User, Activity, FileText, Printer, Calendar, Users } from 'lucide-react';
+import { ShieldCheck, Search, Clock, User, Activity, FileText, Printer, Calendar, Users, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { dataService } from '../services/dataService';
 import { AuditLog, Worker } from '../types';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -9,7 +10,32 @@ import { useAuth } from '../context/AuthContext';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+const getCleanAction = (actionStr: string) => {
+  if (!actionStr) return '';
+  if (actionStr.includes(' | ')) {
+    const parts = actionStr.split(' | ');
+    const rawAction = parts[parts.length - 1] || '';
+    return rawAction.replace(/[\[\]]/g, '');
+  }
+  return actionStr;
+};
+
+const getActionStyle = (actionStr: string) => {
+  const clean = getCleanAction(actionStr).toLowerCase();
+  if (clean.includes('permissão temporária')) {
+    return 'bg-amber-50 text-amber-800 border border-amber-200/60 shadow-sm';
+  }
+  if (clean.includes('login') || clean.includes('acesso')) {
+    return 'bg-blue-50 text-blue-800 border border-blue-200/60';
+  }
+  if (clean.includes('exclusão')) {
+    return 'bg-rose-50 text-rose-800 border border-rose-200/60';
+  }
+  return 'bg-emerald-50 text-emerald-800 border border-emerald-200/60';
+};
+
 export const LogsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -109,16 +135,25 @@ export const LogsPage: React.FC = () => {
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-[0.25em] mb-2">
-            <ShieldCheck size={14} />
-            <span>Segurança e Auditoria</span>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-[0.25em] mb-2">
+              <ShieldCheck size={14} />
+              <span>Segurança e Auditoria</span>
+            </div>
+            <h1 className="text-4xl font-black text-gray-900 tracking-tighter italic">
+              Logs do Sistema
+            </h1>
+            <p className="text-gray-400 font-medium">Registro histórico de todas as alterações realizadas.</p>
           </div>
-          <h1 className="text-4xl font-black text-gray-900 tracking-tighter italic">
-            Logs do Sistema
-          </h1>
-          <p className="text-gray-400 font-medium">Registro histórico de todas as alterações realizadas.</p>
         </div>
         <button 
           onClick={generatePDF}
@@ -129,6 +164,83 @@ export const LogsPage: React.FC = () => {
           Gerar Relatório PDF
         </button>
       </header>
+
+      {/* Painel de Controle de Acesso Temporário */}
+      <div className="bg-gradient-to-br from-amber-50/50 to-orange-50/20 p-6 rounded-[32px] border border-amber-100/70 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-amber-100/80 text-amber-800 rounded-xl">
+            <ShieldCheck size={18} />
+          </div>
+          <div>
+            <h2 className="text-sm font-black text-amber-950 uppercase tracking-wider">Acompanhamento de Permissões Temporárias</h2>
+            <p className="text-[10px] text-amber-700/80 font-medium">Controle de acessos especiais concedidos, quem os autorizou e quantidade de logins efetuados.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {workers.filter(w => w.tempRole && w.tempRoleExpiry && Date.now() < w.tempRoleExpiry).map(worker => {
+            const timeLeft = worker.tempRoleExpiry ? worker.tempRoleExpiry - Date.now() : 0;
+            const hoursLeft = Math.ceil(timeLeft / (60 * 60 * 1000));
+            const timeLabel = hoursLeft > 24 
+              ? `${Math.ceil(hoursLeft / 24)} dia(s)` 
+              : `${hoursLeft} hora(s)`;
+            
+            // Look up grantor in logs list
+            const grantLog = logs.find(l => 
+              (l.action.includes('Permissão Temporária Concedida') || l.action.includes('Concedeu permissão')) && 
+              (l.action.includes(worker.name) || (l.details && l.details.includes(worker.name)))
+            );
+            let grantor = 'Coordenação';
+            if (grantLog) {
+              const parts = grantLog.action.split(' | ');
+              if (parts.length >= 3) {
+                grantor = parts[2].replace(/[\[\]]/g, '').trim();
+              }
+            }
+
+            return (
+              <div key={worker.id} className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm space-y-3 flex flex-col justify-between">
+                <div className="space-y-1">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-black text-gray-900 leading-tight">{worker.name}</span>
+                    <span className="text-[9px] px-2 py-0.5 bg-amber-100 text-amber-950 border border-amber-200/50 rounded-full font-black uppercase tracking-wider animate-pulse">
+                      Ativo
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-medium">E-mail: {worker.email}</p>
+                </div>
+
+                <div className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-100 flex flex-col gap-1 text-[10px] text-amber-955 font-bold">
+                  <div className="flex justify-between">
+                    <span className="text-amber-800/80 font-medium text-[9px] uppercase tracking-wide">Cargo Temporário</span>
+                    <span className="text-amber-900">{worker.tempRole}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-amber-800/80 font-medium text-[9px] uppercase tracking-wide">Autorizado por</span>
+                    <span className="text-amber-950 font-black">{grantor}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-amber-800/80 font-medium text-[9px] uppercase tracking-wide">Tempo Restante</span>
+                    <span>{timeLabel}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 text-[10px] border-t border-dashed border-amber-100">
+                  <span className="text-gray-400 font-bold uppercase tracking-wider text-[8px]">Histórico de Login</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-black text-amber-700">{worker.loginCount || 0} login(s)</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {workers.filter(w => w.tempRole && w.tempRoleExpiry && Date.now() < w.tempRoleExpiry).length === 0 && (
+            <div className="col-span-full py-6 text-center bg-amber-50/20 rounded-2xl border border-dashed border-amber-100/50 flex flex-col items-center justify-center gap-1">
+              <span className="text-[10px] text-amber-800/60 font-medium">Nenhum voluntário possui permissão temporária de acesso ativa no momento.</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
         <div className="space-y-2">
@@ -222,8 +334,8 @@ export const LogsPage: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <span className="inline-flex px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                      {log.action}
+                    <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${getActionStyle(log.action)}`}>
+                      {getCleanAction(log.action)}
                     </span>
                   </td>
                   <td className="px-8 py-6">

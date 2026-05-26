@@ -25,6 +25,11 @@ export interface Worker {
   phone?: string;
   observation?: string;
   createdAt: number;
+  // Temporary Permissions fields
+  tempRole?: UserRole;
+  tempRoleExpiry?: number;
+  originalRole?: UserRole;
+  loginCount?: number;
 }
 
 export interface Speaker {
@@ -177,7 +182,7 @@ export interface SectorSchedule {
   assignments: ScheduleAssignment[];
 }
 
-export type InventoryCategory = 'MOBILIARIO' | 'ELETRONICOS' | 'LIVRARIA' | 'COZINHA' | 'LIMPEZA' | 'SUPRIMENTOS' | 'MANUTENCAO' | 'OUTROS';
+export type InventoryCategory = 'MOBILIARIO' | 'ELETRONICOS' | 'LIVRARIA' | 'COZINHA' | 'LIMPEZA' | 'SUPRIMENTOS' | 'MANUTENCAO' | 'FIGURINO' | 'ACESSORIOS' | 'OUTROS';
 
 export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
   MOBILIARIO: 'Mobiliário & Cadeiras',
@@ -187,6 +192,8 @@ export const INVENTORY_CATEGORY_LABELS: Record<InventoryCategory, string> = {
   LIMPEZA: 'Produtos de Limpeza',
   SUPRIMENTOS: 'Suprimentos / Escritório',
   MANUTENCAO: 'Materiais de Manutenção',
+  FIGURINO: 'Figurino & Roupas',
+  ACESSORIOS: 'Acessórios',
   OUTROS: 'Outros / Diversos'
 };
 

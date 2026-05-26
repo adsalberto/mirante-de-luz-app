@@ -165,9 +165,18 @@ export function SectorsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight italic">Setores de Trabalho</h1>
-          <p className="text-sm sm:text-base text-gray-500 font-medium">Estrutura organizacional e regimentos do Mirante de Luz</p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight italic">Setores de Trabalho</h1>
+            <p className="text-sm sm:text-base text-gray-500 font-medium">Estrutura organizacional e regimentos do Mirante de Luz</p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">

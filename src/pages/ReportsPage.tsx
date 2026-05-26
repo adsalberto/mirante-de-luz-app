@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   Building,
   ShieldAlert,
-  Heart
+  Heart,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -797,13 +798,22 @@ export const ReportsPage: React.FC = () => {
       
       {/* Upper header section */}
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-150 pb-6 print:hidden">
-        <div>
-          <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
-            <Layers size={14} />
-            <span>Módulo de Inteligência de Dados / BI</span>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest">
+              <Layers size={14} />
+              <span>Módulo de Inteligência de Dados / BI</span>
+            </div>
+            <h1 className="text-2xl sm:text-3.5xl font-black text-gray-950 tracking-tight mt-1">Estatísticas, Gráficos & BI</h1>
+            <p className="text-gray-500 font-semibold text-xs sm:text-sm leading-relaxed mt-0.5">Monitore finanças, equipe de voluntariado e fluxo operacional do portal em tempo real.</p>
           </div>
-          <h1 className="text-2xl sm:text-3.5xl font-black text-gray-950 tracking-tight mt-1">Estatísticas, Gráficos & BI</h1>
-          <p className="text-gray-500 font-semibold text-xs sm:text-sm leading-relaxed mt-0.5">Monitore finanças, equipe de voluntariado e fluxo operacional do portal em tempo real.</p>
         </div>
 
         {/* Dynamic Action Buttons */}

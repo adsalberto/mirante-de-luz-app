@@ -12,7 +12,9 @@ import {
   X,
   ChevronRight,
   Pencil,
+  ArrowLeft,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { dataService } from "../services/dataService";
 import { Speaker } from "../types";
 import { useAuth } from "../context/AuthContext";
@@ -20,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { cn } from "../lib/utils";
 
 export const SpeakersPage: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "ADM";
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -115,14 +118,23 @@ export const SpeakersPage: React.FC = () => {
 
   return (
     <div className="p-6 lg:p-10 space-y-8 animate-in fade-in duration-500">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-black text-gray-900 tracking-tighter italic">
-            Palestrantes
-          </h1>
-          <p className="text-gray-500 font-medium tracking-tight">
-            Gestão de irmãos que compartilham a palavra no Mirante de Luz
-          </p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-black text-gray-900 tracking-tighter italic">
+              Palestrantes
+            </h1>
+            <p className="text-gray-500 font-medium tracking-tight">
+              Gestão de irmãos que compartilham a palavra no Mirante de Luz
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

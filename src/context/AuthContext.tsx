@@ -8,7 +8,7 @@ import {
   getAuth,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, query, where, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, where, collection, getDocs, updateDoc, addDoc } from 'firebase/firestore';
 import { initializeApp, getApp, getApps, deleteApp } from 'firebase/app';
 import { auth, db } from '../lib/firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -28,9 +28,59 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<Worker | null>(null);
+  const [currentUser, setCurrentUserRaw] = useState<Worker | null>(null);
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const setCurrentUser = (worker: Worker | null) => {
+    if (worker) {
+      const sessionKey = `login_counted_${worker.id}`;
+      if (!sessionStorage.getItem(sessionKey)) {
+        sessionStorage.setItem(sessionKey, "true");
+        const nextCount = (worker.loginCount || 0) + 1;
+        
+        // Update loginCount in Firestore
+        const workerRef = doc(db, 'trabalhadores', worker.id);
+        updateDoc(workerRef, { loginCount: nextCount }).catch((e) => {
+          console.error("Failed to update loginCount in firestore:", e);
+        });
+
+        // Add to audit logs
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('pt-BR');
+        const timeStr = now.toLocaleTimeString('pt-BR');
+        const actionFormatted = `[${dateStr}] | [${timeStr}] | [${worker.name}] | [Login Efetuado]`;
+        
+        const hasActiveTemp = !!(worker.tempRole && worker.tempRoleExpiry && Date.now() < worker.tempRoleExpiry);
+        const details = hasActiveTemp
+          ? `Login sob permissão temporária de [${worker.tempRole}]. Nº total de logins: ${nextCount}`
+          : `Login padrão efetuado. Nº total de logins: ${nextCount}`;
+
+        addDoc(collection(db, 'logs'), {
+          timestamp: Date.now(),
+          userId: worker.id,
+          userName: worker.name,
+          action: actionFormatted,
+          details: details
+        }).catch((e) => {
+          console.error("Failed to write login log:", e);
+        });
+        
+        // Update memory value so it's fresh in current session state
+        worker.loginCount = nextCount;
+      }
+    }
+
+    if (worker && worker.tempRole && worker.tempRoleExpiry && Date.now() < worker.tempRoleExpiry) {
+      setCurrentUserRaw({
+        ...worker,
+        originalRole: worker.role,
+        role: worker.tempRole
+      });
+    } else {
+      setCurrentUserRaw(worker);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {

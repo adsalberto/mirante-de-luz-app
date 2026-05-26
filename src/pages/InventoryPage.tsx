@@ -29,7 +29,10 @@ import {
   Flame,
   Layout,
   Tag,
+  Shirt,
+  ArrowLeft,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { dataService } from "../services/dataService";
 import {
   InventoryItem,
@@ -43,6 +46,7 @@ import { useAuth } from "../context/AuthContext";
 import { cn } from "../lib/utils";
 
 export const InventoryPage: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const canEdit =
     currentUser?.role === "ADMIN" ||
@@ -309,9 +313,10 @@ export const InventoryPage: React.FC = () => {
       setIsDeletingConfirmOpen(false);
       setItemToDelete(null);
       await loadData();
+      alert("Item excluído com sucesso do inventário!");
     } catch (err: any) {
       console.error("Erro ao excluir item do inventário:", err);
-      alert("Erro ao excluir item.");
+      alert("Erro ao excluir item. Por favor, verifique suas permissões.");
     }
   };
 
@@ -422,6 +427,10 @@ export const InventoryPage: React.FC = () => {
         return <FileText className="text-indigo-500" size={18} />;
       case "MANUTENCAO":
         return <Wrench className="text-rose-500" size={18} />;
+      case "FIGURINO":
+        return <Shirt className="text-pink-500" size={18} />;
+      case "ACESSORIOS":
+        return <Tag className="text-fuchsia-500" size={18} />;
       default:
         return <HelpCircle className="text-gray-500" size={18} />;
     }
@@ -443,6 +452,10 @@ export const InventoryPage: React.FC = () => {
         return "bg-indigo-50 text-indigo-700 border-indigo-100";
       case "MANUTENCAO":
         return "bg-rose-50 text-rose-700 border-rose-100";
+      case "FIGURINO":
+        return "bg-pink-50 text-pink-700 border-pink-100";
+      case "ACESSORIOS":
+        return "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100";
       default:
         return "bg-gray-50 text-gray-700 border-gray-100";
     }
@@ -647,16 +660,25 @@ export const InventoryPage: React.FC = () => {
   return (
     <div className="p-6 lg:p-10 space-y-8 animate-in fade-in duration-500">
       {/* Header block with description and title */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-black text-gray-900 tracking-tighter italic flex items-center gap-2">
-            <Package className="text-indigo-600 shrink-0" size={32} />
-            Inventário do Centro
-          </h1>
-          <p className="text-gray-500 font-medium tracking-tight">
-            Controle integrado de materiais patrimoniais, utensílios e insumos
-            divididos pelos setores do Mirante de Luz (CEMIL)
-          </p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-black text-gray-900 tracking-tighter italic flex items-center gap-2">
+              <Package className="text-indigo-600 shrink-0" size={32} />
+              Inventário do Centro
+            </h1>
+            <p className="text-gray-500 font-medium tracking-tight">
+              Controle integrado de materiais patrimoniais, utensílios e insumos
+              divididos pelos setores do Mirante de Luz (CEMIL)
+            </p>
+          </div>
         </div>
 
         {/* Actions header buttons */}

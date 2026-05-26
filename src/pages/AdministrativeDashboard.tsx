@@ -102,6 +102,13 @@ export default function AdministrativeDashboard() {
       icon: Building2,
       color: 'bg-amber-500',
       path: '/setores'
+    },
+    {
+      title: 'Frente de Caixa (PDV)',
+      desc: 'Operar vendas rápidas da livraria, cantina e bazar',
+      icon: Store,
+      color: 'bg-indigo-600',
+      path: '/vendas'
     }
   ];
 

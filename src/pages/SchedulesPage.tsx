@@ -14,14 +14,17 @@ import {
   ChevronRight,
   MoreVertical,
   CalendarCheck,
-  Pencil
+  Pencil,
+  ArrowLeft
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { dataService } from '../services/dataService';
 import { SectorSchedule, Worker, ScheduleAssignment, Sector, formatSectorName } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 
 export const SchedulesPage: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -169,6 +172,7 @@ export const SchedulesPage: React.FC = () => {
         }
         setDeletingSectorId(null);
         await loadData();
+        alert('Item excluído com sucesso!');
       } catch (err) {
         console.error('Erro ao excluir:', err);
         alert('Erro ao realizar a exclusão.');
@@ -352,31 +356,40 @@ export const SchedulesPage: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-12 max-w-7xl mx-auto">
-      <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6">
-        <div className="space-y-3 sm:space-y-4">
-          <div className="flex items-center gap-2 text-indigo-600 font-bold text-[9px] sm:text-xs uppercase tracking-[0.25em]">
-            <Calendar size={14} />
-            <span>Gestão Operacional</span>
-          </div>
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-gray-900 tracking-tighter italic leading-none">
-            Escala Mensal
-          </h1>
-          <div className="flex items-center gap-1 sm:gap-4 mt-1 sm:mt-2 bg-white/50 p-1 rounded-2xl w-fit border border-white/50">
-             <button 
-               onClick={() => changeMonth(-1)}
-               className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95 shrink-0"
-             >
-               <ChevronRight size={16} className="rotate-180 sm:size-5" />
-             </button>
-             <h2 className="text-sm sm:text-2xl font-black text-indigo-600 italic min-w-[100px] sm:min-w-[200px] text-center px-2">
-               {months[selectedMonth]} {selectedYear}
-             </h2>
-             <button 
-               onClick={() => changeMonth(1)}
-               className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95 shrink-0"
-             >
-               <ChevronRight size={16} className="sm:size-5" />
-             </button>
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+        <div className="flex items-start gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer mt-1"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center gap-2 text-indigo-600 font-bold text-[9px] sm:text-xs uppercase tracking-[0.25em]">
+              <Calendar size={14} />
+              <span>Gestão Operacional</span>
+            </div>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-gray-900 tracking-tighter italic leading-none">
+              Escala Mensal
+            </h1>
+            <div className="flex items-center gap-1 sm:gap-4 mt-1 sm:mt-2 bg-white/50 p-1 rounded-2xl w-fit border border-white/50">
+               <button 
+                 onClick={() => changeMonth(-1)}
+                 className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95 shrink-0"
+               >
+                 <ChevronRight size={16} className="rotate-180 sm:size-5" />
+               </button>
+               <h2 className="text-sm sm:text-2xl font-black text-indigo-600 italic min-w-[100px] sm:min-w-[200px] text-center px-2">
+                 {months[selectedMonth]} {selectedYear}
+               </h2>
+               <button 
+                 onClick={() => changeMonth(1)}
+                 className="p-1.5 sm:p-3 hover:bg-white hover:shadow-sm rounded-xl text-indigo-600 transition-all active:scale-95 shrink-0"
+               >
+                 <ChevronRight size={16} className="sm:size-5" />
+               </button>
+            </div>
           </div>
         </div>
         

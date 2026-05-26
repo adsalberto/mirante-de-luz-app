@@ -224,6 +224,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   });
   const [txSearch, setTxSearch] = useState('');
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [txToDelete, setTxToDelete] = useState<FinancialTransaction | null>(null);
 
   // Payment Sim States
   const [paymentType, setPaymentType] = useState<'pix' | 'boleto' | 'donation'>('pix');
@@ -551,6 +552,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       });
       saveTransactionsToStorage(updated);
       setEditingTxId(null);
+      dataService.createLog('Atualização Livro Caixa', `Lançamento ID [${editingTxId}] de [${newTxType}] na categoria [${newTxCategory}] atualizado com sucesso. V. Realizado: R$ ${valReal.toFixed(2)}, Descrição: ${newTxDesc.trim()}`);
       alert('Lançamento atualizado no Fluxo de Caixa com sucesso!');
     } else {
       const tx: FinancialTransaction = {
@@ -569,6 +571,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
 
       const updated = [tx, ...transactions];
       saveTransactionsToStorage(updated);
+      dataService.createLog('Inclusão Livro Caixa', `Novo lançamento de [${newTxType}] na categoria [${newTxCategory}] realizado com sucesso. V. Realizado: R$ ${valReal.toFixed(2)}, Descrição: ${newTxDesc.trim()}`);
       alert('Transação lançada no Fluxo de Caixa com sucesso!');
     }
 
@@ -580,12 +583,29 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteTransaction = (id: string) => {
-    if (!window.confirm('Deseja realmente remover este lançamento dário de caixa?')) return;
+    const tx = transactions.find(t => t.id === id);
+    if (!tx) return;
+    setTxToDelete(tx);
+  };
+
+  const confirmDeleteTransaction = () => {
+    if (!txToDelete) return;
+    
+    const id = txToDelete.id;
     if (editingTxId === id) {
       setEditingTxId(null);
     }
     const filtered = transactions.filter(t => t.id !== id);
     saveTransactionsToStorage(filtered);
+    
+    const valNumeric = parseFloat(String(txToDelete.amountRealized ?? txToDelete.amount ?? 0));
+    dataService.createLog(
+      'Exclusão Livro Caixa', 
+      `Lançamento ID [${txToDelete.id}] de [${txToDelete.type}] no valor de R$ ${isNaN(valNumeric) ? '0.00' : valNumeric.toFixed(2)} ("${txToDelete.description}") excluído do caixa.`
+    );
+
+    setTxToDelete(null);
+    alert('Lançamento removido do Fluxo de Caixa com sucesso!');
   };
 
   // Generate simulated gateways
@@ -759,18 +779,18 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     if (isDRE) {
       // DRE logic using realized values
       const totalIn = transactions
-        .filter(t => t.type === 'ENTRADA' && (t.status === 'RECEBIDO' || !t.status))
+        .filter(t => t.type === 'ENTRADA' && (t.status?.toUpperCase() === 'RECEBIDO' || !t.status))
         .reduce((a, b) => a + (b.amountRealized !== undefined ? b.amountRealized : b.amount), 0);
       
       const totalOut = transactions
-        .filter(t => t.type === 'SAÍDA' && (t.status === 'PAGO' || !t.status))
+        .filter(t => t.type === 'SAÍDA' && (t.status?.toUpperCase() === 'PAGO' || !t.status))
         .reduce((a, b) => a + (b.amountRealized !== undefined ? b.amountRealized : b.amount), 0);
       
       const groupIn: Record<string, number> = {};
       const groupOut: Record<string, number> = {};
 
       transactions.forEach(t => {
-        if (t.status === 'PENDENTE' || t.status === 'CANCELADO') return; // Skip non-finalized entries
+        if (t.status?.toUpperCase() === 'PENDENTE' || t.status?.toUpperCase() === 'CANCELADO' || t.status?.toUpperCase() === 'DEVOLVIDO' || t.status?.toUpperCase() === 'AGENDADO' || t.status?.toUpperCase() === 'DEVEDOR') return; // Skip non-finalized entries
         const val = t.amountRealized !== undefined ? t.amountRealized : t.amount;
         if (t.type === 'ENTRADA') {
           groupIn[t.category] = (groupIn[t.category] || 0) + val;
@@ -811,11 +831,11 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     } else {
       // Balanço logic utilizing realized amounts
       const cashIn = transactions
-        .filter(t => t.type === 'ENTRADA' && (t.status === 'RECEBIDO' || !t.status))
+        .filter(t => t.type === 'ENTRADA' && (t.status?.toUpperCase() === 'RECEBIDO' || !t.status))
         .reduce((a, b) => a + (b.amountRealized !== undefined ? b.amountRealized : b.amount), 0);
       
       const cashOut = transactions
-        .filter(t => t.type === 'SAÍDA' && (t.status === 'PAGO' || !t.status))
+        .filter(t => t.type === 'SAÍDA' && (t.status?.toUpperCase() === 'PAGO' || !t.status))
         .reduce((a, b) => a + (b.amountRealized !== undefined ? b.amountRealized : b.amount), 0);
       const cashBalance = cashIn - cashOut;
 
@@ -1124,8 +1144,10 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       setLoading(true);
       await dataService.deleteSectorDocument(sectorId, docId);
       loadData();
+      alert('Documento excluído com sucesso!');
     } catch (err) {
       console.error('Erro ao excluir documento:', err);
+      alert('Erro ao excluir documento. Por favor, verifique suas permissões.');
     } finally {
       setLoading(false);
     }
@@ -2690,7 +2712,26 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                 
                 {/* Frente de Caixa (PDV) Register Interface */}
                 <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  {/* Banner CTA para o PDV Simplificado */}
+                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-4 sm:p-5 border border-indigo-100/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <h4 className="font-extrabold text-indigo-950 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="text-base">⚡</span> Tela Operacional de Vendas Otimizada
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-gray-550 font-medium">
+                        Criamos uma frente de caixa dedicada em tela cheia, ideal para quem opera as vendas diárias da livraria, bazar ou cantina com rapidez máxima.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate('/vendas')}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
+                    >
+                      <ShoppingCart size={14} />
+                      <span>Ir para Frente de Caixa (PDV)</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-gray-50 pt-6">
                     <div>
                       <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight italic flex items-center gap-2">
                         <ShoppingCart className="text-indigo-600" size={20} />
@@ -3423,6 +3464,89 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
           </div>
         </div>
       )}
+
+      {/* Modern animated transaction delete confirmation modal */}
+      <AnimatePresence>
+        {txToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-[32px] max-w-md w-full p-6 shadow-2xl space-y-6 relative border border-gray-100"
+            >
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="p-3 bg-rose-50 text-rose-600 rounded-full">
+                  <Trash2 size={32} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Confirmar Exclusão</h3>
+                  <p className="text-xs text-gray-400 font-semibold uppercase mt-0.5 tracking-wider">Lançamento de Livro Caixa</p>
+                </div>
+              </div>
+
+              {/* Transaction details card */}
+              <div className="bg-gray-50 rounded-2xl p-4.5 border border-gray-100 space-y-3.5 text-xs">
+                <div className="grid grid-cols-2 gap-y-3 gap-x-2 border-b border-gray-100 pb-3 text-left">
+                  <div>
+                    <span className="text-[10px] text-gray-400 uppercase font-bold block">Data</span>
+                    <span className="font-semibold text-gray-800 font-mono">
+                      {txToDelete.date ? new Date(txToDelete.date + 'T00:00:00').toLocaleDateString('pt-BR') : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-400 uppercase font-bold block text-right">Natureza</span>
+                    <div className="text-right">
+                      <span className={`inline-block px-2 py-0.5 rounded-lg text-[9px] font-black uppercase mt-0.5 ${
+                        txToDelete.type === 'ENTRADA' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-650'
+                      }`}>
+                        {txToDelete.type}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-gray-400 uppercase font-bold block">Descrição</span>
+                    <span className="font-bold text-gray-850">{txToDelete.description}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-400 uppercase font-bold block">Categoria</span>
+                    <span className="font-semibold text-gray-800">{txToDelete.category}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-400 uppercase font-bold block">Valor</span>
+                    <span className="font-extrabold text-indigo-650 text-sm">
+                      R$ {parseFloat(String(txToDelete.amountRealized ?? txToDelete.amount ?? 0)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                
+                <p className="text-gray-500 font-semibold text-[10px] leading-relaxed text-center">
+                  Atenção: Ao excluir este lançamento contábil, ele será removido permanentemente de todas as prestações de contas e relatórios financeiros associados. Esta operação não poderá ser desfeita.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTxToDelete(null)}
+                  className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteTransaction}
+                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-750 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-rose-100 hover:shadow-lg active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  Confirmar Exclusão
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

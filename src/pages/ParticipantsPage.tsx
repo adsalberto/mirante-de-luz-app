@@ -172,9 +172,15 @@ export const ParticipantsPage: React.FC = () => {
       return;
     }
     if (deletingId === id) {
-      await dataService.deleteParticipant(id);
-      setDeletingId(null);
-      loadParticipants();
+      try {
+        await dataService.deleteParticipant(id);
+        setDeletingId(null);
+        loadParticipants();
+        alert("Cadastro excluído com sucesso!");
+      } catch (err: any) {
+        console.error("Erro ao excluir participante:", err);
+        alert("Erro ao excluir cadastro. Por favor, verifique suas permissões.");
+      }
     } else {
       setDeletingId(id);
       setTimeout(() => setDeletingId(null), 3000);
@@ -614,122 +620,232 @@ export const ParticipantsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-gray-50 overflow-hidden shadow-sm">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-gray-50/50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
-                  <th className="px-6 py-4">Data</th>
-                  <th className="px-6 py-4">Atendido</th>
-                  <th className="px-6 py-4">Origem</th>
-                  <th className="px-6 py-4">Encaminhamento</th>
-                  <th className="px-6 py-4 text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {evolutions
-                  .filter(
-                    (e) =>
-                      encaminhamentoFilter === "all" ||
-                      e.encaminhamento === encaminhamentoFilter,
-                  )
-                  .map((evo) => {
-                    const participant = participants.find(
-                      (p) => p.id === evo.participantId,
-                    );
-                    const sector = sectors.find((s) => s.id === evo.sectorId);
-                    return (
-                      <tr
-                        key={evo.id}
-                        className="hover:bg-gray-50/50 transition-colors group"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="text-xs font-bold text-gray-700">
-                            {format(evo.date, "dd/MM/yyyy")}
-                          </div>
-                          <div className="text-[10px] text-gray-400">
-                            {format(evo.date, "HH:mm")}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-gray-900">
-                            {participant?.name || "Não identificado"}
-                          </div>
-                          <div className="text-[10px] text-gray-400 font-mono tracking-tighter uppercase">
-                            ID: {evo.participantId.substring(0, 8)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase border border-indigo-100">
-                            {sector?.name || "Outro"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            {currentUser?.role !== "RECEPCIONISTA" &&
-                              evo.encaminhamento && (
-                                <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase border border-emerald-100">
-                                  {evo.encaminhamento}
-                                </span>
-                              )}
-                            {(evo.nextStepSectorIds || []).map((sid) => {
-                              const targetSector = sectors.find(
-                                (s) => s.id === sid,
-                              );
-                              return (
-                                <span
-                                  key={sid}
-                                  className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black uppercase border border-amber-100"
-                                >
-                                  {targetSector?.name || "Setor"}
-                                </span>
-                              );
-                            })}
-                            {currentUser?.role === "RECEPCIONISTA" &&
-                              (!evo.nextStepSectorIds ||
-                                evo.nextStepSectorIds.length === 0) && (
-                                <span className="text-[10px] text-gray-400 italic">
-                                  Dispensado
-                                </span>
-                              )}
-                            {currentUser?.role !== "RECEPCIONISTA" &&
-                              !evo.encaminhamento &&
-                              (!evo.nextStepSectorIds ||
-                                evo.nextStepSectorIds.length === 0) && (
-                                <span className="text-[10px] text-gray-400 italic">
-                                  Nenhum
-                                </span>
-                              )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {currentUser?.role !== "RECEPCIONISTA" && (
-                            <button
-                              onClick={() =>
-                                navigate(
-                                  `/atendimentos?participantId=${evo.participantId}`,
-                                )
-                              }
-                              className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-indigo-100"
-                            >
-                              <History size={18} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-            {evolutions.filter(
-              (e) =>
-                encaminhamentoFilter === "all" ||
-                e.encaminhamento === encaminhamentoFilter,
-            ).length === 0 && (
-              <div className="p-20 text-center text-gray-400 font-medium italic">
-                Nenhum encaminhamento encontrado no período.
-              </div>
-            )}
+             {/* Mobile View: Custom Card List (shows on small screens only) */}
+          <div className="md:hidden space-y-4">
+            {evolutions
+              .filter(
+                (e) =>
+                  encaminhamentoFilter === "all" ||
+                  e.encaminhamento === encaminhamentoFilter,
+              )
+              .map((evo) => {
+                const participant = participants.find(
+                  (p) => p.id === evo.participantId,
+                );
+                const sector = sectors.find((s) => s.id === evo.sectorId);
+                return (
+                  <div
+                    key={evo.id}
+                    className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-gray-900 leading-tight">
+                          {participant?.name || "Não identificado"}
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-mono tracking-tighter uppercase mt-0.5">
+                          ID: {evo.participantId.substring(0, 8)}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-bold text-gray-700">
+                          {format(evo.date, "dd/MM/yyyy")}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {format(evo.date, "HH:mm")}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 pt-1 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider w-16">Origem:</span>
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase border border-indigo-100">
+                          {sector?.name || "Outro"}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider w-16 pt-0.5">Destino:</span>
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                          {currentUser?.role !== "RECEPCIONISTA" &&
+                            evo.encaminhamento && (
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase border border-emerald-100">
+                                {evo.encaminhamento}
+                              </span>
+                            )}
+                          {(evo.nextStepSectorIds || []).map((sid) => {
+                            const targetSector = sectors.find(
+                              (s) => s.id === sid,
+                            );
+                            return (
+                              <span
+                                key={sid}
+                                className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black uppercase border border-amber-100"
+                              >
+                                {targetSector?.name || "Setor"}
+                              </span>
+                            );
+                          })}
+                          {currentUser?.role === "RECEPCIONISTA" &&
+                            (!evo.nextStepSectorIds ||
+                              evo.nextStepSectorIds.length === 0) && (
+                              <span className="text-[10px] text-gray-400 italic">
+                                Dispensado
+                              </span>
+                            )}
+                          {currentUser?.role !== "RECEPCIONISTA" &&
+                            !evo.encaminhamento &&
+                            (!evo.nextStepSectorIds ||
+                              evo.nextStepSectorIds.length === 0) && (
+                              <span className="text-[10px] text-gray-400 italic font-medium">
+                                Nenhum
+                              </span>
+                            )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {currentUser?.role !== "RECEPCIONISTA" && (
+                      <div className="pt-2 border-t border-gray-50 flex justify-end">
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/atendimentos?participantId=${evo.participantId}`,
+                            )
+                          }
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-xs font-bold transition-all"
+                        >
+                          <History size={14} />
+                          <span>Ver Prontuário</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
+
+          {/* Desktop View: Responsive Table */}
+          <div className="hidden md:block bg-white rounded-3xl border border-gray-50 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left min-w-[750px]">
+                <thead>
+                  <tr className="bg-gray-50/50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                    <th className="px-6 py-4">Data</th>
+                    <th className="px-6 py-4">Atendido</th>
+                    <th className="px-6 py-4">Origem</th>
+                    <th className="px-6 py-4">Encaminhamento</th>
+                    <th className="px-6 py-4 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {evolutions
+                    .filter(
+                      (e) =>
+                        encaminhamentoFilter === "all" ||
+                        e.encaminhamento === encaminhamentoFilter,
+                    )
+                    .map((evo) => {
+                      const participant = participants.find(
+                        (p) => p.id === evo.participantId,
+                      );
+                      const sector = sectors.find((s) => s.id === evo.sectorId);
+                      return (
+                        <tr
+                          key={evo.id}
+                          className="hover:bg-gray-50/50 transition-colors group"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="text-xs font-bold text-gray-700">
+                              {format(evo.date, "dd/MM/yyyy")}
+                            </div>
+                            <div className="text-[10px] text-gray-400">
+                              {format(evo.date, "HH:mm")}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-gray-900">
+                              {participant?.name || "Não identificado"}
+                            </div>
+                            <div className="text-[10px] text-gray-400 font-mono tracking-tighter uppercase">
+                              ID: {evo.participantId.substring(0, 8)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase border border-indigo-100">
+                              {sector?.name || "Outro"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-2">
+                              {currentUser?.role !== "RECEPCIONISTA" &&
+                                evo.encaminhamento && (
+                                  <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase border border-emerald-100">
+                                    {evo.encaminhamento}
+                                  </span>
+                                )}
+                              {(evo.nextStepSectorIds || []).map((sid) => {
+                                const targetSector = sectors.find(
+                                  (s) => s.id === sid,
+                                );
+                                return (
+                                  <span
+                                    key={sid}
+                                    className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black uppercase border border-amber-100"
+                                  >
+                                    {targetSector?.name || "Setor"}
+                                  </span>
+                                );
+                              })}
+                              {currentUser?.role === "RECEPCIONISTA" &&
+                                (!evo.nextStepSectorIds ||
+                                  evo.nextStepSectorIds.length === 0) && (
+                                  <span className="text-[10px] text-gray-400 italic">
+                                    Dispensado
+                                  </span>
+                                )}
+                              {currentUser?.role !== "RECEPCIONISTA" &&
+                                !evo.encaminhamento &&
+                                (!evo.nextStepSectorIds ||
+                                  evo.nextStepSectorIds.length === 0) && (
+                                  <span className="text-[10px] text-gray-400 italic">
+                                    Nenhum
+                                  </span>
+                                )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            {currentUser?.role !== "RECEPCIONISTA" && (
+                              <button
+                                onClick={() =>
+                                  navigate(
+                                    `/atendimentos?participantId=${evo.participantId}`,
+                                  )
+                                }
+                                className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-indigo-100"
+                              >
+                                <History size={18} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {evolutions.filter(
+            (e) =>
+              encaminhamentoFilter === "all" ||
+              e.encaminhamento === encaminhamentoFilter,
+          ).length === 0 && (
+            <div className="bg-white rounded-3xl border border-gray-50 p-20 text-center text-gray-400 font-medium italic shadow-sm w-full">
+              Nenhum encaminhamento encontrado no período.
+            </div>
+          )}
         </div>
       )}
 
