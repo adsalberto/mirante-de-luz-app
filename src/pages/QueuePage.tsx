@@ -56,17 +56,24 @@ export const QueuePage: React.FC = () => {
       dataService.getSectors(),
     ]);
 
-    const excludedNorms = [
-      "material e patrimonio",
-      "arte espirita",
-      "mocidade e juventude",
-      "obra e reforma",
-      "recepcao e limpeza",
+    const excludedKeywords = [
+      "material",
+      "patrimonio",
+      "arte",
+      "mocidade",
+      "juventude",
+      "obra",
+      "reforma",
+      "recepcao",
+      "limpeza",
+      "zelo",
       "mediunica",
       "comunicacao",
-      "tecnologia e informatica",
-      "evangelizacao infantil",
-      "acao social",
+      "tecnologia",
+      "informatica",
+      "evangelizacao",
+      "infantil",
+      "social",
       "administrativo"
     ];
 
@@ -81,9 +88,7 @@ export const QueuePage: React.FC = () => {
     const filteredSectorsList = (s || []).filter((item) => {
       if (!item.name) return true;
       const normalized = normalizeString(item.name);
-      return !excludedNorms.some(
-        (ex) => normalized.includes(ex) || ex.includes(normalized)
-      );
+      return !excludedKeywords.some((keyword) => normalized.includes(keyword));
     });
 
     const uniqueS: Sector[] = [];
