@@ -2704,28 +2704,28 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
 
             {/* Form to Launch New Cleaning Checklist or Area */}
             <div className="bg-slate-50 rounded-[32px] p-6 border border-slate-100 text-left space-y-4 font-sans">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic flex items-center gap-1.5">
+              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic flex items-center gap-1.5 select-none text-[11px]">
                 <Plus size={14} className="text-indigo-600" />
                 Lançar Nova Atividade ou Ambiente
               </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
                 <div className="sm:col-span-3">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome do Ambiente / Atividade</label>
+                  <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Ambiente ou Tarefa</label>
                   <input
                     value={newChecklistRoomName}
                     onChange={(e) => setNewChecklistRoomName(e.target.value)}
-                    placeholder="Ex: Refeitório Administrativo, Entrada Principal"
-                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder="Ex: Refeitório Administrativo, Recepção, Banheiros"
+                    className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Status de Conservação Inicial</label>
+                  <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Status de Conservação</label>
                   <select
                     value={newChecklistStatus}
                     onChange={(e) => setNewChecklistStatus(e.target.value as any)}
-                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none transition-colors cursor-pointer"
                   >
                     <option value="LIMPO">🟢 LIMPO / CONSERVADO</option>
                     <option value="ATENCAO">🟡 ATENÇÃO / MENOR</option>
@@ -2734,29 +2734,29 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Responsável pela Inspeção / Limpeza</label>
+                  <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Responsável Executor</label>
                   <input
                     value={newChecklistResponsibleName}
                     onChange={(e) => setNewChecklistResponsibleName(e.target.value)}
                     placeholder="Ex: Maria José (Voluntária)"
-                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div className="sm:col-span-3">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Observações / Falta de Materiais</label>
+                  <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Observações e Detalhes</label>
                   <input
                     value={newChecklistObservations}
                     onChange={(e) => setNewChecklistObservations(e.target.value)}
-                    placeholder="Ex: Sem observações / Repor papel de mão"
-                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder="Ex: Sem observações relevantes"
+                    className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <button
                   type="button"
                   onClick={handleAddChecklistActivity}
-                  className="sm:col-span-6 w-full py-2.5 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-colors cursor-pointer"
+                  className="sm:col-span-6 w-full h-11 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer shadow-sm active:scale-[0.99]"
                 >
                   Registrar Nova Atividade / Ambiente
                 </button>
