@@ -55,6 +55,7 @@ import {
   Printer
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Html5Qrcode } from 'html5-qrcode';
 import { dataService } from '../services/dataService';
 import { ServiceQueueEntry, Sector, SectorDocument, formatSectorName, TechTicket, ConstructionProject, VisitorLog, CleaningChecklist, InventoryItem, TicketStatus, TicketPriority } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -332,6 +333,104 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [tempConservationStatus, setTempConservationStatus] = useState<string>('BOM');
   const [tempObservation, setTempObservation] = useState<string>('');
 
+  // Active Camera states for phone browser QR scan
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const qrScannerRef = useRef<Html5Qrcode | null>(null);
+
+  // Effect 1: Deep links for QR codes on page load (e.g. scanning with the phone's default camera application)
+  useEffect(() => {
+    if (patrimonioItems.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const assetIdParam = params.get('assetId') || params.get('patId') || params.get('scan');
+      if (assetIdParam) {
+        const item = patrimonioItems.find(i => String(i.id).toLowerCase() === assetIdParam.toLowerCase() || String(i.name).toLowerCase().includes(assetIdParam.toLowerCase()));
+        if (item) {
+          setScannedItemDetail(item);
+          setTempConservationStatus(item.status || 'BOM');
+          setTempObservation(item.observation || '');
+          setScannerModalOpen(true);
+          
+          // Clear query params from active address bar so refreshes are clean
+          const urlWithoutParams = window.location.protocol + "//" + window.location.host + window.location.pathname;
+          window.history.replaceState({ path: urlWithoutParams }, '', urlWithoutParams);
+        }
+      }
+    }
+  }, [patrimonioItems]);
+
+  // Effect 2: Camera control loop for html5-qrcode inside the interactive scan view
+  useEffect(() => {
+    let scannerInstance: Html5Qrcode | null = null;
+
+    if (scannerModalOpen && !scannedItemDetail) {
+      setCameraError(null);
+      setCameraActive(false);
+
+      // Brief delay to allow the modal's animation to finish and container DOM node to render
+      const timeout = setTimeout(() => {
+        try {
+          const container = document.getElementById("qr-reader-viewport");
+          if (!container) return;
+
+          scannerInstance = new Html5Qrcode("qr-reader-viewport");
+          qrScannerRef.current = scannerInstance;
+
+          scannerInstance.start(
+            { facingMode: "environment" }, // Prioritize the device's back-facing camera
+            {
+              fps: 15,
+              qrbox: (w, h) => {
+                const size = Math.min(w, h) * 0.70;
+                return { width: size, height: size };
+              }
+            },
+            (decodedText) => {
+              // Successfully decoded QR pattern
+              handleProcessScannedId(decodedText);
+              
+              // Automatically turn off camera stream to save battery and resource lock
+              if (scannerInstance && scannerInstance.isScanning) {
+                scannerInstance.stop().then(() => {
+                  setCameraActive(false);
+                }).catch(err => console.error("Error stopping qr reader after read:", err));
+              }
+            },
+            () => {
+              // Ignore normal frame decoding failures (reduces log pollution)
+            }
+          ).then(() => {
+            setCameraActive(true);
+          }).catch((err) => {
+            console.error("Camera permissions / trigger failed:", err);
+            setCameraActive(false);
+            setCameraError("Não foi possível acessar a câmera do celular. Permissão negada ou em uso. Use os simuladores abaixo!");
+          });
+        } catch (e: any) {
+          console.error("Scanner setup failed:", e);
+          setCameraActive(false);
+          setCameraError(e.message || "Não foi possível carregar o componente de câmera.");
+        }
+      }, 600);
+
+      return () => {
+        clearTimeout(timeout);
+        if (scannerInstance && scannerInstance.isScanning) {
+          scannerInstance.stop()
+            .then(() => setCameraActive(false))
+            .catch(err => console.error("Error stopping camera scan session:", err));
+        }
+      };
+    } else {
+      // Force shutdown if modal closed or item scanned
+      if (qrScannerRef.current && qrScannerRef.current.isScanning) {
+        qrScannerRef.current.stop()
+          .then(() => setCameraActive(false))
+          .catch(err => console.error("Error stopping camera scan session:", err));
+      }
+    }
+  }, [scannerModalOpen, scannedItemDetail]);
+
   // Daily Cash States for Treasury Overview
   const [treasuryCashSession, setTreasuryCashSession] = useState<any | null>(null);
   const [closedSessionsHistory, setClosedSessionsHistory] = useState<any[]>([]);
@@ -356,6 +455,10 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [newVisitorPurpose, setNewVisitorPurpose] = useState('');
   
   const [cleaningChecklists, setCleaningChecklists] = useState<CleaningChecklist[]>([]);
+  const [newChecklistRoomName, setNewChecklistRoomName] = useState('');
+  const [newChecklistStatus, setNewChecklistStatus] = useState<'LIMPO' | 'ATENCAO' | 'PENDENTE'>('LIMPO');
+  const [newChecklistResponsibleName, setNewChecklistResponsibleName] = useState('');
+  const [newChecklistObservations, setNewChecklistObservations] = useState('');
 
   useEffect(() => {
     setCurrentViewSectorId(sectorId);
@@ -656,17 +759,20 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
 
     const printwin = window.open("", "_blank");
     if (printwin) {
-      const itemsHtml = patrimonioItems.map(item => `
-        <div class="sticker">
-          <h2>${item.name}</h2>
-          <div class="id">ID: ${item.id}</div>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(item.id)}" style="max-width: 120px; margin: 4px auto; display: block;" />
-          <div class="meta">
-            <span>Local: ${item.location || 'N/A'}</span>
-            <span>Cat: ${item.category || 'N/A'}</span>
+      const itemsHtml = patrimonioItems.map(item => {
+        const appLink = `${window.location.origin}${window.location.pathname}?assetId=${encodeURIComponent(item.id)}`;
+        return `
+          <div class="sticker">
+            <h2>${item.name}</h2>
+            <div class="id">ID: ${item.id}</div>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(appLink)}" style="max-width: 120px; margin: 4px auto; display: block;" />
+            <div class="meta">
+              <span>Local: ${item.location || 'N/A'}</span>
+              <span>Cat: ${item.category || 'N/A'}</span>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
 
       printwin.document.write(`
         <html>
@@ -773,13 +879,28 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleProcessScannedId = (id: string) => {
-    const item = patrimonioItems.find(i => i.id === id);
+    let cleanId = (id || '').trim();
+    // Smart URL parsing in case scanned text is a full deep-link QR Code (e.g. https://.../?assetId=pat1)
+    try {
+      if (cleanId.includes('?') || cleanId.includes('assetId=') || cleanId.includes('scan=')) {
+        const urlPart = cleanId.includes('?') ? cleanId.split('?')[1] : cleanId;
+        const urlParams = new URLSearchParams(urlPart);
+        const idFromUrl = urlParams.get('assetId') || urlParams.get('patId') || urlParams.get('scan');
+        if (idFromUrl) {
+          cleanId = idFromUrl;
+        }
+      }
+    } catch (e) {
+      // Treat as plain ID if any parsing errors occur
+    }
+
+    const item = patrimonioItems.find(i => String(i.id).toLowerCase() === cleanId.toLowerCase());
     if (item) {
       setScannedItemDetail(item);
       setTempConservationStatus(item.status || 'BOM');
       setTempObservation(item.observation || '');
     } else {
-      alert("QR Code inválido ou ativo patrimonial não cadastrado.");
+      alert("QR Code ou ID de ativo patrimonial não cadastrado: " + cleanId);
     }
   };
 
@@ -986,6 +1107,39 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     });
     setCleaningChecklists(updated);
     localStorage.setItem('admin_cleaning_checklists', JSON.stringify(updated));
+  };
+
+  const handleAddChecklistActivity = () => {
+    if (!newChecklistRoomName.trim()) {
+      alert("Por favor, informe o nome do ambiente ou a tarefa de conservação.");
+      return;
+    }
+    const newItem: CleaningChecklist = {
+      id: "cl_" + Date.now().toString(36),
+      roomName: newChecklistRoomName.trim(),
+      status: newChecklistStatus,
+      responsibleName: newChecklistResponsibleName.trim() || currentUser?.name || 'Voluntário da Casa',
+      lastCleanedAt: Date.now(),
+      observations: newChecklistObservations.trim()
+    };
+
+    const updated = [newItem, ...cleaningChecklists];
+    setCleaningChecklists(updated);
+    localStorage.setItem('admin_cleaning_checklists', JSON.stringify(updated));
+
+    // Cleanup state
+    setNewChecklistRoomName('');
+    setNewChecklistStatus('LIMPO');
+    setNewChecklistResponsibleName('');
+    setNewChecklistObservations('');
+  };
+
+  const handleDeleteChecklistActivity = (id: string) => {
+    if (confirm("Tem certeza que deseja remover este ambiente/atividade do checklist?")) {
+      const updated = cleaningChecklists.filter(cl => cl.id !== id);
+      setCleaningChecklists(updated);
+      localStorage.setItem('admin_cleaning_checklists', JSON.stringify(updated));
+    }
   };
 
   const initializeDefaultTransactions = () => {
@@ -2548,6 +2702,67 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
               <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Checklists e Ocorrências Prediais</p>
             </div>
 
+            {/* Form to Launch New Cleaning Checklist or Area */}
+            <div className="bg-slate-50 rounded-[32px] p-6 border border-slate-100 text-left space-y-4 font-sans">
+              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic flex items-center gap-1.5">
+                <Plus size={14} className="text-indigo-600" />
+                Lançar Nova Atividade ou Ambiente
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
+                <div className="sm:col-span-3">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome do Ambiente / Atividade</label>
+                  <input
+                    value={newChecklistRoomName}
+                    onChange={(e) => setNewChecklistRoomName(e.target.value)}
+                    placeholder="Ex: Refeitório Administrativo, Entrada Principal"
+                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Status de Conservação Inicial</label>
+                  <select
+                    value={newChecklistStatus}
+                    onChange={(e) => setNewChecklistStatus(e.target.value as any)}
+                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="LIMPO">🟢 LIMPO / CONSERVADO</option>
+                    <option value="ATENCAO">🟡 ATENÇÃO / MENOR</option>
+                    <option value="PENDENTE">🔴 URGENTE / PENDENTE</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Responsável pela Inspeção / Limpeza</label>
+                  <input
+                    value={newChecklistResponsibleName}
+                    onChange={(e) => setNewChecklistResponsibleName(e.target.value)}
+                    placeholder="Ex: Maria José (Voluntária)"
+                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Observações / Falta de Materiais</label>
+                  <input
+                    value={newChecklistObservations}
+                    onChange={(e) => setNewChecklistObservations(e.target.value)}
+                    placeholder="Ex: Sem observações / Repor papel de mão"
+                    className="w-full mt-1 bg-white border border-gray-150 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddChecklistActivity}
+                  className="sm:col-span-6 w-full py-2.5 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-colors cursor-pointer"
+                >
+                  Registrar Nova Atividade / Ambiente
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-4 text-left">
               {cleaningChecklists.map((cl) => (
                 <div key={cl.id} className="p-5 bg-gray-50 border border-gray-150 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-all font-sans">
@@ -2590,6 +2805,14 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                         Sinalizar Alerta / Falta
                       </button>
                     )}
+
+                    <button
+                      onClick={() => handleDeleteChecklistActivity(cl.id)}
+                      className="p-2 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 text-rose-500 rounded-xl transition-all cursor-pointer"
+                      title="Excluir Atividade / Ambiente"
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -5674,7 +5897,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
               {/* QR Container Frame */}
               <div id="printable-qr-label" className="p-4 bg-white border-2 border-indigo-150 rounded-2xl shadow-inner flex flex-col items-center bg-white">
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrModalItem.id)}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(window.location.origin + window.location.pathname + "?assetId=" + qrModalItem.id)}`}
                   alt={`QR Code ${qrModalItem.name}`}
                   referrerPolicy="no-referrer"
                   className="w-40 h-40 object-contain block bg-white"
@@ -5683,7 +5906,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                   {qrModalItem.id}
                 </div>
                 {/* Meta block for thermal or adhesive printable sticker */}
-                <div className="border-t border-gray-150 border-dashed pt-1.5 mt-1.5 w-full text-[8px] font-bold text-gray-500 uppercase tracking-widest flex justify-between gap-4 font-sans">
+                <div className="border-t border-gray-150 border-dashed pt-1.5 mt-1.5 w-full text-[8px] font-bold text-gray-550 uppercase tracking-widest flex justify-between gap-4 font-sans">
                   <span>Local: {qrModalItem.location}</span>
                   <span>Cat: {qrModalItem.category}</span>
                 </div>
@@ -5710,6 +5933,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                   type="button"
                   onClick={() => {
                     // Quick thermal simulated stickers print trigger
+                    const singleAppLink = `${window.location.origin}${window.location.pathname}?assetId=${encodeURIComponent(qrModalItem.id)}`;
                     const printwin = window.open("", "_blank");
                     if (printwin) {
                       printwin.document.write(`
@@ -5728,7 +5952,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                           <div class="sticker">
                             <h2>${qrModalItem.name}</h2>
                             <div class="id">ID: ${qrModalItem.id}</div>
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrModalItem.id)}" style="max-width: 140px; margin: auto; display: block;" />
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(singleAppLink)}" style="max-width: 140px; margin: auto; display: block;" />
                             <div class="meta">
                               <span>Local: ${qrModalItem.location}</span>
                               <span>Cat: ${qrModalItem.category}</span>
@@ -5790,24 +6014,45 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
               {/* No item scanned yet: show camera simulator layout */}
               {!scannedItemDetail ? (
                 <div className="space-y-5 pt-4">
-                  {/* Mock camera view finder */}
-                  <div className="relative aspect-square sm:aspect-[4/3] rounded-2xl bg-slate-950 border border-slate-900 overflow-hidden flex flex-col items-center justify-center text-center p-6 shadow-inner">
-                    {/* Animated laser scan lines */}
-                    <div className="absolute inset-x-0 h-0.5 bg-indigo-500/80 shadow-[0_0_8px_rgba(99,102,241,0.8)] top-1/4 animate-bounce duration-[2000ms] z-10" />
-                    
-                    {/* Target scan brackets */}
-                    <div className="absolute top-8 left-8 w-6 h-6 border-t-4 border-l-4 border-indigo-500 rounded-tl-md" />
-                    <div className="absolute top-8 right-8 w-6 h-6 border-t-4 border-r-4 border-indigo-500 rounded-tr-md" />
-                    <div className="absolute bottom-8 left-8 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-md" />
-                    <div className="absolute bottom-8 right-8 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-md" />
+                  {/* Real camera view finder */}
+                  <div className="relative aspect-square sm:aspect-[4/3] rounded-2xl bg-slate-950 border border-slate-900 overflow-hidden flex flex-col items-center justify-center text-center p-1 shadow-inner">
+                    {/* The real HTML5 Qr Code reader container */}
+                    <div id="qr-reader-viewport" className="w-full h-full object-cover rounded-xl overflow-hidden" />
 
-                    <div className="space-y-2 z-10">
-                      <QrCode size={40} className="mx-auto text-indigo-400 animate-pulse" />
-                      <p className="text-xs text-white font-extrabold uppercase tracking-widest animate-pulse">Câmera de Leitura Inicializada</p>
-                      <p className="text-[10px] text-gray-400 max-w-xs leading-relaxed px-4">
-                        Aproxime a câmera do QR Code patrimonial colado para consultar ou registrar modificações.
-                      </p>
-                    </div>
+                    {cameraActive && (
+                      <>
+                        {/* Animated laser scan lines */}
+                        <div className="absolute inset-x-0 h-0.5 bg-indigo-500/80 shadow-[0_0_8px_rgba(99,102,241,0.8)] top-1/4 animate-bounce duration-[2000ms] z-10 pointer-events-none" />
+                        
+                        {/* Target scan brackets */}
+                        <div className="absolute top-8 left-8 w-6 h-6 border-t-4 border-l-4 border-indigo-500 rounded-tl-md z-10 pointer-events-none" />
+                        <div className="absolute top-8 right-8 w-6 h-6 border-t-4 border-r-4 border-indigo-500 rounded-tr-md z-10 pointer-events-none" />
+                        <div className="absolute bottom-8 left-8 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-md z-10 pointer-events-none" />
+                        <div className="absolute bottom-8 right-8 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-md z-10 pointer-events-none" />
+                      </>
+                    )}
+
+                    {!cameraActive && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-950/90 text-center space-y-3 z-20">
+                        {cameraError ? (
+                          <>
+                            <AlertTriangle size={32} className="text-amber-500 mx-auto" />
+                            <p className="text-[11px] text-gray-200 font-extrabold uppercase tracking-widest max-w-xs">{cameraError}</p>
+                            <p className="text-[9.5px] text-gray-400 max-w-xs px-2 leading-relaxed mx-auto">
+                              Por favor, use a simulação de ativos abaixo para testar diretamente.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <QrCode size={40} className="mx-auto text-indigo-400 animate-pulse" />
+                            <p className="text-xs text-white font-extrabold uppercase tracking-widest animate-pulse">Iniciando câmera...</p>
+                            <p className="text-[10px] text-gray-400 max-w-xs leading-relaxed px-4 mx-auto">
+                              Aguardando permissão de câmera do navegador do celular.
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Interactive manual or mock lists to trigger test scanning */}
