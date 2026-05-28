@@ -87,6 +87,7 @@ export interface Sector {
   name: string;
   type: SectorType;
   description: string;
+  parentSectorId?: string; // ID of the parent sector (for sub-sectors)
   
   // Regiment/Organization Fields
   mission?: string;
@@ -241,4 +242,62 @@ export function formatSectorName(name: string): string {
   }
   return trimmed;
 }
+
+export type TicketStatus = 'ABERTO' | 'ATENDIMENTO' | 'CONCLUIDO';
+export type TicketPriority = 'BAIXA' | 'MEDIA' | 'ALTA';
+
+export interface TechTicket {
+  id: string;
+  number: string;
+  senderName: string;
+  senderEmail: string;
+  title: string;
+  description: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  technicianName?: string;
+  createdAt: number;
+  completedAt?: number;
+}
+
+export interface ConstructionProject {
+  id: string;
+  name: string;
+  location: string;
+  status: 'PLANEJADO' | 'EM_ANDAMENTO' | 'FINALIZADO';
+  budgetPlanned: number;
+  budgetActual: number;
+  startDate: string;
+  estimatedEndDate: string;
+  percentage: number;
+  coordinator: string;
+  stages: {
+    name: string;
+    status: 'PLANEJADO' | 'EM_ANDAMENTO' | 'CONCLUIDO';
+    duration: string;
+    responsible: string;
+  }[];
+  notes?: string;
+}
+
+export interface VisitorLog {
+  id: string;
+  name: string;
+  phone: string;
+  document?: string;
+  purpose: string;
+  checkInTime: number;
+  checkOutTime?: number;
+  notes?: string;
+}
+
+export interface CleaningChecklist {
+  id: string;
+  roomName: string;
+  status: 'LIMPO' | 'ATENCAO' | 'PENDENTE';
+  responsibleName: string;
+  lastCleanedAt: number;
+  observations?: string;
+}
+
 

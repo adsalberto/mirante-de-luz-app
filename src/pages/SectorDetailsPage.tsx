@@ -22,7 +22,8 @@ import {
   Save,
   Plus,
   Trash2,
-  X
+  X,
+  ChevronRight
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { Sector, SectorType, SECTOR_TYPE_LABELS, formatSectorName } from '../types';
@@ -34,6 +35,7 @@ export default function SectorDetailsPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [sector, setSector] = useState<Sector | null>(null);
+  const [allSectors, setAllSectors] = useState<Sector[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Sector>>({});
 
@@ -53,11 +55,28 @@ export default function SectorDetailsPage() {
 
   const loadSector = async () => {
     const sectors = await dataService.getSectors();
+    setAllSectors(sectors || []);
     const found = sectors.find(s => s.id === id);
     if (found) {
       setSector(found);
       setEditForm(found);
     }
+  };
+
+  const getBreadcrumbs = (s: Sector): Sector[] => {
+    const list: Sector[] = [];
+    let current: Sector | undefined = s;
+    while (current?.parentSectorId) {
+      const parentId = current.parentSectorId;
+      const parent: Sector | undefined = allSectors.find(item => item.id === parentId);
+      if (parent) {
+        list.unshift(parent);
+        current = parent;
+      } else {
+        break;
+      }
+    }
+    return list;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,8 +197,19 @@ export default function SectorDetailsPage() {
                   <History size={12} /> Atualizado em 05/05/2026
                 </div>
               </div>
-              <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter italic">
-                {formatSectorName(sector.name)}
+              <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter italic flex flex-wrap items-center gap-1">
+                {allSectors.length > 0 && getBreadcrumbs(sector).map((ancestor, i) => (
+                  <span key={ancestor.id} className="flex items-center gap-1 text-gray-400 font-medium">
+                    <button 
+                      onClick={() => navigate(`/setores/${ancestor.id}`)}
+                      className="hover:underline hover:text-indigo-600 bg-transparent border-none p-0 cursor-pointer text-4xl lg:text-5xl font-black tracking-tighter"
+                    >
+                      {formatSectorName(ancestor.name)}
+                    </button>
+                    <span className="text-gray-300 font-sans text-3xl font-normal">/</span>
+                  </span>
+                ))}
+                <span>{formatSectorName(sector.name)}</span>
               </h1>
             </div>
           </div>
@@ -231,6 +261,26 @@ export default function SectorDetailsPage() {
               <InfoBlock icon={Layers} label="Frequência Reunião" value={sector.meetingFrequency} />
             </div>
           </div>
+
+          {allSectors.filter(s => s.parentSectorId === sector.id).length > 0 && (
+            <div className="bg-white rounded-[32px] p-8 border border-gray-100 space-y-4 shadow-sm hover:shadow-md transition-shadow">
+              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                <Layers size={14} className="text-indigo-500" /> Sub-setores Vinculados ({allSectors.filter(s => s.parentSectorId === sector.id).length})
+              </h3>
+              <div className="grid grid-cols-1 gap-2.5">
+                {allSectors.filter(s => s.parentSectorId === sector.id).map(sub => (
+                  <button
+                    key={sub.id}
+                    onClick={() => navigate(`/setores/${sub.id}`)}
+                    className="flex items-center justify-between p-3.5 bg-gray-50 hover:bg-indigo-50 rounded-2xl border border-transparent hover:border-indigo-100 text-left transition-all active:scale-95 group font-bold text-xs cursor-pointer"
+                  >
+                    <span className="text-gray-800 group-hover:text-indigo-900 transition-colors">{sub.name}</span>
+                    <ChevronRight size={14} className="text-gray-300 group-hover:text-indigo-500 transition-all translate-x-[-2px] group-hover:translate-x-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Conteúdo Principal */}
@@ -442,6 +492,15 @@ export default function SectorDetailsPage() {
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Missão (Objetivo Geral)</label>
                       <textarea rows={2} value={editForm.mission} onChange={e => setEditForm({...editForm, mission: e.target.value})} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-medium resize-none shadow-inner" />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Setor Superior / Pai (Opcional - Sub-setor)</label>
+                      <select value={editForm.parentSectorId || ''} onChange={e => setEditForm({...editForm, parentSectorId: e.target.value})} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700">
+                        <option value="">-- Sem Setor Superior (Setor Principal) --</option>
+                        {allSectors.filter(s => s.id !== sector.id).map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Fundamentação Doutrinária</label>

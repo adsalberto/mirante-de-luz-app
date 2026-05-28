@@ -683,8 +683,9 @@ class DataService {
   async populateDefaults() {
     try {
       // Use raw collection access to avoid recursion if getSectors is used
-      const snap = await getDocs(collection(db, 'setores'));
-      const existingNames = snap.docs.map(d => (d.data() as Sector).name);
+      let snap = await getDocs(collection(db, 'setores'));
+      let existingSectors = snap.docs.map(d => ({ id: d.id, ...d.data() } as Sector));
+      let existingNames = existingSectors.map(s => s.name);
       
       console.log("Checking for missing default sectors...");
       const defaultSectors = [
@@ -709,8 +710,69 @@ class DataService {
         }
       }
       
+      // Reload sectors to get their generated IDs
+      snap = await getDocs(collection(db, 'setores'));
+      existingSectors = snap.docs.map(d => ({ id: d.id, ...d.data() } as Sector));
+
+      const findOrCreateSector = async (name: string, type: Sector['type'], description: string, parentSectorId?: string): Promise<string> => {
+        const found = existingSectors.find(s => s.name.toLowerCase().trim() === name.toLowerCase().trim());
+        if (found) {
+          // If parent is not set, or is different, update it
+          if (parentSectorId && found.parentSectorId !== parentSectorId) {
+            found.parentSectorId = parentSectorId;
+            await this.updateSector(found);
+          }
+          return found.id;
+        } else {
+          const newS = await this.addSector({
+            name,
+            type,
+            description,
+            parentSectorId
+          } as any);
+          return newS?.id || '';
+        }
+      };
+
+      // Ensure Administrativo acts as the top-level parent
+      const adminId = await findOrCreateSector('Administrativo', 'ADMINISTRATIVO', 'Gestão geral e administrativa da casa');
+      
+      if (adminId) {
+        // Material e Patrimônio under Administrativo
+        await findOrCreateSector(
+          'Material e Patrimônio', 
+          'ADMINISTRATIVO', 
+          'Gestão de materiais, infraestrutura e patrimônio físico', 
+          adminId
+        );
+
+        // Tecnologia e Informática under Administrativo
+        await findOrCreateSector(
+          'Tecnologia e Informática', 
+          'ADMINISTRATIVO', 
+          'Suporte a computadores, rede, sistemas e recursos tecnológicos', 
+          adminId
+        );
+
+        // Obras e Reformas under Administrativo
+        await findOrCreateSector(
+          'Obras e Reformas', 
+          'ADMINISTRATIVO', 
+          'Planejamento, acompanhamento de reformas e obras da estrutura física', 
+          adminId
+        );
+
+        // Recepção e Limpeza under Administrativo
+        await findOrCreateSector(
+          'Recepção e Limpeza', 
+          'ADMINISTRATIVO', 
+          'Manutenção da limpeza, organização interna e acolhimento inicial', 
+          adminId
+        );
+      }
+
       if (addedCount > 0) {
-        console.log(`${addedCount} new default sectors added.`);
+        console.log(`${addedCount} new default sectors added or updated.`);
       }
 
       return true;

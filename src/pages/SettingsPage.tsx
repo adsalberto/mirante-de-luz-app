@@ -85,6 +85,7 @@ export const SettingsPage: React.FC = () => {
     name: "",
     type: "FRATERNO" as SectorType,
     description: "",
+    parentSectorId: "",
     mission: "",
     foundation: "",
     location: "",
@@ -119,6 +120,7 @@ export const SettingsPage: React.FC = () => {
       name: "",
       type: "FRATERNO",
       description: "",
+      parentSectorId: "",
       mission: "",
       foundation: "",
       location: "",
@@ -225,6 +227,7 @@ export const SettingsPage: React.FC = () => {
       name: s.name || "",
       type: s.type || "OUTROS",
       description: s.description || "",
+      parentSectorId: s.parentSectorId || "",
       mission: s.mission || "",
       foundation: s.foundation || "",
       location: s.location || "",
@@ -815,12 +818,22 @@ export const SettingsPage: React.FC = () => {
                     <ShieldCheck size={24} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-gray-900 text-sm leading-tight">
+                    <h4 className="font-bold text-gray-900 text-sm leading-tight flex items-center gap-2">
                       {formatSectorName(s.name)}
+                      {s.parentSectorId && (
+                        <span className="text-[9px] text-indigo-500 font-black tracking-widest bg-indigo-50 px-2 py-0.5 rounded-full uppercase">
+                          Sub-setor
+                        </span>
+                      )}
                     </h4>
                     <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
                       {SECTOR_TYPE_LABELS[s.type] || s.type}
                     </p>
+                    {s.parentSectorId && (
+                      <p className="text-[10px] text-gray-400 font-medium">
+                        Setor Superior: {sectors.find(p => p.id === s.parentSectorId)?.name || 'Outro'}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {(currentUser?.role === "ADMIN" ||
@@ -1035,11 +1048,29 @@ export const SettingsPage: React.FC = () => {
                     className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700"
                   >
                     <option value="">Acesso Geral</option>
-                    {sectors.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {formatSectorName(s.name)}
-                      </option>
-                    ))}
+                    {sectors.map((s) => {
+                      const path: string[] = [];
+                      let curr: Sector | undefined = s;
+                      while (curr) {
+                        path.unshift(formatSectorName(curr.name));
+                        if (curr.parentSectorId) {
+                          const pId = curr.parentSectorId;
+                          const parent: Sector | undefined = sectors.find(x => x.id === pId);
+                          if (parent && parent.id !== curr.id) {
+                            curr = parent;
+                          } else {
+                            break;
+                          }
+                        } else {
+                          break;
+                        }
+                      }
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {path.join(" ➔ ")}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -1291,6 +1322,28 @@ export const SettingsPage: React.FC = () => {
                       placeholder="Ex: Sala 3"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">
+                    Setor Superior / Pai (Opcional)
+                  </label>
+                  <select
+                    value={newSector.parentSectorId || ""}
+                    onChange={(e) =>
+                      setNewSector({ ...newSector, parentSectorId: e.target.value })
+                    }
+                    className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700"
+                  >
+                    <option value="">-- Sem Setor Superior (Principal) --</option>
+                    {sectors
+                      .filter((s) => !editingSector || s.id !== editingSector.id)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                  </select>
                 </div>
 
                 <div className="space-y-1.5">

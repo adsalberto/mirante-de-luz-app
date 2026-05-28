@@ -12,6 +12,7 @@ import {
   Palette,
   Eye,
   FileText,
+  Paperclip,
   UploadCloud,
   Download,
   Trash2,
@@ -42,11 +43,20 @@ import {
   Coffee,
   Tag,
   Barcode,
-  Receipt
+  Receipt,
+  Laptop,
+  Wrench,
+  Cpu,
+  MapPin,
+  Target,
+  ChevronRight,
+  Info,
+  X,
+  Printer
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataService } from '../services/dataService';
-import { ServiceQueueEntry, Sector, SectorDocument, formatSectorName } from '../types';
+import { ServiceQueueEntry, Sector, SectorDocument, formatSectorName, TechTicket, ConstructionProject, VisitorLog, CleaningChecklist, InventoryItem, TicketStatus, TicketPriority } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { jsPDF } from 'jspdf';
@@ -71,6 +81,8 @@ interface FinancialTransaction {
   status?: string;
   accountType?: string;
   paymentMethod?: string;
+  receiptBase64?: string;
+  receiptName?: string;
 }
 
 // Product Inventory Type
@@ -100,6 +112,8 @@ interface DonationCampaign {
   target?: string;
   mode: 'internal' | 'external';
   externalUrl?: string;
+  goalAmount?: number;
+  raisedAmount?: number;
 }
 
 interface OnlineDonation {
@@ -177,6 +191,15 @@ const StatCard = ({ title, value, icon: Icon, color, bg, shadow, delay }: any) =
   </motion.div>
 );
 
+const getSubSectorIcon = (name: string) => {
+  const norm = (name || '').toLowerCase();
+  if (norm.includes('patrimôn') || norm.includes('material')) return Package;
+  if (norm.includes('tecnolog') || norm.includes('informát') || norm.includes('ti')) return Laptop;
+  if (norm.includes('obra') || norm.includes('reforma') || norm.includes('manuten')) return Wrench;
+  if (norm.includes('limpeza') || norm.includes('recep')) return Sparkles;
+  return Shield;
+};
+
 export default function SectorDashboard({ sectorId, sectorName, initialTab }: SectorDashboardProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -202,7 +225,10 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     (currentUser?.position && ['Presidente(s)', 'Vice-presidente(s)', '1º Secretário(a)', 'Secretário(a) de Planejamento'].includes(currentUser.position));
 
   const defaultTab = (initialTab === 'finance' && !isAdmin) ? 'overview' : (initialTab || 'overview');
-  const [adminTab, setAdminTab] = useState<'overview' | 'finance' | 'pos_bazar'>(defaultTab);
+  const [adminTab, setAdminTab] = useState<string>(defaultTab);
+  const [currentViewSectorId, setCurrentViewSectorId] = useState<string>(sectorId);
+  const [subSectors, setSubSectors] = useState<Sector[]>([]);
+  const [infoModalSector, setInfoModalSector] = useState<Sector | null>(null);
 
   // --- ADMIN FINANCE STATES ---
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
@@ -225,6 +251,10 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [txSearch, setTxSearch] = useState('');
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [txToDelete, setTxToDelete] = useState<FinancialTransaction | null>(null);
+  
+  // Receipts uploaded attachments
+  const [newTxReceiptBase64, setNewTxReceiptBase64] = useState<string>('');
+  const [newTxReceiptName, setNewTxReceiptName] = useState<string>('');
 
   // Payment Sim States
   const [paymentType, setPaymentType] = useState<'pix' | 'boleto' | 'donation'>('pix');
@@ -288,12 +318,73 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [buyQty, setBuyQty] = useState('');
   const [buyPrice, setBuyPrice] = useState('');
 
+  // --- SUBSECTOR ADVANCED STATES ---
+  // 1. Material e Patrimônio
+  const [patrimonioItems, setPatrimonioItems] = useState<any[]>([]);
+  const [patLoans, setPatLoans] = useState<any[]>([]);
+  const [patrimonioCategory, setPatrimonioCategory] = useState<string>('ALL');
+
+  // New QR States for Asset Tracking
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrModalItem, setQrModalItem] = useState<any | null>(null);
+  const [scannerModalOpen, setScannerModalOpen] = useState(false);
+  const [scannedItemDetail, setScannedItemDetail] = useState<any | null>(null);
+  const [tempConservationStatus, setTempConservationStatus] = useState<string>('BOM');
+  const [tempObservation, setTempObservation] = useState<string>('');
+
+  // Daily Cash States for Treasury Overview
+  const [treasuryCashSession, setTreasuryCashSession] = useState<any | null>(null);
+  const [closedSessionsHistory, setClosedSessionsHistory] = useState<any[]>([]);
+  
+  // 2. Tecnologia e Informática
+  const [techTickets, setTechTickets] = useState<TechTicket[]>([]);
+  const [ticketStatusFilter, setTicketStatusFilter] = useState<string>('ALL');
+  const [newTicketTitle, setNewTicketTitle] = useState('');
+  const [newTicketDesc, setNewTicketDesc] = useState('');
+  const [newTicketPriority, setNewTicketPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA'>('MEDIA');
+  
+  // 3. Obras e Reformas
+  const [obraProjects, setObraProjects] = useState<ConstructionProject[]>([]);
+  const [newObraName, setNewObraName] = useState('');
+  const [newObraBudget, setNewObraBudget] = useState('');
+  const [newObraLocation, setNewObraLocation] = useState('');
+  
+  // 4. Recepção e Limpeza
+  const [visitorLogs, setVisitorLogs] = useState<VisitorLog[]>([]);
+  const [newVisitorName, setNewVisitorName] = useState('');
+  const [newVisitorPhone, setNewVisitorPhone] = useState('');
+  const [newVisitorPurpose, setNewVisitorPurpose] = useState('');
+  
+  const [cleaningChecklists, setCleaningChecklists] = useState<CleaningChecklist[]>([]);
+
+  useEffect(() => {
+    setCurrentViewSectorId(sectorId);
+    setAdminTab(defaultTab);
+  }, [sectorId, defaultTab]);
+
+  useEffect(() => {
+    const fetchSubSectors = async () => {
+      if (isAdministrativo) {
+        try {
+          const allSectors = await dataService.getSectors();
+          if (allSectors) {
+            const list = allSectors.filter(s => s.parentSectorId === sectorId);
+            setSubSectors(list);
+          }
+        } catch (err) {
+          console.error("Error loading subsectors in dashboard:", err);
+        }
+      }
+    };
+    fetchSubSectors();
+  }, [sectorId, isAdministrativo]);
+
   useEffect(() => {
     loadData();
     if (isAdministrativo) {
       loadAdminData();
     }
-  }, [sectorId, sectorName]);
+  }, [currentViewSectorId]);
 
   const loadData = async () => {
     setLoading(true);
@@ -304,10 +395,10 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
         dataService.getSectors()
       ]);
       
-      const currentSector = allSectors?.find(s => s.id === sectorId);
+      const currentSector = allSectors?.find(s => s.id === currentViewSectorId);
       if (currentSector) setSector(currentSector);
 
-      const sectorQueue = (allQueue || []).filter(item => item.sectorId === sectorId);
+      const sectorQueue = (allQueue || []).filter(item => item.sectorId === currentViewSectorId);
       
       const waiting = sectorQueue
         .filter(item => item.status === 'WAITING')
@@ -323,7 +414,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
         completedToday: sectorQueue.filter(item => item.status === 'FINISHED').length
       });
     } catch (err) {
-      console.error(`Error loading stats for ${sectorName}:`, err);
+      console.error(`Error loading stats for ${currentViewSectorId}:`, err);
     } finally {
       setLoading(false);
     }
@@ -412,6 +503,489 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
         setOnlineDonations(JSON.parse(cachedPending));
       } catch {}
     }
+
+    // 8. Load Advanced Sub-sector states
+    // A. Material e Patrimônio
+    const cachedPatItems = localStorage.getItem('admin_patrimonio_items');
+    if (cachedPatItems) {
+      try { setPatrimonioItems(JSON.parse(cachedPatItems)); } catch {}
+    } else {
+      const defaultPat = [
+        { id: 'pat1', name: 'Projetor Epson PowerLite LCD (Salão Principal)', category: 'ELETRONICOS', quantity: 1, minQuantity: 1, unit: 'unidade(s)', location: 'Salão Principal', status: 'BOM', lastUpdated: Date.now(), updatedBy: 'Carlos Alberto' },
+        { id: 'pat2', name: 'Notebook Dell Latitude Core i5 (Livraria)', category: 'ELETRONICOS', quantity: 1, minQuantity: 1, unit: 'unidade(s)', location: 'Livraria', status: 'BOM', lastUpdated: Date.now(), updatedBy: 'Carlos Alberto' },
+        { id: 'pat3', name: 'Cadeiras de PVC Brancas Altas', category: 'MOBILIARIO', quantity: 120, minQuantity: 100, unit: 'unidade(s)', location: 'Auditório', status: 'BOM', lastUpdated: Date.now(), updatedBy: 'Roberto Silva' },
+        { id: 'pat4', name: 'Detergente Neutro Limpol (Caixa de 24 un)', category: 'LIMPEZA', quantity: 2, minQuantity: 3, unit: 'caixa(s)', location: 'Almoxarifado', status: 'REGULAR', lastUpdated: Date.now(), updatedBy: 'Vera Lúcia' },
+        { id: 'pat5', name: 'Apostilas ESDE Tomo Único (FEB)', category: 'LIVRARIA', quantity: 0, minQuantity: 5, unit: 'unidade(s)', location: 'Livraria', status: 'EM_FALTA', lastUpdated: Date.now(), updatedBy: 'Maria Helena' }
+      ];
+      localStorage.setItem('admin_patrimonio_items', JSON.stringify(defaultPat));
+      setPatrimonioItems(defaultPat);
+    }
+
+    const cachedLoans = localStorage.getItem('admin_pat_loans');
+    if (cachedLoans) {
+      try { setPatLoans(JSON.parse(cachedLoans)); } catch {}
+    } else {
+      const defaultLoans = [
+        { id: 'loan1', itemName: 'Projetor Epson PowerLite LCD', borrowerName: 'Paulo Roberto (Estudos)', loanDate: '2026-05-28', returnDate: '2026-05-28', status: 'Retirado' }
+      ];
+      localStorage.setItem('admin_pat_loans', JSON.stringify(defaultLoans));
+      setPatLoans(defaultLoans);
+    }
+
+    // B. Tecnologia e Informática
+    const cachedTickets = localStorage.getItem('admin_tech_tickets');
+    if (cachedTickets) {
+      try { setTechTickets(JSON.parse(cachedTickets)); } catch {}
+    } else {
+      const defaultTickets: TechTicket[] = [
+        { id: 'tk1', number: 'TI-0012', senderName: 'Dra. Ana Paula', senderEmail: 'anapaula@mirante.org', title: 'Wi-Fi oscilando no Mezanino', description: 'A conexão cai intermitentemente durante o atendimento fraterno aos sábados de manhã.', priority: 'ALTA', status: 'ABERTO', createdAt: Date.now() - 259200000 },
+        { id: 'tk2', number: 'TI-0013', senderName: 'Sr. Carlos Alberto', senderEmail: 'carlos@mirante.org', title: 'Impressora de Etiquetas Off-line', description: 'O computador da Livraria não se comunica com a impressora Brother térmica via USB.', priority: 'MEDIA', status: 'ATENDIMENTO', technicianName: 'Guilherme Santos', createdAt: Date.now() - 86400000 },
+        { id: 'tk3', number: 'TI-0014', senderName: 'Evangelizador Júlio', senderEmail: 'julio@mirante.org', title: 'Sincronização do projetor secundário', description: 'O cabo HDMI do projetor da sala 3 de evangelização está com mau contato.', priority: 'BAIXA', status: 'CONCLUIDO', technicianName: 'Guilherme Santos', createdAt: Date.now() - 3600000, completedAt: Date.now() }
+      ];
+      localStorage.setItem('admin_tech_tickets', JSON.stringify(defaultTickets));
+      setTechTickets(defaultTickets);
+    }
+
+    // C. Obras e Reformas
+    const cachedObras = localStorage.getItem('admin_obra_projects');
+    if (cachedObras) {
+      try { setObraProjects(JSON.parse(cachedObras)); } catch {}
+    } else {
+      const defaultObras: ConstructionProject[] = [
+        {
+          id: 'ob1',
+          name: 'Ampliação e Modernização da Cozinha Comunitária',
+          location: 'Anexo B (Fundos)',
+          status: 'EM_ANDAMENTO',
+          budgetPlanned: 45000,
+          budgetActual: 38200,
+          startDate: '2026-04-10',
+          estimatedEndDate: '2026-07-20',
+          percentage: 75,
+          coordinator: 'Eng. Pedro Rezende',
+          stages: [
+            { name: 'Rede elétrica trifásica reforçada', status: 'CONCLUIDO', duration: '10 dias', responsible: 'Instaladora Luz' },
+            { name: 'Revestimento cerâmico e piso antiderrapante', status: 'EM_ANDAMENTO', duration: '12 dias', responsible: 'Mestre Assis' },
+            { name: 'Instalação de exaustores e bancadas de inox', status: 'PLANEJADO', duration: '5 dias', responsible: 'Serralheria União' }
+          ],
+          notes: 'Preparação para aumento de 60% na produção de sopas semanais para o atendimento social.'
+        }
+      ];
+      localStorage.setItem('admin_obra_projects', JSON.stringify(defaultObras));
+      setObraProjects(defaultObras);
+    }
+
+    // D. Recepção e Limpeza
+    const cachedVisitors = localStorage.getItem('admin_visitor_logs');
+    if (cachedVisitors) {
+      try { setVisitorLogs(JSON.parse(cachedVisitors)); } catch {}
+    } else {
+      const defaultVisitors: VisitorLog[] = [
+        { id: 'v1', name: 'Fernanda de Souza Santos', phone: '(11) 98124-5511', purpose: 'Atendimento Fraterno Inicial', checkInTime: Date.now() - 10800000, checkOutTime: Date.now() - 7200000 },
+        { id: 'v2', name: 'Wellington Silva Neves', phone: '(11) 99187-0099', purpose: 'Assistente social (Triagem)', checkInTime: Date.now() - 5400000 }
+      ];
+      localStorage.setItem('admin_visitor_logs', JSON.stringify(defaultVisitors));
+      setVisitorLogs(defaultVisitors);
+    }
+
+    const cachedChecklists = localStorage.getItem('admin_cleaning_checklists');
+    if (cachedChecklists) {
+      try { setCleaningChecklists(JSON.parse(cachedChecklists)); } catch {}
+    } else {
+      const defaultChecklists: CleaningChecklist[] = [
+        { id: 'cl1', roomName: 'Banheiros Masculinos (Térreo)', status: 'LIMPO', responsibleName: 'Marta (Voluntária)', lastCleanedAt: Date.now() - 7200000 },
+        { id: 'cl2', roomName: 'Salas de Passe e Fluidoterapia', status: 'ATENCAO', responsibleName: 'Claudio (Voluntário)', lastCleanedAt: Date.now() - 14400000, observations: 'Reabastecer galão de álcool em gel na entrada' },
+        { id: 'cl3', roomName: 'Salão de Palestras Doutrinárias', status: 'PENDENTE', responsibleName: 'Vera Lúcia (Voluntária)', lastCleanedAt: Date.now() - 43200000 }
+      ];
+      localStorage.setItem('admin_cleaning_checklists', JSON.stringify(defaultChecklists));
+      setCleaningChecklists(defaultChecklists);
+    }
+
+    // 9. Load Cash sessions and history
+    const cachedSession = localStorage.getItem('admin_cash_session');
+    if (cachedSession) {
+      try { setTreasuryCashSession(JSON.parse(cachedSession)); } catch {}
+    } else {
+      setTreasuryCashSession(null);
+    }
+
+    const cachedHist = localStorage.getItem('admin_closed_cash_sessions');
+    if (cachedHist) {
+      try { setClosedSessionsHistory(JSON.parse(cachedHist)); } catch {}
+    } else {
+      setClosedSessionsHistory([]);
+    }
+  };
+
+  // --- SUBSECTOR ACTION CONTROLLERS ---
+  const handleAddPatrimonio = (item: any) => {
+    const updated = [...patrimonioItems, { id: 'pat_' + Date.now(), ...item, lastUpdated: Date.now(), updatedBy: currentUser?.name || 'Administrador' }];
+    setPatrimonioItems(updated);
+    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+  };
+  
+  const handleUpdatePatQuantity = (id: string, diff: number) => {
+    const updated = patrimonioItems.map(item => {
+      if (item.id === id) {
+        const nextQty = Math.max(0, item.quantity + diff);
+        const nextStatus = nextQty === 0 ? 'EM_FALTA' : (nextQty <= item.minQuantity ? 'REGULAR' : 'BOM');
+        return { ...item, quantity: nextQty, status: nextStatus, lastUpdated: Date.now() };
+      }
+      return item;
+    });
+    setPatrimonioItems(updated);
+    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+  };
+
+  const handleDeletePatrimonio = (id: string) => {
+    const updated = patrimonioItems.filter(item => item.id !== id);
+    setPatrimonioItems(updated);
+    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+  };
+
+  const handleShowItemQRCode = (item: any) => {
+    setQrModalItem(item);
+    setQrModalOpen(true);
+  };
+
+  const handlePrintAllQRCodes = () => {
+    if (patrimonioItems.length === 0) {
+      alert("Nenhum item patrimonial registrado para gerar etiquetas.");
+      return;
+    }
+
+    const printwin = window.open("", "_blank");
+    if (printwin) {
+      const itemsHtml = patrimonioItems.map(item => `
+        <div class="sticker">
+          <h2>${item.name}</h2>
+          <div class="id">ID: ${item.id}</div>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(item.id)}" style="max-width: 120px; margin: 4px auto; display: block;" />
+          <div class="meta">
+            <span>Local: ${item.location || 'N/A'}</span>
+            <span>Cat: ${item.category || 'N/A'}</span>
+          </div>
+        </div>
+      `).join('');
+
+      printwin.document.write(`
+        <html>
+        <head>
+          <title>Imprimir Todas as Etiquetas de Ativos</title>
+          <style>
+            body { 
+              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+              padding: 20px; 
+              margin: 0; 
+              background-color: #fff;
+            }
+            .header-banner {
+              text-align: center;
+              margin-bottom: 25px;
+              border-bottom: 2px solid #333;
+              padding-bottom: 10px;
+            }
+            .header-banner h1 {
+              margin: 0;
+              font-size: 20px;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+            }
+            .header-banner p {
+              margin: 5px 0 0 0;
+              font-size: 11px;
+              color: #666;
+            }
+            .grid-container { 
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 15px;
+            }
+            .sticker { 
+              border: 1px dashed #999; 
+              padding: 12px; 
+              text-align: center;
+              background-color: #fff;
+              page-break-inside: avoid;
+              border-radius: 8px;
+            }
+            h2 { 
+              margin: 0 0 4px 0; 
+              font-size: 11px; 
+              font-weight: 800; 
+              text-transform: uppercase;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .id { 
+              font-size: 8px; 
+              font-family: monospace;
+              letter-spacing: 0.5px; 
+              margin-bottom: 6px; 
+              color: #555;
+            }
+            .meta { 
+              font-size: 8px; 
+              border-top: 1px dashed #ccc; 
+              padding-top: 5px; 
+              margin-top: 5px; 
+              display: flex; 
+              justify-content: space-between; 
+              text-transform: uppercase;
+              color: #444;
+              font-weight: bold;
+            }
+            @media print {
+              .header-banner { display: none; }
+              body { padding: 0; }
+              .grid-container { gap: 10px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-banner">
+            <h1>Folha de Etiquetas Patrimoniais</h1>
+            <p>Grade gerada automaticamente com ${patrimonioItems.length} ativos — Pronto para impressão (Papel Adesivo A4 ou Carta)</p>
+          </div>
+          <div class="grid-container">
+            ${itemsHtml}
+          </div>
+          <script>
+            window.onload = function() { 
+              setTimeout(function() {
+                window.print(); 
+              }, 500);
+            }
+          </script>
+        </body>
+        </html>
+      `);
+      printwin.document.close();
+    } else {
+      alert("Por favor, ative a permissão de pop-up no navegador para abrir a folha de impressão!");
+    }
+  };
+
+  const handleStartScanner = () => {
+    setScannerModalOpen(true);
+    setScannedItemDetail(null);
+  };
+
+  const handleProcessScannedId = (id: string) => {
+    const item = patrimonioItems.find(i => i.id === id);
+    if (item) {
+      setScannedItemDetail(item);
+      setTempConservationStatus(item.status || 'BOM');
+      setTempObservation(item.observation || '');
+    } else {
+      alert("QR Code inválido ou ativo patrimonial não cadastrado.");
+    }
+  };
+
+  const handleUpdateScannedItemQty = (diff: number) => {
+    if (!scannedItemDetail) return;
+    const nextQty = Math.max(0, scannedItemDetail.quantity + diff);
+    setScannedItemDetail({
+      ...scannedItemDetail,
+      quantity: nextQty
+    });
+    const updated = patrimonioItems.map(item => {
+      if (item.id === scannedItemDetail.id) {
+        return { ...item, quantity: nextQty };
+      }
+      return item;
+    });
+    setPatrimonioItems(updated);
+    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+  };
+
+  const handleSaveConservationStatus = () => {
+    if (!scannedItemDetail) return;
+    const updated = patrimonioItems.map(item => {
+      if (item.id === scannedItemDetail.id) {
+        return {
+          ...item,
+          status: tempConservationStatus,
+          observation: tempObservation,
+          lastUpdated: Date.now(),
+          updatedBy: currentUser?.name || 'Administrador'
+        };
+      }
+      return item;
+    });
+    setPatrimonioItems(updated);
+    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+    alert("Ficha de Estado de Conservação gravada com sucesso!");
+    setScannerModalOpen(false);
+    setScannedItemDetail(null);
+  };
+
+  const handleAddLoan = (loan: any) => {
+    const updated = [...patLoans, { id: 'loan_' + Date.now(), ...loan, status: 'Retirado' }];
+    setPatLoans(updated);
+    localStorage.setItem('admin_pat_loans', JSON.stringify(updated));
+  };
+
+  const handleReturnLoan = (id: string) => {
+    const updated = patLoans.filter(l => l.id !== id);
+    setPatLoans(updated);
+    localStorage.setItem('admin_pat_loans', JSON.stringify(updated));
+  };
+
+  const handleCreateTicket = () => {
+    if (!newTicketTitle.trim() || !newTicketDesc.trim()) return;
+    const ticketNo = 'TI-00' + (techTickets.length + 12);
+    const newTk: TechTicket = {
+      id: 'tk_' + Date.now(),
+      number: ticketNo,
+      senderName: currentUser?.name || 'Voluntário da Casa',
+      senderEmail: currentUser?.email || 'contato@mirante.org',
+      title: newTicketTitle,
+      description: newTicketDesc,
+      priority: newTicketPriority,
+      status: 'ABERTO',
+      createdAt: Date.now()
+    };
+    const updated = [newTk, ...techTickets];
+    setTechTickets(updated);
+    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+    setNewTicketTitle('');
+    setNewTicketDesc('');
+  };
+
+  const handleStartTicketAtendimento = (id: string) => {
+    const updated = techTickets.map(tk => {
+      if (tk.id === id) {
+        return { ...tk, status: 'ATENDIMENTO' as TicketStatus, technicianName: currentUser?.name || 'Administrador' };
+      }
+      return tk;
+    });
+    setTechTickets(updated);
+    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+  };
+
+  const handleCloseTicket = (id: string) => {
+    const updated = techTickets.map(tk => {
+      if (tk.id === id) {
+        return { ...tk, status: 'CONCLUIDO' as TicketStatus, completedAt: Date.now(), technicianName: tk.technicianName || currentUser?.name || 'Administrador' };
+      }
+      return tk;
+    });
+    setTechTickets(updated);
+    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+  };
+
+  const handleDeleteTicket = (id: string) => {
+    const updated = techTickets.filter(tk => tk.id !== id);
+    setTechTickets(updated);
+    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+  };
+
+  const handleCreateObra = () => {
+    if (!newObraName.trim()) return;
+    const newOb: ConstructionProject = {
+      id: 'ob_' + Date.now(),
+      name: newObraName,
+      location: newObraLocation || 'Sede Geral',
+      status: 'EM_ANDAMENTO',
+      budgetPlanned: Number(newObraBudget) || 12000,
+      budgetActual: 0,
+      startDate: new Date().toISOString().split('T')[0],
+      estimatedEndDate: '2026-09-30',
+      percentage: 15,
+      coordinator: currentUser?.name || 'Pedro Rezende',
+      stages: [
+        { name: 'Cotação de materiais e autorização interna', status: 'CONCLUIDO', duration: '4 dias', responsible: 'Coordenação Administrativa' },
+        { name: 'Contratação e início dos serviços de campo', status: 'EM_ANDAMENTO', duration: '14 dias', responsible: 'Mestre da Obra' },
+        { name: 'Auditoria de entrega e conformidade civil', status: 'PLANEJADO', duration: '3 dias', responsible: 'Engenheiro Responsável' }
+      ]
+    };
+    const updated = [...obraProjects, newOb];
+    setObraProjects(updated);
+    localStorage.setItem('admin_obra_projects', JSON.stringify(updated));
+    setNewObraName('');
+    setNewObraLocation('');
+    setNewObraBudget('');
+  };
+
+  const handleToggleStageStatus = (projId: string, stageIndex: number) => {
+    const updated: ConstructionProject[] = obraProjects.map(ob => {
+      if (ob.id === projId) {
+        const nextStages = ob.stages.map((st, sidx) => {
+          if (sidx === stageIndex) {
+            const nextStatus: 'PLANEJADO' | 'EM_ANDAMENTO' | 'CONCLUIDO' = st.status === 'PLANEJADO' ? 'EM_ANDAMENTO' : st.status === 'EM_ANDAMENTO' ? 'CONCLUIDO' : 'PLANEJADO';
+            return { ...st, status: nextStatus };
+          }
+          return st;
+        });
+        
+        // Auto-calculate percentage based on completed stages
+        const doneStages = nextStages.filter(s => s.status === 'CONCLUIDO').length;
+        const calcPercent = Math.round((doneStages / nextStages.length) * 100);
+
+        return { ...ob, stages: nextStages, percentage: calcPercent };
+      }
+      return ob;
+    });
+    setObraProjects(updated);
+    localStorage.setItem('admin_obra_projects', JSON.stringify(updated));
+  };
+  
+  const handleUpdateObraBudget = (id: string, addedSpend: number) => {
+    const updated = obraProjects.map(ob => {
+      if (ob.id === id) {
+        return { ...ob, budgetActual: ob.budgetActual + addedSpend };
+      }
+      return ob;
+    });
+    setObraProjects(updated);
+    localStorage.setItem('admin_obra_projects', JSON.stringify(updated));
+  };
+
+  const handleRegisterVisitor = () => {
+    if (!newVisitorName.trim()) return;
+    const newV: VisitorLog = {
+      id: 'v_' + Date.now(),
+      name: newVisitorName,
+      phone: newVisitorPhone || '(11) 90000-0000',
+      purpose: newVisitorPurpose || 'Atendimento Fraterno',
+      checkInTime: Date.now()
+    };
+    const updated = [newV, ...visitorLogs];
+    setVisitorLogs(updated);
+    localStorage.setItem('admin_visitor_logs', JSON.stringify(updated));
+    setNewVisitorName('');
+    setNewVisitorPhone('');
+    setNewVisitorPurpose('');
+  };
+
+  const handleCheckOutVisitor = (id: string) => {
+    const updated = visitorLogs.map(v => {
+      if (v.id === id) {
+        return { ...v, checkOutTime: Date.now() };
+      }
+      return v;
+    });
+    setVisitorLogs(updated);
+    localStorage.setItem('admin_visitor_logs', JSON.stringify(updated));
+  };
+
+  const handleUpdateChecklistStatus = (id: string, newStatus: 'LIMPO' | 'ATENCAO' | 'PENDENTE', obs?: string) => {
+    const updated = cleaningChecklists.map(cl => {
+      if (cl.id === id) {
+        return {
+          ...cl,
+          status: newStatus,
+          responsibleName: currentUser?.name || 'Voluntário da Casa',
+          lastCleanedAt: Date.now(),
+          observations: obs !== undefined ? obs : cl.observations
+        };
+      }
+      return cl;
+    });
+    setCleaningChecklists(updated);
+    localStorage.setItem('admin_cleaning_checklists', JSON.stringify(updated));
   };
 
   const initializeDefaultTransactions = () => {
@@ -488,6 +1062,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     setNewTxCustomStatus(t.status || (t.type === 'ENTRADA' ? 'Recebido' : 'Pago'));
     setNewTxAccountType(t.accountType || 'Luz');
     setNewTxPaymentMethod(t.paymentMethod || 'Pix');
+    setNewTxReceiptBase64(t.receiptBase64 || '');
+    setNewTxReceiptName(t.receiptName || '');
     
     const estVal = t.amountEstimated !== undefined ? t.amountEstimated : t.amount;
     const realVal = t.amountRealized !== undefined ? t.amountRealized : t.amount;
@@ -507,6 +1083,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     setNewTxAmount('');
     setNewTxAmountEst('');
     setNewTxAmountReal('');
+    setNewTxReceiptBase64('');
+    setNewTxReceiptName('');
     setNewTxCustomStatus(newTxType === 'ENTRADA' ? 'Recebido' : 'Pago');
   };
 
@@ -545,7 +1123,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
             amountRealized: valReal,
             status: newTxCustomStatus,
             accountType: newTxType === 'SAÍDA' ? newTxAccountType : undefined,
-            paymentMethod: newTxType === 'SAÍDA' ? newTxPaymentMethod : undefined
+            paymentMethod: newTxType === 'SAÍDA' ? newTxPaymentMethod : undefined,
+            receiptBase64: newTxReceiptBase64 || t.receiptBase64,
+            receiptName: newTxReceiptName || t.receiptName
           };
         }
         return t;
@@ -566,7 +1146,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
         amountRealized: valReal,
         status: newTxCustomStatus,
         accountType: newTxType === 'SAÍDA' ? newTxAccountType : undefined,
-        paymentMethod: newTxType === 'SAÍDA' ? newTxPaymentMethod : undefined
+        paymentMethod: newTxType === 'SAÍDA' ? newTxPaymentMethod : undefined,
+        receiptBase64: newTxReceiptBase64 || undefined,
+        receiptName: newTxReceiptName || undefined
       };
 
       const updated = [tx, ...transactions];
@@ -580,6 +1162,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     setNewTxAmount('');
     setNewTxAmountEst('');
     setNewTxAmountReal('');
+    setNewTxReceiptBase64('');
+    setNewTxReceiptName('');
   };
 
   const handleDeleteTransaction = (id: string) => {
@@ -1270,6 +1854,752 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     .filter(t => t.type === 'SAÍDA' && (t.status?.toLowerCase() === 'pago' || !t.status) && (t.accountType === 'Outros' || t.accountType?.toLowerCase() === 'outros'))
     .reduce((acc, t) => acc + (t.amountRealized !== undefined ? t.amountRealized : t.amount), 0);
 
+  // --- SUB-SECTOR ADVANCED METRICS ---
+  const subSectorKey = sector?.name?.trim() || sectorName || "";
+  const isPatrimonio = subSectorKey.includes("Patrimônio") || subSectorKey.includes("Material");
+  const isTecnologia = subSectorKey.includes("Tecnologia") || subSectorKey.includes("Informática");
+  const isObras = subSectorKey.includes("Obras") || subSectorKey.includes("Reformas") || subSectorKey.includes("Construção");
+  const isLimpeza = subSectorKey.includes("Recepção") || subSectorKey.includes("Limpeza") || subSectorKey.includes("Zelo");
+  const isAdvancedSubSector = isAdministrativo && adminTab.startsWith('sub-') && (isPatrimonio || isTecnologia || isObras || isLimpeza);
+
+  // --- SUB-SECTOR DASHBOARD WORKSPACE BUILDERS ---
+  const renderPatrimonioDashboard = () => {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500">
+        {/* Left Column: Inventory Items */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-50 pb-6">
+              <div className="text-left">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2 italic">
+                  <Package className="text-indigo-600" size={22} />
+                  Inventário e Controle de Ativos
+                </h3>
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Materiais de consumo e patrimônio físico</p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleStartScanner()}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-indigo-150 active:scale-95"
+                >
+                  <QrCode size={13} />
+                  Escanear Ativo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintAllQRCodes}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-slate-150 active:scale-95"
+                  title="Gerar cartela com todas as etiquetas de QR Code prontas para imprimir"
+                >
+                  <Printer size={13} />
+                  Imprimir Lote de QRs
+                </button>
+
+                <span className="text-xs font-bold text-gray-400 ml-2">Filtrar:</span>
+                <select
+                  value={patrimonioCategory}
+                  onChange={(e) => setPatrimonioCategory(e.target.value)}
+                  className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-black text-gray-700 focus:outline-none"
+                >
+                  <option value="ALL">Todos os Tipos</option>
+                  <option value="ELETRONICOS">Eletrônicos & Som</option>
+                  <option value="MOBILIARIO">Mobiliário</option>
+                  <option value="LIVRARIA">Livraria</option>
+                  <option value="LIMPEZA">Limpeza</option>
+                </select>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+              {patrimonioItems
+                .filter(item => patrimonioCategory === 'ALL' || item.category === patrimonioCategory)
+                .map((item) => {
+                  const isLow = item.quantity <= item.minQuantity;
+                  return (
+                    <div key={item.id} className="p-5 bg-gray-50 rounded-2xl border border-gray-100/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-all">
+                      <div className="space-y-1 text-left">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "w-2.5 h-2.5 rounded-full",
+                            item.status === 'BOM' ? 'bg-emerald-500' : item.status === 'EM_FALTA' ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
+                          )} />
+                          <h4 className="font-extrabold text-gray-900 text-sm">{item.name}</h4>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                          <span>Categoria: {item.category}</span>
+                          <span>•</span>
+                          <span>Local: {item.location}</span>
+                          <span>•</span>
+                          <span className={cn(isLow ? "text-amber-600 font-black animate-pulse" : "")}>Estoque Mínimo: {item.minQuantity} {item.unit}</span>
+                        </div>
+                      </div>
+
+                      {/* Controls */}
+                      <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                        <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-2 py-1">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePatQuantity(item.id, -1)}
+                            className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="font-mono text-xs font-black text-gray-900 w-8 text-center bg-gray-50 rounded py-0.5">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePatQuantity(item.id, 1)}
+                            className="p-1 text-gray-400 hover:text-emerald-500 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                        
+                        {/* Qr Code Generator label */}
+                        <button
+                          type="button"
+                          onClick={() => handleShowItemQRCode(item)}
+                          className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer flex items-center justify-center border border-indigo-100"
+                          title="Gerar etiqueta QR Code"
+                        >
+                          <QrCode size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePatrimonio(item.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const name = fd.get('pName') as string;
+                const cat = fd.get('pCat') as string;
+                const qty = Number(fd.get('pQty') || 1);
+                const minQty = Number(fd.get('pMin') || 1);
+                const loc = fd.get('pLoc') as string;
+                if (!name) return;
+                handleAddPatrimonio({ name, category: cat, quantity: qty, minQuantity: minQty, unit: 'unidade(s)', location: loc, status: qty === 0 ? 'EM_FALTA' : 'BOM' });
+                e.currentTarget.reset();
+              }}
+              className="mt-6 p-6 bg-indigo-50/35 rounded-3xl border border-indigo-100/50 grid grid-cols-1 sm:grid-cols-2 gap-4 text-left font-sans"
+            >
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome da Peça / Ativo</label>
+                <input required name="pName" placeholder="Ex: Microfone Sem Fio Shure" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Categoria</label>
+                <select name="pCat" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none">
+                  <option value="ELETRONICOS">Eletrônicos & Som</option>
+                  <option value="MOBILIARIO">Mobiliário</option>
+                  <option value="LIVRARIA">Livraria & Doutrinários</option>
+                  <option value="LIMPEZA">Produtos de Limpeza</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Localização Física</label>
+                <input name="pLoc" placeholder="Ex: Salão de Doutrinária" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Estoque Atual</label>
+                <input required name="pQty" type="number" defaultValue="1" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Quantidade Mínima</label>
+                <input required name="pMin" type="number" defaultValue="1" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+              </div>
+              <button type="submit" className="sm:col-span-2 w-full mt-2 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 transition-colors cursor-pointer">
+                Catalogar Ativo
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Right Column: Loans / Borrow Tracker */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+            <div className="text-left">
+              <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                <Users size={18} className="text-amber-600" />
+                Controle de Retiradas (Empréstimos)
+              </h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Materiais retirados para uso temporário</p>
+            </div>
+
+            <div className="space-y-3">
+              {patLoans.length > 0 ? (
+                patLoans.map((loan) => (
+                  <div key={loan.id} className="p-4 bg-amber-50/40 border border-amber-100/50 rounded-2xl text-left space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <h4 className="text-xs font-black text-amber-900">{loan.itemName}</h4>
+                      <button
+                        onClick={() => handleReturnLoan(loan.id)}
+                        className="text-[9px] font-black uppercase text-amber-700 hover:text-white hover:bg-amber-600 px-2 py-1 border border-amber-300 rounded-lg transition-all cursor-pointer"
+                      >
+                        Devolver
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-gray-500 font-semibold space-y-1">
+                      <p>Retirado por: <strong>{loan.borrowerName}</strong></p>
+                      <p>Data: {loan.loanDate}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-6 text-center text-gray-300 italic text-xs">Nenhum empréstimo ativo registrado.</div>
+              )}
+            </div>
+
+            {/* Quick Loan Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const itemName = fd.get('lItem') as string;
+                const borrowerName = fd.get('lName') as string;
+                if (!itemName || !borrowerName) return;
+                handleAddLoan({ itemName, borrowerName, loanDate: new Date().toLocaleDateString('pt-BR') });
+                e.currentTarget.reset();
+              }}
+              className="p-5 bg-gray-50 rounded-3xl border border-gray-100 space-y-4 text-left font-sans"
+            >
+              <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 italic">Registrar Nova Retirada</h4>
+              <div>
+                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Item Retirado</label>
+                <input required name="lItem" placeholder="Ex: Notebook Dell" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Nome do Responsável / Voluntário</label>
+                <input required name="lName" placeholder="Ex: Eduardo Santos" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+              </div>
+              <button type="submit" className="w-full py-2 bg-gray-950 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-colors cursor-pointer">
+                Autorizar Retirada
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTecnologiaDashboard = () => {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500">
+        {/* Left Column: Form Helpdesk */}
+        <div className="lg:col-span-5 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm text-left space-y-6">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                <MessageSquare className="text-indigo-600" size={22} />
+                Abertura de Chamado
+              </h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Solicitar suporte de TI para a casa espírita</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Assunto / Título do Problema</label>
+                <input
+                  value={newTicketTitle}
+                  onChange={(e) => setNewTicketTitle(e.target.value)}
+                  placeholder="Ex: Wi-Fi desconectando no Auditório"
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all font-sans"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Descrição Detalhada do Incidente</label>
+                <textarea
+                  value={newTicketDesc}
+                  onChange={(e) => setNewTicketDesc(e.target.value)}
+                  placeholder="Descreva em poucas palavras o problema, as luzes indicadoras do aparelho, ou o comportamento observado..."
+                  rows={4}
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all font-sans"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nível de Urgência</label>
+                <div className="grid grid-cols-3 gap-2 mt-1 font-sans">
+                  {(['BAIXA', 'MEDIA', 'ALTA'] as const).map((pr) => (
+                    <button
+                      type="button"
+                      key={pr}
+                      onClick={() => setNewTicketPriority(pr)}
+                      className={cn(
+                        "py-2 border text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer",
+                        newTicketPriority === pr
+                          ? (pr === 'ALTA' ? "bg-red-500 border-transparent text-white shadow-lg shadow-red-500/10 hover:bg-red-600" : pr === 'MEDIA' ? "bg-amber-500 border-transparent text-white shadow-lg shadow-amber-500/10 hover:bg-amber-600" : "bg-gray-700 border-transparent text-white hover:bg-gray-800")
+                          : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50"
+                      )}
+                    >
+                      {pr}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCreateTicket}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 active:scale-98 transition-all shadow-lg cursor-pointer"
+              >
+                Abrir Solicitação
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Active Tickets */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+            <div className="flex justify-between items-center border-b border-gray-50 pb-6 text-left">
+              <div>
+                <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                  <Cpu className="text-purple-600" size={22} />
+                  Fila de Chamados Ativos
+                </h3>
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Controle operacional de infraestrutura log-TI</p>
+              </div>
+              <select
+                value={ticketStatusFilter}
+                onChange={(e) => setTicketStatusFilter(e.target.value)}
+                className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-black text-gray-700 focus:outline-none"
+              >
+                <option value="ALL">Todos</option>
+                <option value="ABERTO">Abertos</option>
+                <option value="ATENDIMENTO">Em Atendimento</option>
+                <option value="CONCLUIDO">Resolvidos</option>
+              </select>
+            </div>
+
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 text-left">
+              {techTickets
+                .filter(tk => ticketStatusFilter === 'ALL' || tk.status === ticketStatusFilter)
+                .map((tk) => (
+                  <div key={tk.id} className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col gap-4 font-sans">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+                            {tk.number}
+                          </span>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white shadow-sm",
+                            tk.priority === 'ALTA' ? 'bg-red-500 shadow-red-200' : tk.priority === 'MEDIA' ? 'bg-amber-500 shadow-amber-200' : 'bg-gray-500 shadow-gray-200'
+                          )}>
+                            {tk.priority}
+                          </span>
+                        </div>
+                        <h4 className="font-extrabold text-gray-900 text-sm mt-1">{tk.title}</h4>
+                        <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{tk.description}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {tk.status === 'ABERTO' && (
+                          <span className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" title="Chamado pendente" />
+                        )}
+                        {tk.status === 'ATENDIMENTO' && (
+                          <span className="w-3 h-3 rounded-full bg-amber-500 animate-spin" title="Atendimento iniciado" />
+                        )}
+                        {tk.status === 'CONCLUIDO' && (
+                          <span className="w-3 h-3 rounded-full bg-emerald-500" title="Chamado concluído" />
+                        )}
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          {tk.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-t border-gray-100 pt-4 flex-wrap text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                      <div>
+                        <span>Aberto por: <strong>{tk.senderName}</strong></span>
+                        {tk.technicianName && <span className="ml-3 text-indigo-600">• Técnico: {tk.technicianName}</span>}
+                      </div>
+
+                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                        {tk.status === 'ABERTO' && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartTicketAtendimento(tk.id)}
+                            className="px-4 py-2 bg-purple-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-purple-700 transition-colors cursor-pointer"
+                          >
+                            Assumir Chamado
+                          </button>
+                        )}
+                        {tk.status === 'ATENDIMENTO' && (
+                          <button
+                            type="button"
+                            onClick={() => handleCloseTicket(tk.id)}
+                            className="px-4 py-2 bg-emerald-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-colors cursor-pointer"
+                          >
+                            Marcar Resolvido
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTicket(tk.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderObrasDashboard = () => {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500">
+        {/* Left Column: Projects timeline */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+            <div className="border-b border-gray-50 pb-6 text-left">
+              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                <Wrench className="text-indigo-600" size={22} />
+                Gestão e Expansores de Infraestrutura Física
+              </h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Construções, reformas e adequação civil estrutural</p>
+            </div>
+
+            <div className="space-y-8 text-left">
+              {obraProjects.length > 0 ? (
+                obraProjects.map((ob) => (
+                  <div key={ob.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 space-y-6 font-sans">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-black uppercase tracking-widest border border-indigo-150">
+                          {ob.location}
+                        </span>
+                        <h4 className="font-extrabold text-gray-950 text-lg mt-2 leading-none">{ob.name}</h4>
+                        {ob.notes && <p className="text-xs text-gray-500 mt-2 font-medium leading-relaxed">{ob.notes}</p>}
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#a8a29e]">Prazo Estimado</span>
+                        <span className="text-xs font-black text-indigo-900 mt-1">{ob.estimatedEndDate}</span>
+                      </div>
+                    </div>
+
+                    {/* Progress slider */}
+                    <div className="space-y-2 col-span-2">
+                      <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider">
+                        <span className="text-gray-400">Progresso Geral</span>
+                        <span className="text-indigo-600">{ob.percentage}% Concluído</span>
+                      </div>
+                      <div className="w-full bg-gray-200/60 h-3 rounded-full overflow-hidden relative">
+                        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full rounded-full transition-all duration-700" style={{ width: `${ob.percentage}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Financial Gauge */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200/50">
+                      <div className="p-4 bg-white border border-gray-150 rounded-2xl flex justify-between items-center shadow-inner">
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-[#a8a29e]">Orçamento Planejado</p>
+                          <p className="font-extrabold text-gray-700 text-sm mt-1">R$ {ob.budgetPlanned.toLocaleString('pt-BR')}</p>
+                        </div>
+                        <Coins className="text-gray-300" size={24} />
+                      </div>
+                      <div className={cn(
+                        "p-4 border rounded-2xl flex justify-between items-center shadow-inner",
+                        ob.budgetActual > ob.budgetPlanned ? "bg-red-50 border-red-100" : "bg-white border-gray-150"
+                      )}>
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-[#a8a29e]">Despesa Executada</p>
+                          <p className={cn("font-black text-sm mt-1", ob.budgetActual > ob.budgetPlanned ? "text-red-600" : "text-emerald-600")}>
+                            R$ {ob.budgetActual.toLocaleString('pt-BR')}
+                          </p>
+                        </div>
+                        <DollarSign className={cn(ob.budgetActual > ob.budgetPlanned ? "text-red-300 animate-bounce" : "text-emerald-300")} size={24} />
+                      </div>
+                    </div>
+
+                    {/* Stages list */}
+                    <div className="space-y-3">
+                      <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Etapas do Planejamento</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {ob.stages.map((st, sidx) => (
+                          <div 
+                            key={sidx}
+                            onClick={() => handleToggleStageStatus(ob.id, sidx)}
+                            className={cn(
+                              "p-4 rounded-2xl border transition-all cursor-pointer select-none text-left relative overflow-hidden group/stage",
+                              st.status === 'CONCLUIDO' 
+                                ? "bg-emerald-50/40 border-emerald-100 text-emerald-950" 
+                                : st.status === 'EM_ANDAMENTO' 
+                                  ? "bg-amber-50/40 border-amber-100 text-amber-950" 
+                                  : "bg-white border-gray-150 text-gray-400 hover:border-indigo-200"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              {st.status === 'CONCLUIDO' ? (
+                                <CheckCircle2 size={14} className="text-emerald-600" />
+                              ) : st.status === 'EM_ANDAMENTO' ? (
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                              ) : (
+                                <span className="w-2.5 h-2.5 rounded-full bg-gray-200 border border-gray-300" />
+                              )}
+                              <span className="font-extrabold text-[11px] leading-tight truncate">{st.name}</span>
+                            </div>
+                            <div className="mt-2 text-[9px] font-bold uppercase tracking-wider text-gray-400 flex justify-between">
+                              <span>Prazo: {st.duration}</span>
+                              <span className="italic">@{st.responsible.split(' ')[0]}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Add cost input directly */}
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const val = Number(new FormData(e.currentTarget).get('addedVal'));
+                        if (!val) return;
+                        handleUpdateObraBudget(ob.id, val);
+                        e.currentTarget.reset();
+                      }}
+                      className="p-4 bg-white border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm"
+                    >
+                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Lançar Nova Fatura / Nota Técnica:</span>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <input name="addedVal" type="number" required placeholder="Valor R$ (Ex: 850)" className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none w-full sm:w-36" />
+                        <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-colors shrink-0 cursor-pointer">
+                          Confirmar Gasto
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ))
+              ) : (
+                <div className="p-10 text-center text-gray-300 italic text-xs">Nenhum projeto de reforma em andamento.</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Register construction */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm text-left space-y-6">
+            <div>
+              <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                <Plus size={20} className="text-indigo-600" />
+                Novo Projeto Estrutural
+              </h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Registrar uma nova obra para controle administrativo</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Identificador / Nome da Obra</label>
+                <input
+                  value={newObraName}
+                  onChange={(e) => setNewObraName(e.target.value)}
+                  placeholder="Ex: Reforma da Calçada Externa"
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none font-sans"
+                />
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Localização Física / Anexo</label>
+                <input
+                  value={newObraLocation}
+                  onChange={(e) => setNewObraLocation(e.target.value)}
+                  placeholder="Ex: Anexo B (Entrada Externa)"
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none font-sans"
+                />
+              </div>
+              <div>
+                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Orçamento Estimado (R$)</label>
+                <input
+                  value={newObraBudget}
+                  onChange={(e) => setNewObraBudget(e.target.value)}
+                  placeholder="Ex: 5000"
+                  type="number"
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none font-sans"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleCreateObra}
+                className="w-full py-3 bg-gray-950 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-colors cursor-pointer"
+              >
+                Lançar Projeto
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderLimpezaDashboard = () => {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500">
+        {/* Left Column: Visitor Registry */}
+        <div className="lg:col-span-6 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+            <div className="border-b border-gray-50 pb-6 text-left">
+              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                <Users className="text-indigo-600" size={22} />
+                Controle de Visitas e Recepção
+              </h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Registro de Acolhimento e Acesso ao Prédio</p>
+            </div>
+
+            {/* Registry Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left font-sans">
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome do Irmão / Visitante</label>
+                <input
+                  value={newVisitorName}
+                  onChange={(e) => setNewVisitorName(e.target.value)}
+                  placeholder="Ex: Amanda Ferreira Silva"
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Telefone</label>
+                <input
+                  value={newVisitorPhone}
+                  onChange={(e) => setNewVisitorPhone(e.target.value)}
+                  placeholder="Ex: (11) 98765-4321"
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Finalidade do Acesso / Encaminhamento</label>
+                <input
+                  value={newVisitorPurpose}
+                  onChange={(e) => setNewVisitorPurpose(e.target.value)}
+                  placeholder="Ex: Assistência Sopa / Atendimento Fraterno"
+                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleRegisterVisitor}
+                className="sm:col-span-3 w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 transition-colors cursor-pointer"
+              >
+                Registrar Entrada de Visitante
+              </button>
+            </div>
+
+            {/* Visitors list */}
+            <div className="space-y-3 pt-4 border-t border-gray-50 text-left font-sans">
+              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic">Fluxo de Visitantes Hoje</h4>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                {visitorLogs.map((vl) => (
+                  <div key={vl.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex justify-between items-center gap-4 hover:bg-gray-100/40 transition-all font-sans">
+                    <div>
+                      <h5 className="font-extrabold text-sm text-gray-950 leading-none">{vl.name}</h5>
+                      <span className="inline-flex text-[9px] text-[#78716c] font-black uppercase tracking-wider mt-1">{vl.purpose} • {vl.phone}</span>
+                      <p className="text-[9px] text-gray-400 mt-1">
+                        Chegada: {new Date(vl.checkInTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        {vl.checkOutTime && ` • Saída: ${new Date(vl.checkOutTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+                      </p>
+                    </div>
+
+                    {!vl.checkOutTime ? (
+                      <button
+                        onClick={() => handleCheckOutVisitor(vl.id)}
+                        className="p-2.5 bg-gray-950 hover:bg-red-600 hover:scale-105 transition-all text-white rounded-xl font-black text-[9px] uppercase tracking-widest cursor-pointer whitespace-nowrap"
+                      >
+                        Registrar Saída (Check-out)
+                      </button>
+                    ) : (
+                      <span className="px-3 py-1 bg-gray-200 text-gray-400 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                        Saída Concluída
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Checklists */}
+        <div className="lg:col-span-6 space-y-6">
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+            <div className="border-b border-gray-50 pb-6 text-left">
+              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                <CheckCircle2 className="text-emerald-600" size={22} />
+                Zelo de Ambientes (Limpeza e Conservação)
+              </h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Checklists e Ocorrências Prediais</p>
+            </div>
+
+            <div className="space-y-4 text-left">
+              {cleaningChecklists.map((cl) => (
+                <div key={cl.id} className="p-5 bg-gray-50 border border-gray-150 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-all font-sans">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        "w-2.5 h-2.5 rounded-full",
+                        cl.status === 'LIMPO' ? "bg-emerald-500" : cl.status === 'ATENCAO' ? "bg-amber-500 animate-pulse" : "bg-red-500 animate-pulse"
+                      )} />
+                      <h4 className="font-extrabold text-sm text-gray-950 leading-none">{cl.roomName}</h4>
+                    </div>
+                    {cl.observations && (
+                      <p className="text-xs text-amber-900 bg-amber-50 border border-amber-150 px-3 py-1.5 rounded-xl font-medium mt-2 leading-relaxed font-sans">
+                        ⚠️ Alerta: {cl.observations}
+                      </p>
+                    )}
+                    <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider !mt-2 font-sans">
+                      Última Inspeção por: <strong>{cl.responsibleName}</strong> • {new Date(cl.lastCleanedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end flex-wrap">
+                    {cl.status !== 'LIMPO' ? (
+                      <button
+                        onClick={() => handleUpdateChecklistStatus(cl.id, 'LIMPO', '')}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-all shadow-md cursor-pointer"
+                      >
+                        Marcar como Limpo / Resolvido
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const obs = prompt("Informe a ocorrência ou falta de materiais observada na sala:");
+                          if (obs !== null) {
+                            handleUpdateChecklistStatus(cl.id, 'ATENCAO', obs);
+                          }
+                        }}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-all shadow-md cursor-pointer font-sans"
+                      >
+                        Sinalizar Alerta / Falta
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-12 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Dynamic Hero Section */}
@@ -1281,7 +2611,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
         <div className="relative z-10 max-w-2xl space-y-6">
           <div className="inline-flex items-center gap-3 px-4 py-2 bg-white/10 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] border border-white/10">
             <Sparkles size={14} className="text-indigo-300" />
-            <span>Simulador de Setor: {formatSectorName(sectorName)}</span>
+            <span>Simulador de Setor: {formatSectorName(sector?.name || sectorName)}</span>
           </div>
           
           <h1 className="text-4xl md:text-6xl font-black italic tracking-tighter leading-none">
@@ -1289,7 +2619,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
           </h1>
           
           <p className="text-lg text-indigo-100 font-medium max-w-xl">
-            {getSectorDescription(sectorName)}
+            {getSectorDescription(sector?.name || sectorName)}
           </p>
 
           <div className="flex flex-wrap gap-4 pt-4">
@@ -1312,11 +2642,14 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
 
       {/* Conditionally add custom tabs for administrativ sector */}
       {isAdministrativo && (
-        <div className="flex flex-wrap p-2 bg-gray-100 rounded-3xl max-w-2xl gap-2 font-bold text-sm">
+        <div className="flex overflow-x-auto md:flex-wrap p-2 bg-gray-100 rounded-3xl w-full gap-2 font-bold text-sm scrollbar-none">
           <button
-            onClick={() => setAdminTab('overview')}
+            onClick={() => {
+              setAdminTab('overview');
+              setCurrentViewSectorId(sectorId);
+            }}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
+              "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
               adminTab === 'overview'
                 ? "bg-white text-indigo-600 shadow-md"
                 : "text-gray-500 hover:text-gray-900"
@@ -1328,9 +2661,12 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
           
           {isAdmin && (
             <button
-              onClick={() => setAdminTab('finance')}
+              onClick={() => {
+                setAdminTab('finance');
+                setCurrentViewSectorId(sectorId);
+              }}
               className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
+                "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
                 adminTab === 'finance'
                   ? "bg-white text-indigo-600 shadow-md"
                   : "text-gray-500 hover:text-gray-900"
@@ -1342,9 +2678,12 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
           )}
 
           <button
-            onClick={() => setAdminTab('pos_bazar')}
+            onClick={() => {
+              setAdminTab('pos_bazar');
+              setCurrentViewSectorId(sectorId);
+            }}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
+              "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
               adminTab === 'pos_bazar'
                 ? "bg-white text-indigo-600 shadow-md"
                 : "text-gray-500 hover:text-gray-900"
@@ -1353,12 +2692,53 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
             <Store size={16} />
             <span>Livraria, Cantina & Bazar</span>
           </button>
+
+          {/* Dynamic sub-sectors rendered as tabs inside the Administrative view */}
+          {subSectors.map((sub) => {
+            const SubIcon = getSubSectorIcon(sub.name);
+            const active = adminTab === `sub-${sub.id}`;
+            return (
+              <div
+                key={sub.id}
+                className={cn(
+                  "flex-shrink-0 flex items-center rounded-2xl transition-all border",
+                  active
+                    ? "bg-white border-transparent shadow-md"
+                    : "bg-transparent border-transparent hover:bg-gray-200"
+                )}
+              >
+                <button
+                  onClick={() => {
+                    setAdminTab(`sub-${sub.id}`);
+                    setCurrentViewSectorId(sub.id);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 py-4 pl-5 pr-2 rounded-l-2xl font-black text-xs uppercase tracking-widest transition-colors cursor-pointer",
+                    active ? "text-indigo-600" : "text-gray-500 hover:text-gray-900"
+                  )}
+                >
+                  <SubIcon size={16} />
+                  <span>{sub.name}</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setInfoModalSector(sub);
+                  }}
+                  className="p-4 rounded-r-2xl hover:bg-indigo-50/50 transition-all flex items-center justify-center text-gray-400 hover:text-indigo-600 cursor-pointer border-l border-gray-100"
+                  title={`Abrir Janela de Informações de ${sub.name}`}
+                >
+                  <Eye size={14} strokeWidth={2.5} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* ANIMATED ROUTER PAGES SIMULATOR */}
       <AnimatePresence mode="wait">
-        {(!isAdministrativo || adminTab === 'overview') && (
+        {(!isAdministrativo || adminTab === 'overview' || adminTab.startsWith('sub-')) && (
           <motion.div
             key="overview-panel"
             initial={{ opacity: 0, y: 15 }}
@@ -1366,38 +2746,200 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
             exit={{ opacity: 0, y: -15 }}
             className="space-y-12"
           >
-            {/* Polish Stats matching Master Dash */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <StatCard 
-                title="Aguardando Agora" 
-                value={stats.waiting} 
-                icon={Clock} 
-                color="text-amber-600" 
-                bg="bg-amber-50" 
-                shadow="shadow-amber-500/10"
-                delay={0}
-              />
-              <StatCard 
-                title="Atendimento Ativo" 
-                value={stats.inProgress} 
-                icon={Activity} 
-                color="text-indigo-600" 
-                bg="bg-indigo-50" 
-                shadow="shadow-indigo-500/10"
-                delay={0.1}
-              />
-              <StatCard 
-                title="Concluídos Hoje" 
-                value={stats.completedToday} 
-                icon={CheckCircle2} 
-                color="text-emerald-600" 
-                bg="bg-emerald-50" 
-                shadow="shadow-emerald-500/10"
-                delay={0.2}
-              />
+            {/* Banner do Regimento Interno do Setor */}
+            <div className="bg-gradient-to-r from-indigo-900 to-purple-800 text-white rounded-[32px] p-6 sm:p-8 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group select-none border border-white/5">
+              <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full translate-x-16 -translate-y-16 group-hover:scale-125 transition-transform duration-750" />
+              <div className="space-y-2 relative z-10 text-left">
+                <span className="inline-flex items-center gap-1.5 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-indigo-300 bg-white/10 px-3 py-1 rounded-full border border-white/5">
+                  <Sparkles size={11} className="text-indigo-300" />
+                  Regimento Interno & Ficha de Trabalho
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black italic tracking-tight uppercase">
+                  {formatSectorName(sector?.name || sectorName)}
+                </h3>
+                <p className="text-xs sm:text-sm text-indigo-100 font-medium max-w-xl leading-relaxed line-clamp-2">
+                  {sector?.mission || sector?.description || "Consulte as diretrizes regulamentares da casa, fundamentação espírita, perfil do voluntário e fluxos de ingresso."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInfoModalSector(sector)}
+                className="w-full md:w-auto px-6 py-4 bg-white text-indigo-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-50 hover:scale-103 transition-all shadow-lg active:scale-97 shrink-0 relative z-10 cursor-pointer flex items-center justify-center gap-2 border border-transparent"
+              >
+                <Eye size={16} className="text-indigo-900" />
+                <span>Abrir Janela de Informações</span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            {/* Polish Stats matching Master Dash */}
+            {isAdvancedSubSector ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                {isPatrimonio && (
+                  <>
+                    <StatCard 
+                      title="Ativos Catalogados" 
+                      value={patrimonioItems.length} 
+                      icon={Package} 
+                      color="text-indigo-600" 
+                      bg="bg-indigo-50" 
+                      shadow="shadow-indigo-500/10"
+                      delay={0}
+                    />
+                    <StatCard 
+                      title="Alertas / Críticos" 
+                      value={patrimonioItems.filter(p => p.status === 'EM_FALTA' || p.quantity <= p.minQuantity).length} 
+                      icon={AlertTriangle} 
+                      color="text-red-600" 
+                      bg="bg-red-50" 
+                      shadow="shadow-red-500/10"
+                      delay={0.1}
+                    />
+                    <StatCard 
+                      title="Empréstimos Ativos" 
+                      value={patLoans.length} 
+                      icon={Users} 
+                      color="text-amber-600" 
+                      bg="bg-amber-50" 
+                      shadow="shadow-amber-500/10"
+                      delay={0.2}
+                    />
+                  </>
+                )}
+                {isTecnologia && (
+                  <>
+                    <StatCard 
+                      title="Chamados Abertos" 
+                      value={techTickets.filter(tk => tk.status === 'ABERTO').length} 
+                      icon={Cpu} 
+                      color="text-purple-600" 
+                      bg="bg-purple-50" 
+                      shadow="shadow-purple-500/10"
+                      delay={0}
+                    />
+                    <StatCard 
+                      title="Em Atendimento" 
+                      value={techTickets.filter(tk => tk.status === 'ATENDIMENTO').length} 
+                      icon={Activity} 
+                      color="text-amber-600" 
+                      bg="bg-amber-50" 
+                      shadow="shadow-amber-500/10"
+                      delay={0.1}
+                    />
+                    <StatCard 
+                      title="Total Solucionado" 
+                      value={techTickets.filter(tk => tk.status === 'CONCLUIDO').length} 
+                      icon={CheckCircle2} 
+                      color="text-emerald-600" 
+                      bg="bg-emerald-50" 
+                      shadow="shadow-emerald-500/10"
+                      delay={0.2}
+                    />
+                  </>
+                )}
+                {isObras && (
+                  <>
+                    <StatCard 
+                      title="Projetos de Reforma" 
+                      value={obraProjects.filter(ob => ob.status === 'EM_ANDAMENTO').length} 
+                      icon={Wrench} 
+                      color="text-indigo-600" 
+                      bg="bg-indigo-50" 
+                      shadow="shadow-indigo-500/10"
+                      delay={0}
+                    />
+                    <StatCard 
+                      title="Custo Acumulado" 
+                      value={`R$ ${obraProjects.reduce((acc, ob) => acc + ob.budgetActual, 0).toLocaleString('pt-BR')}`} 
+                      icon={DollarSign} 
+                      color="text-emerald-600" 
+                      bg="bg-emerald-50" 
+                      shadow="shadow-emerald-500/10"
+                      delay={0.1}
+                    />
+                    <StatCard 
+                      title="Média de Conclusão" 
+                      value={`${obraProjects.length ? Math.round(obraProjects.reduce((acc, ob) => acc + ob.percentage, 0) / obraProjects.length) : 0}%`} 
+                      icon={TrendingUp} 
+                      color="text-amber-600" 
+                      bg="bg-amber-50" 
+                      shadow="shadow-amber-500/10"
+                      delay={0.2}
+                    />
+                  </>
+                )}
+                {isLimpeza && (
+                  <>
+                    <StatCard 
+                      title="Acolhidos Hoje" 
+                      value={visitorLogs.filter(v => !v.checkOutTime).length} 
+                      icon={Users} 
+                      color="text-indigo-600" 
+                      bg="bg-indigo-50" 
+                      shadow="shadow-indigo-500/10"
+                      delay={0}
+                    />
+                    <StatCard 
+                      title="Zelo: Áreas Limpas" 
+                      value={cleaningChecklists.filter(cl => cl.status === 'LIMPO').length} 
+                      icon={CheckCircle2} 
+                      color="text-emerald-600" 
+                      bg="bg-emerald-50" 
+                      shadow="shadow-emerald-500/10"
+                      delay={0.1}
+                    />
+                    <StatCard 
+                      title="Avisos de Reposição" 
+                      value={cleaningChecklists.filter(cl => cl.status !== 'LIMPO').length} 
+                      icon={AlertTriangle} 
+                      color="text-red-600" 
+                      bg="bg-red-50" 
+                      shadow="shadow-red-500/10"
+                      delay={0.2}
+                    />
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <StatCard 
+                  title="Aguardando Agora" 
+                  value={stats.waiting} 
+                  icon={Clock} 
+                  color="text-amber-600" 
+                  bg="bg-amber-50" 
+                  shadow="shadow-amber-500/10"
+                  delay={0}
+                />
+                <StatCard 
+                  title="Atendimento Ativo" 
+                  value={stats.inProgress} 
+                  icon={Activity} 
+                  color="text-indigo-600" 
+                  bg="bg-indigo-50" 
+                  shadow="shadow-indigo-500/10"
+                  delay={0.1}
+                />
+                <StatCard 
+                  title="Concluídos Hoje" 
+                  value={stats.completedToday} 
+                  icon={CheckCircle2} 
+                  color="text-emerald-600" 
+                  bg="bg-emerald-50" 
+                  shadow="shadow-emerald-500/10"
+                  delay={0.2}
+                />
+              </div>
+            )}
+
+            {isAdvancedSubSector ? (
+              <div className="space-y-6">
+                {isPatrimonio && renderPatrimonioDashboard()}
+                {isTecnologia && renderTecnologiaDashboard()}
+                {isObras && renderObrasDashboard()}
+                {isLimpeza && renderLimpezaDashboard()}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
               {/* Main Content Area */}
               <div className="lg:col-span-8 space-y-10">
                 {/* Fila Real-time */}
@@ -1638,6 +3180,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                 </div>
               </div>
             </div>
+            )}
           </motion.div>
         )}
 
@@ -1687,6 +3230,144 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                 shadow="shadow-rose-500/10"
                 delay={0.3}
               />
+            </div>
+
+            {/* Real-time Operator Cash sessions supervisory area */}
+            <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2 italic">
+                    <Store className="text-indigo-600" size={18} />
+                    Supervisão de Caixa Diário (Cantina / Livraria / Bazar)
+                  </h3>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Acompanhamento em tempo real das sessões abertas pelos operadores de balcão e auditoria de sangria/fechamentos.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Manual reload from localStorage
+                      const cachedSession = localStorage.getItem('admin_cash_session');
+                      setTreasuryCashSession(cachedSession ? JSON.parse(cachedSession) : null);
+                      const cachedHist = localStorage.getItem('admin_closed_cash_sessions');
+                      setClosedSessionsHistory(cachedHist ? JSON.parse(cachedHist) : []);
+                      alert("Dados de operadores sincronizados com sucesso!");
+                    }}
+                    className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-650 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer"
+                  >
+                    Sincronizar Dados
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Active Cash session */}
+                <div className="lg:col-span-4 p-6 rounded-[24px] bg-slate-50 border border-slate-100/50 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase text-indigo-500 tracking-wider">Turno PDV Atual</span>
+                      {treasuryCashSession ? (
+                        <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full text-[8.5px] font-black tracking-widest uppercase animate-pulse border border-emerald-100">
+                          ● EM ANDAMENTO
+                        </span>
+                      ) : (
+                        <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[8.5px] font-black tracking-widest uppercase border border-gray-200">
+                          OFF-LINE
+                        </span>
+                      )}
+                    </div>
+
+                    {treasuryCashSession ? (
+                      <div className="space-y-3 font-sans">
+                        <div className="text-xs font-medium text-gray-850 space-y-2">
+                          <p>Operador: <strong className="text-gray-950 font-extrabold">{treasuryCashSession.openedBy || 'Carlos Alberto'}</strong></p>
+                          <p>Início: <span className="font-mono">{new Date(treasuryCashSession.openedAt).toLocaleString('pt-BR')}</span></p>
+                          <p>Fundo Inicial: <span className="font-mono text-gray-950 font-bold">R$ {parseFloat(treasuryCashSession.initialCash || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
+                        </div>
+                        <div className="pt-2 border-t border-gray-100 grid grid-cols-2 gap-2 text-[10px] font-bold text-gray-500">
+                          <div>
+                            <span className="block text-[8px] uppercase text-gray-400">Total Pix</span>
+                            <span className="text-xs font-black font-mono text-gray-905">R$ {(treasuryCashSession.pixTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[8px] uppercase text-gray-400">Total Dinheiro</span>
+                            <span className="text-xs font-black font-mono text-gray-905 font-extrabold">R$ {(treasuryCashSession.cashTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 space-y-1">
+                        <p className="text-xs text-gray-400 font-bold">Nenhum caixa ativo</p>
+                        <p className="text-[10px] text-gray-400 leading-normal">Os operadores podem abrir o caixa diário diretamente na tela de Vendas (PDV) antes de faturar pedidos.</p>
+                      </div>
+                    )}
+                  </div>
+                  {treasuryCashSession && (
+                    <div className="pt-4 border-t border-gray-150 mt-4 flex justify-between items-center text-[10px] text-gray-400 font-bold font-mono">
+                      <span>Vendas: {treasuryCashSession.transactionsCount || 0}</span>
+                      <span className="text-indigo-600">Fundo + Dinheiro: R$ {(parseFloat(treasuryCashSession.initialCash || 0) + (treasuryCashSession.cashTotal || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Closed Sessions history log list */}
+                <div className="lg:col-span-8 p-4 rounded-[24px] bg-gray-50/50 border border-gray-100 space-y-3">
+                  <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Histórico Recente de Fechamentos</span>
+                  
+                  <div className="overflow-x-auto max-h-[175px] overflow-y-auto pr-1">
+                    <table className="w-full text-left border-collapse text-[11px] font-sans">
+                      <thead>
+                        <tr className="text-gray-400 font-black uppercase border-b border-gray-100 text-[9px] tracking-wider pb-1">
+                          <th className="py-1.5 px-3">Encerramento</th>
+                          <th className="py-1.5 px-3">Operador</th>
+                          <th className="py-1.5 px-3 text-right">Esp. Caixa</th>
+                          <th className="py-1.5 px-3 text-right">Contado</th>
+                          <th className="py-1.5 px-3 text-center">Diferença</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {closedSessionsHistory.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-[11.5px] text-gray-400 font-semibold font-sans italic">
+                              Nenhuma sessão de fechamento arquivada anteriormente.
+                            </td>
+                          </tr>
+                        ) : (
+                          [...closedSessionsHistory].reverse().map((sess: any, index: number) => {
+                            const diff = sess.difference || 0;
+                            const diffColor = diff === 0 
+                              ? "text-emerald-600 bg-emerald-50" 
+                              : diff > 0 
+                                ? "text-blue-600 bg-blue-50" 
+                                : "text-rose-600 bg-rose-50";
+
+                            return (
+                              <tr key={index} className="hover:bg-white/60 transition-colors">
+                                <td className="py-2.5 px-3 font-mono text-gray-500 whitespace-nowrap">
+                                  {new Date(sess.closedAt).toLocaleDateString('pt-BR')} {new Date(sess.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                                <td className="py-2.5 px-3 font-bold text-gray-800">{sess.openedBy || 'Carlos Alberto'}</td>
+                                <td className="py-2.5 px-3 text-right font-mono text-gray-650">R$ {parseFloat(sess.finalCashExpected || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                <td className="py-2.5 px-3 text-right font-mono font-black text-gray-800">R$ {parseFloat(sess.finalCashRecorded || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                <td className="py-2.5 px-3 text-center font-mono font-bold whitespace-nowrap">
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 rounded text-[10px] font-black leading-none",
+                                    diffColor
+                                  )}>
+                                    R$ {diff.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Custom Account Type Paid Totals Panels matching spreadsheet tabs */}
@@ -1820,7 +3501,23 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                                     </div>
                                   )}
                                 </td>
-                                <td className="py-4 px-2 font-normal text-gray-550 max-w-[150px] truncate" title={t.description}>{t.description}</td>
+                                <td className="py-4 px-2 text-xs font-normal text-gray-550 max-w-[155px]" title={t.description}>
+                                  <div className="truncate font-medium text-gray-700">{t.description}</div>
+                                  {t.receiptBase64 && (
+                                    <div className="mt-1 flex">
+                                      <a
+                                        href={t.receiptBase64}
+                                        download={t.receiptName || 'comprovante.png'}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100/80 text-[8px] font-black tracking-wider uppercase transition-colors whitespace-nowrap cursor-pointer"
+                                        title={`Baixar Comprovante: ${t.receiptName}`}
+                                      >
+                                        <Paperclip size={9} />
+                                        <span>Anexo Comprovante</span>
+                                      </a>
+                                    </div>
+                                  )}
+                                </td>
                                 
                                 {/* Estimated values */}
                                 <td className="py-4 px-2 text-right font-bold text-slate-500">
@@ -2131,7 +3828,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                       </div>
 
                       {/* Descricao */}
-                      <div className="sm:col-span-4">
+                      <div className="sm:col-span-3">
                         <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Descrição dos Valores</label>
                         <input 
                           type="text" 
@@ -2140,6 +3837,60 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                           onChange={e => setNewTxDesc(e.target.value)}
                           className="w-full mt-1 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none font-bold text-[11px] text-gray-700 focus:bg-white focus:border-indigo-500 transition-all"
                         />
+                      </div>
+
+                      {/* Anexar Comprovante Digital (Receipt file upload) */}
+                      <div className="sm:col-span-3">
+                        <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider flex items-center justify-between">
+                          <span>Comprovante (PDF/Imagem)</span>
+                          {newTxReceiptName && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewTxReceiptBase64('');
+                                setNewTxReceiptName('');
+                              }}
+                              className="text-[8px] text-red-500 hover:underline uppercase font-extrabold cursor-pointer"
+                            >
+                              Remover
+                            </button>
+                          )}
+                        </label>
+                        <div className="relative mt-1">
+                          <input 
+                            type="file" 
+                            accept="image/*,application/pdf"
+                            id="tx-receipt-upload"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                if (file.size > 2 * 1024 * 1024) {
+                                  alert("Limite de 2MB por comprovante!");
+                                  return;
+                                }
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  setNewTxReceiptBase64(reader.result as string);
+                                  setNewTxReceiptName(file.name);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <label 
+                            htmlFor="tx-receipt-upload"
+                            className={cn(
+                              "w-full px-3 py-1.5 border rounded-xl flex items-center justify-center gap-1.5 text-[10px] font-bold cursor-pointer transition-all truncate",
+                              newTxReceiptName 
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/50" 
+                                : "bg-gray-50 border-gray-100 hover:bg-gray-100 text-gray-500 hover:border-gray-300"
+                            )}
+                          >
+                            <Paperclip size={12} className={newTxReceiptName ? "text-emerald-500 shrink-0" : "text-gray-400 shrink-0"} />
+                            <span className="truncate">{newTxReceiptName || "Anexar arquivo"}</span>
+                          </label>
+                        </div>
                       </div>
 
                       {/* Submit */}
@@ -2505,31 +4256,62 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                         {donationCampaigns.map((c, i) => {
                           const isObras = c.id === 'obrassociais';
                           const campaignUrl = `${window.location.origin}/doar/${c.id}`;
+                          
+                          // Default values if undefined
+                          const currentGoal = c.goalAmount ?? (isObras ? 10000 : 25000);
+                          const currentRaised = c.raisedAmount ?? (isObras ? 6250 : 18400);
+                          const percentage = Math.min(100, Math.round((currentRaised / currentGoal) * 100));
 
                           return (
                             <div key={c.id} className={cn(
                               "p-5 rounded-3xl space-y-4 border transition-all relative flex flex-col justify-between",
                               isObras 
-                                ? "bg-emerald-50/40 border-emerald-100" 
-                                : "bg-indigo-50/40 border-indigo-100"
+                                ? "bg-emerald-50/40 border-emerald-100/70 shadow-sm" 
+                                : "bg-indigo-50/40 border-indigo-100/70 shadow-sm"
                             )}>
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                   <span className={cn(
                                     "text-[9px] font-black uppercase tracking-wider",
                                     isObras ? "text-emerald-600" : "text-indigo-600"
                                   )}>
-                                    Campanha: {c.title}
+                                    Campanha Ativa: {c.title}
                                   </span>
-                                  <span className="bg-white/85 p-1 rounded-lg text-[9px] font-black uppercase shadow-sm">
+                                  <span className="bg-white/85 px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase shadow-sm border border-gray-100">
                                     {c.mode === 'internal' ? 'Portal Interno' : 'Redirect'}
                                   </span>
                                 </div>
 
                                 <h5 className="font-bold text-xs text-gray-800 leading-snug">{c.description}</h5>
+
+                                {/* Campaign Thermometer progress bar bar */}
+                                <div className="space-y-1.5 bg-white p-3 rounded-2xl border border-gray-150/40">
+                                  <div className="flex justify-between items-center text-[10px] font-bold">
+                                    <span className="text-gray-500">Meta Arrecadada:</span>
+                                    <span className={cn(
+                                      "font-black text-xs font-mono",
+                                      isObras ? "text-emerald-600" : "text-indigo-600"
+                                    )}>
+                                      {percentage}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden border border-gray-150 flex">
+                                    <div 
+                                      className={cn(
+                                        "h-full rounded-full transition-all duration-300",
+                                        isObras ? "bg-gradient-to-r from-emerald-400 to-emerald-600" : "bg-gradient-to-r from-indigo-400 to-indigo-600"
+                                      )}
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                  <div className="flex justify-between text-[9px] font-mono text-gray-500 leading-none">
+                                    <span>Obtido: <strong>R$ {currentRaised.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+                                    <span>Alvo: R$ {currentGoal.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</span>
+                                  </div>
+                                </div>
                                 
-                                <div className="bg-white p-2.5 rounded-2xl flex items-center justify-between border border-gray-100">
-                                  <span className="text-[9px] font-mono text-gray-500 truncate select-all">{campaignUrl}</span>
+                                <div className="bg-white/85 p-2 rounded-2xl flex items-center justify-between border border-gray-100">
+                                  <span className="text-[9px] font-mono text-gray-400 truncate select-all">{campaignUrl}</span>
                                   <button 
                                     onClick={() => {
                                       navigator.clipboard.writeText(campaignUrl);
@@ -2537,7 +4319,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                                     }}
                                     className="text-[9px] font-black text-indigo-600 uppercase hover:underline ml-2 cursor-pointer shrink-0"
                                   >
-                                    Copiar Link
+                                    Copiar
                                   </button>
                                 </div>
                               </div>
@@ -2554,15 +4336,50 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                                       setDonationCampaigns(updated);
                                       localStorage.setItem('admin_donation_campaigns', JSON.stringify(updated));
                                     }}
-                                    className="bg-white px-2 py-0.5 rounded border border-gray-250 text-[9px] cursor-pointer hover:bg-gray-50 uppercase"
+                                    className="bg-white px-2 py-0.5 rounded border border-gray-250 text-[8px] cursor-pointer hover:bg-gray-50 uppercase"
                                   >
-                                    Mudar para {c.mode === 'internal' ? 'Redirecionamento Externo' : 'Página Segura de Doações'}
+                                    Mudar para {c.mode === 'internal' ? 'Link Externo' : 'Página Segura'}
                                   </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="text-[8px] text-gray-400 block mb-0.5 font-bold uppercase">Meta (R$)</label>
+                                    <input 
+                                      type="number"
+                                      value={c.goalAmount ?? (isObras ? 10000 : 25000)}
+                                      onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const updated: DonationCampaign[] = donationCampaigns.map((camp, idx) => 
+                                          idx === i ? { ...camp, goalAmount: val } : camp
+                                        );
+                                        setDonationCampaigns(updated);
+                                        localStorage.setItem('admin_donation_campaigns', JSON.stringify(updated));
+                                      }}
+                                      className="w-full px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] outline-none font-semibold text-gray-700 font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[8px] text-gray-400 block mb-0.5 font-bold uppercase">Arrecadado (R$)</label>
+                                    <input 
+                                      type="number"
+                                      value={c.raisedAmount ?? (isObras ? 6250 : 18400)}
+                                      onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const updated: DonationCampaign[] = donationCampaigns.map((camp, idx) => 
+                                          idx === i ? { ...camp, raisedAmount: val } : camp
+                                        );
+                                        setDonationCampaigns(updated);
+                                        localStorage.setItem('admin_donation_campaigns', JSON.stringify(updated));
+                                      }}
+                                      className="w-full px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] outline-none font-semibold text-gray-700 font-mono"
+                                    />
+                                  </div>
                                 </div>
 
                                 {c.mode === 'external' ? (
                                   <div>
-                                    <label className="text-[8px] text-gray-400 block mb-0.5 font-bold">Link de Pagamento Real (Stripe / PayPal o Mercado Pago):</label>
+                                    <label className="text-[8px] text-gray-400 block mb-0.5 font-bold">Checkout Externo (Stripe/PayPal):</label>
                                     <input 
                                       type="text"
                                       placeholder="https://checkout.stripe.com/..."
@@ -2579,7 +4396,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                                   </div>
                                 ) : (
                                   <p className="text-[9px] text-gray-400 leading-normal">
-                                    🟢 Integrado com o sistema de caixa. Quando um doador realiza uma contribuição, ela cai automaticamente na fila de avisos abaixo para aprovação.
+                                    🟢 Integrada ao caixa. Doações online auditadas e aprovadas entram instantaneamente neste termômetro.
                                   </p>
                                 )}
                               </div>
@@ -2661,7 +4478,22 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                                           setOnlineDonations(updatedList);
                                           localStorage.setItem('admin_pending_donations', JSON.stringify(updatedList));
 
-                                          alert('Doação auditada e lançada com sucesso no Fluxo de Caixa!');
+                                          // 3. Update corresponding Campaign Raised Thermometer balance
+                                          const isReforma = (d.campaign || '').toLowerCase().includes('reforma') || (d.campaign || '').toLowerCase().includes('manutenção');
+                                          const matchedCampaignId = isReforma ? 'reforma' : 'obrassociais';
+                                          const updatedCampaigns = donationCampaigns.map(camp => {
+                                            if (camp.id === matchedCampaignId) {
+                                              const defaultGoal = camp.id === 'obrassociais' ? 10000 : 25000;
+                                              const defaultRaised = camp.id === 'obrassociais' ? 6250 : 18400;
+                                              const updatedRaised = (camp.raisedAmount ?? defaultRaised) + parseFloat(d.amount);
+                                              return { ...camp, raisedAmount: updatedRaised };
+                                            }
+                                            return camp;
+                                          });
+                                          setDonationCampaigns(updatedCampaigns);
+                                          localStorage.setItem('admin_donation_campaigns', JSON.stringify(updatedCampaigns));
+
+                                          alert('Doação auditada e lançada com sucesso no Fluxo de Caixa real! O termômetro da campanha correspondente foi atualizado.');
                                         }}
                                         className="bg-indigo-600 hover:bg-emerald-600 text-white text-[9px] px-2 py-1 rounded-lg font-black uppercase uppercase transition-all cursor-pointer"
                                       >
@@ -3543,6 +5375,555 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
                   Confirmar Exclusão
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic Pop-up Window for Sub-Sector/Sector Information */}
+      <AnimatePresence>
+        {infoModalSector && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setInfoModalSector(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-5xl bg-[#F8FAFC] rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-gray-100 z-10"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-950 p-6 sm:p-8 text-white flex items-center justify-between sticky top-0 z-20">
+                <div className="flex items-center gap-4.5">
+                  <div className="w-14 h-14 bg-white/10 rounded-[22px] flex items-center justify-center text-indigo-200">
+                    {(() => {
+                      const SubIcon = getSubSectorIcon(infoModalSector.name);
+                      return <SubIcon size={28} />;
+                    })()}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-indigo-300 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/5">
+                        Ficha do Regimento Interno
+                      </span>
+                      {infoModalSector.parentSectorId && (
+                        <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-emerald-300 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/5">
+                          Sub-setor Vinculado
+                        </span>
+                      )}
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-black italic tracking-tight">{formatSectorName(infoModalSector.name)}</h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInfoModalSector(null)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors group cursor-pointer"
+                >
+                  <X size={24} className="text-gray-300 group-hover:text-white" />
+                </button>
+              </div>
+
+              {/* Scrollable Container with Ficha Details */}
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-8 select-none">
+                
+                {/* 1. Direção e Organização Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-sm space-y-4 text-left">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                      <Users size={14} className="text-indigo-500" /> Coordenação e Gestão
+                    </h3>
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Coordenador(a)</span>
+                        <p className="font-bold text-gray-800 text-sm">{infoModalSector.coordinator || 'A definir'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Subcoordenador(a)</span>
+                        <p className="font-bold text-gray-800 text-sm">{infoModalSector.subcoordinator || 'Não definido'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Secretário(a)</span>
+                        <p className="font-bold text-gray-800 text-sm">{infoModalSector.secretary || 'Não informado'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-sm space-y-4 text-left">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                      <Clock size={14} className="text-indigo-500" /> Horários e Frequência
+                    </h3>
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Dia / Horário de Escala</span>
+                        <p className="font-bold text-gray-800 text-sm">{infoModalSector.schedule || 'A acordar nas reuniões'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Periodicidade de Reuniões</span>
+                        <p className="font-bold text-gray-800 text-sm">{infoModalSector.meetingFrequency || 'Mensal / Bimestral'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-3xl p-6 border border-gray-150 shadow-sm space-y-4 text-left">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                       <MapPin size={14} className="text-indigo-500" /> Espaço e Hierarquia
+                    </h3>
+                    <div className="space-y-3 text-xs">
+                       <div>
+                         <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Localização Física</span>
+                         <p className="font-bold text-gray-800 text-sm">{infoModalSector.location || 'Consultar Diretoria'}</p>
+                       </div>
+                       <div>
+                         <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider">Filiação / Reporta-se a</span>
+                         <p className="font-bold text-gray-800 text-sm">
+                           {infoModalSector.parentSectorId ? 'Setor Administrativo Principal' : infoModalSector.reportsTo || 'Diretoria Executiva'}
+                         </p>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Diretrizes e Base Doutrinária */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                  <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-gray-100 shadow-sm space-y-5">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2.5 border-b border-gray-50 pb-3">
+                      <BookOpen size={18} className="text-indigo-500" />
+                      1. Missão e Fundamentação
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Missão / Objetivo Geral</span>
+                        <p className="text-xs sm:text-sm text-gray-650 leading-relaxed font-semibold">
+                          {infoModalSector.mission || infoModalSector.description || 'Cumprir as metas de apoio, zelo e organização conforme a caridade.'}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 pt-2">
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Base Doutrinária / Normas</span>
+                        <p className="text-xs sm:text-sm text-gray-650 leading-relaxed font-semibold">
+                          {infoModalSector.foundation || 'Obras básicas e postulados doutrinários espíritas que orientam as atividades da Casa de modo fraterno.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-gray-100 shadow-sm space-y-5">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2.5 border-b border-gray-50 pb-3">
+                      <Users size={18} className="text-indigo-500" />
+                      2. Equipe e Perfil do Trabalhador
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Perfil Recomendado</span>
+                        <p className="text-xs sm:text-sm text-gray-650 leading-relaxed font-semibold">
+                          {infoModalSector.workerProfile || 'Comprometimento, tolerância, respeito mútuo, simpatia com a causa, discrição e assiduidade.'}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 pt-2">
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Fluxo / Requisitos de Ingresso</span>
+                        <p className="text-xs sm:text-sm text-gray-650 leading-relaxed font-semibold">
+                          {infoModalSector.entryFlow || 'Treinamento específico prévio, preenchimento do termo de voluntariado e entrevista com a coordenação.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Atividades e Planejamento */}
+                <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6 text-left">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-gray-800 flex items-center gap-2.5 border-b border-gray-50 pb-3">
+                    <Activity size={18} className="text-indigo-500" />
+                    3. Atividades Principais e Cooperação
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Principais Atividades Atribuídas</span>
+                        <p className="text-xs sm:text-sm text-gray-650 leading-relaxed font-semibold">
+                          {infoModalSector.mainActivities || 'Acompanhamento de rotinas operacionais, relatórios periódicos e acolhimento geral dos frequentadores.'}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 pt-2">
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Apoio e Recursos Necessários</span>
+                        <p className="text-xs sm:text-sm text-gray-650 leading-relaxed font-semibold">
+                          {infoModalSector.resources || 'Sistemas integrados do Mirante, infraestrutura e cooperação direta com os demais coordenadores.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Integrações / Relação Intersetorial</span>
+                        <p className="text-xs sm:text-sm text-gray-650 leading-relaxed font-semibold">
+                          {infoModalSector.interactions || 'Trabalho mútuo e canal direto de comunicação com todos os setores da Instituição.'}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 pt-2">
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest flex items-center gap-1">
+                            <Target size={10} className="text-emerald-500" /> Metas Principais
+                          </span>
+                          <p className="text-xs text-gray-600 font-semibold leading-normal">
+                            {infoModalSector.goals || 'Excelência nas rotinas administrativas e bem-estar geral.'}
+                          </p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest flex items-center gap-1">
+                            <AlertTriangle size={10} className="text-amber-500" /> Desafios Regulares
+                          </span>
+                          <p className="text-xs text-gray-600 font-semibold leading-normal">
+                            {infoModalSector.challenges || 'Gerenciamento de voluntários assíduos e recursos.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Documentos Digitais Relacionados */}
+                <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-gray-100 shadow-sm space-y-4 text-left">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                     <FileText size={14} className="text-indigo-500" /> Documentação e Arquivos Catalogados ({infoModalSector.documents?.length || 0})
+                  </h3>
+                  
+                  {infoModalSector.documents && infoModalSector.documents.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {infoModalSector.documents.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 uppercase text-[10px]"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-white text-indigo-600 rounded-xl">
+                              <FileText size={16} />
+                            </div>
+                            <div className="text-left">
+                              <span className="font-extrabold text-gray-805 block truncate max-w-[200px]">{doc.name}</span>
+                              <span className="font-sans font-medium text-[8px] text-gray-450 block tracking-wider mt-px">Por {doc.uploadedBy}</span>
+                            </div>
+                          </div>
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2.5 hover:bg-indigo-50 text-indigo-600 hover:text-indigo-950 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5 font-bold"
+                          >
+                            <Download size={14} />
+                            <span>Abrir</span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-gray-50 rounded-2xl text-center text-xs text-gray-400 font-bold uppercase italic tracking-wider">
+                      Sem documentos PDF anexados a este regimento.
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Bottom Action Footer */}
+              <div className="p-6 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="font-sans font-bold text-[10px] text-indigo-400 uppercase tracking-widest">
+                  Mirante de Luz — Gestão Organizacional
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setInfoModalSector(null)}
+                  className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  Fechar Janela
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* QR Code Detail View Modal */}
+      <AnimatePresence>
+        {qrModalOpen && qrModalItem && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-[32px] max-w-sm w-full p-8 shadow-2xl relative border border-gray-100 flex flex-col items-center text-center space-y-6"
+            >
+              {/* Outer header details */}
+              <div>
+                <span className="text-[10px] bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full font-black uppercase tracking-wider">
+                  Etiqueta de Ativo Patrimonial
+                </span>
+                <h3 className="text-base font-black text-gray-900 mt-3 truncate max-w-[280px]">
+                  {qrModalItem.name}
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1 tracking-widest">
+                  ID: {qrModalItem.id}
+                </p>
+              </div>
+
+              {/* QR Container Frame */}
+              <div id="printable-qr-label" className="p-4 bg-white border-2 border-indigo-150 rounded-2xl shadow-inner flex flex-col items-center bg-white">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrModalItem.id)}`}
+                  alt={`QR Code ${qrModalItem.name}`}
+                  referrerPolicy="no-referrer"
+                  className="w-40 h-40 object-contain block bg-white"
+                />
+                <div className="text-[9px] font-black uppercase tracking-widest mt-2 select-all font-mono text-indigo-900">
+                  {qrModalItem.id}
+                </div>
+                {/* Meta block for thermal or adhesive printable sticker */}
+                <div className="border-t border-gray-150 border-dashed pt-1.5 mt-1.5 w-full text-[8px] font-bold text-gray-500 uppercase tracking-widest flex justify-between gap-4 font-sans">
+                  <span>Local: {qrModalItem.location}</span>
+                  <span>Cat: {qrModalItem.category}</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              <p className="text-[11px] text-gray-400 font-medium leading-relaxed max-w-[280px]">
+                Imprima esta etiqueta e cole no ativo patrimonial. Qualquer trabalhador poderá escanear a etiqueta para consultar ou atualizar a conservação.
+              </p>
+
+              {/* Simple action row */}
+              <div className="grid grid-cols-2 gap-3 w-full">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQrModalOpen(false);
+                    setQrModalItem(null);
+                  }}
+                  className="py-3 bg-gray-50 hover:bg-gray-100 text-gray-500 border border-gray-100 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Quick thermal simulated stickers print trigger
+                    const printwin = window.open("", "_blank");
+                    if (printwin) {
+                      printwin.document.write(`
+                        <html>
+                        <head>
+                          <title>Imprimir Etiqueta Patrimonial - ${qrModalItem.name}</title>
+                          <style>
+                            body { font-family: 'Courier New', Courier, monospace; text-align: center; padding: 25px; margin: 0; }
+                            .sticker { border: 2px dashed #000; padding: 15px; width: 280px; margin: auto; display: inline-block; page-break-inside: avoid; }
+                            h2 { margin: 5px 0; font-size: 16px; font-weight: bold; text-transform: uppercase; }
+                            .id { font-size: 11px; letter-spacing: 1px; margin-bottom: 12px; font-weight: bold; }
+                            .meta { font-size: 8px; border-top: 1px dashed #000; padding-top: 8px; margin-top: 8px; display: flex; justify-content: space-between; text-transform: uppercase; }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="sticker">
+                            <h2>${qrModalItem.name}</h2>
+                            <div class="id">ID: ${qrModalItem.id}</div>
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrModalItem.id)}" style="max-width: 140px; margin: auto; display: block;" />
+                            <div class="meta">
+                              <span>Local: ${qrModalItem.location}</span>
+                              <span>Cat: ${qrModalItem.category}</span>
+                            </div>
+                          </div>
+                          <script>window.onload = function() { window.print(); window.close(); }</script>
+                        </body>
+                        </html>
+                      `);
+                      printwin.document.close();
+                    } else {
+                      alert("Por favor libere pop-ups para imprimir etiquetas thermal!");
+                    }
+                  }}
+                  className="py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download size={12} />
+                  Imprimir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Interactive Patrimonial Scanner & Conservation Sheet Modal */}
+      <AnimatePresence>
+        {scannerModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#F8FAFC] rounded-[36px] max-w-md w-full p-6 shadow-2xl relative border border-gray-100"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 pb-4 sticky top-0 bg-[#F8FAFC] z-10 font-sans">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <QrCode size={18} />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider text-left">Leitor QR de Ativos</h3>
+                    <p className="text-[9px] text-gray-450 font-black uppercase mt-0.5 tracking-widest text-left">Leitura de etiquetas em tempo real</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScannerModalOpen(false);
+                    setScannedItemDetail(null);
+                  }}
+                  className="p-1 px-2.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors cursor-pointer text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* No item scanned yet: show camera simulator layout */}
+              {!scannedItemDetail ? (
+                <div className="space-y-5 pt-4">
+                  {/* Mock camera view finder */}
+                  <div className="relative aspect-square sm:aspect-[4/3] rounded-2xl bg-slate-950 border border-slate-900 overflow-hidden flex flex-col items-center justify-center text-center p-6 shadow-inner">
+                    {/* Animated laser scan lines */}
+                    <div className="absolute inset-x-0 h-0.5 bg-indigo-500/80 shadow-[0_0_8px_rgba(99,102,241,0.8)] top-1/4 animate-bounce duration-[2000ms] z-10" />
+                    
+                    {/* Target scan brackets */}
+                    <div className="absolute top-8 left-8 w-6 h-6 border-t-4 border-l-4 border-indigo-500 rounded-tl-md" />
+                    <div className="absolute top-8 right-8 w-6 h-6 border-t-4 border-r-4 border-indigo-500 rounded-tr-md" />
+                    <div className="absolute bottom-8 left-8 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-md" />
+                    <div className="absolute bottom-8 right-8 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-md" />
+
+                    <div className="space-y-2 z-10">
+                      <QrCode size={40} className="mx-auto text-indigo-400 animate-pulse" />
+                      <p className="text-xs text-white font-extrabold uppercase tracking-widest animate-pulse">Câmera de Leitura Inicializada</p>
+                      <p className="text-[10px] text-gray-400 max-w-xs leading-relaxed px-4">
+                        Aproxime a câmera do QR Code patrimonial colado para consultar ou registrar modificações.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Interactive manual or mock lists to trigger test scanning */}
+                  <div className="space-y-3 p-4 bg-white rounded-2xl border border-gray-100">
+                    <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Simular Leitura QR (Protótipo local)</span>
+                    <p className="text-[9.5px] text-gray-400">Como estamos rodando na sandbox do navegador, escolha um ativo abaixo para simular a leitura do QR Code:</p>
+                    <div className="max-h-[140px] overflow-y-auto space-y-2 pr-1 pt-1 text-left">
+                      {patrimonioItems.length === 0 ? (
+                        <p className="text-xs text-center text-gray-400 py-4 font-bold uppercase italic">Cadastre ativos no inventário primeiro!</p>
+                      ) : (
+                        patrimonioItems.map(item => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleProcessScannedId(item.id)}
+                            className="w-full px-3 py-2 bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100/50 hover:border-indigo-200 rounded-xl text-left text-xs font-bold text-indigo-950 flex items-center justify-between transition-all cursor-pointer"
+                          >
+                            <span className="truncate">{item.name}</span>
+                            <span className="text-[8.5px] bg-[#EEF2F6] px-1.5 py-0.5 rounded text-gray-500 font-mono italic shrink-0">Scan Code →</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Item is Scanned: Show Ficha de Conservacao details sheet */
+                <div className="space-y-5 pt-4 font-sans text-left">
+                  <div className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100/40 text-xs space-y-2 text-left">
+                    <p className="font-sans text-[10px] uppercase font-black tracking-widest text-indigo-600">Ficha de Conservação Técnica</p>
+                    <h4 className="text-sm font-black text-gray-900">{scannedItemDetail.name}</h4>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-gray-550 font-sans uppercase mt-2 text-left">
+                      <p>Local: <span className="text-gray-900 font-black">{scannedItemDetail.location}</span></p>
+                      <p>Categoria: <span className="text-gray-900 font-black">{scannedItemDetail.category}</span></p>
+                      <p className="col-span-2 text-left text-[10px]">Código Ativo: <span className="text-indigo-800 font-mono tracking-wider font-black">{scannedItemDetail.id}</span></p>
+                    </div>
+                  </div>
+
+                  {/* Conservation status selectors */}
+                  <div className="space-y-4 text-left">
+                    {/* Quantity modifier inside sheet */}
+                    <div className="space-y-1.5 col-span-2 text-left">
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider text-left">Quantidade Atual Registrada</label>
+                      <div className="flex items-center gap-4 text-left">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateScannedItemQty(-1)}
+                          className="px-3 py-1.5 bg-gray-100 text-gray-650 rounded-xl hover:bg-gray-200 text-xs font-black transition-colors cursor-pointer"
+                        >
+                          - Reduzir
+                        </button>
+                        <span className="font-mono text-sm font-black text-gray-900 w-12 text-center bg-gray-50 border border-gray-100 rounded-xl py-1 font-extrabold">
+                          {scannedItemDetail.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateScannedItemQty(1)}
+                          className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 text-xs font-black transition-colors cursor-pointer"
+                        >
+                          + Adicionar
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 text-left">
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider font-extrabold">Estado Geral do Item</label>
+                      <select
+                        value={tempConservationStatus}
+                        onChange={(e) => setTempConservationStatus(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-gray-105 rounded-xl text-xs font-black focus:outline-none focus:border-indigo-500 transition-all text-gray-750"
+                      >
+                        <option value="BOM">🟢 Estado Bom (Plena Conservação)</option>
+                        <option value="REGULAR">🟡 Estado Regular (Desgastes Naturais)</option>
+                        <option value="EM_FALTA">🔴 Esgotado / Retirado</option>
+                        <option value="PRECISANDO_REPARO">🟠 Precisando Conserto / Reparo Técnico</option>
+                        <option value="DANIFICADO">💀 Danificado Irreparável (Descarte)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1 text-left">
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider text-left">Observações Técnicas / Danos</label>
+                      <textarea
+                        value={tempObservation}
+                        onChange={(e) => setTempObservation(e.target.value)}
+                        placeholder="Ex: Cabos desgastados ou chiado canais auxiliares..."
+                        rows={3}
+                        className="w-full px-3 py-2 bg-white border border-gray-100 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 transition-all text-gray-750 font-sans"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Audit information */}
+                  <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100 text-[9px] font-black text-gray-400 uppercase tracking-widest text-left font-sans space-y-1">
+                    <p>Atualizado por: <span className="text-gray-800 font-black">{scannedItemDetail.updatedBy || 'Administrador Geral'}</span></p>
+                    <p>Último Visto: <span className="text-gray-800 font-black">{new Date(scannedItemDetail.lastUpdated || Date.now()).toLocaleString('pt-BR')}</span></p>
+                  </div>
+
+                  {/* Footer custom row */}
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setScannedItemDetail(null)}
+                      className="py-3 bg-gray-100 hover:bg-gray-200 text-gray-650 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer"
+                    >
+                      ← Voltar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveConservationStatus}
+                      className="py-1 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-md shadow-indigo-150 active:scale-95 cursor-pointer text-center flex items-center justify-center font-sans uppercase font-black"
+                    >
+                      Gravar Ficha
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

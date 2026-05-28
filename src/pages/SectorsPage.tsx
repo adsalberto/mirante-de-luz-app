@@ -34,6 +34,7 @@ export function SectorsPage() {
     name: '',
     type: 'OUTROS' as SectorType,
     description: '',
+    parentSectorId: '',
     mission: '',
     foundation: '',
     location: '',
@@ -127,6 +128,7 @@ export function SectorsPage() {
       name: '',
       type: 'OUTROS',
       description: '',
+      parentSectorId: '',
       mission: '',
       foundation: '',
       location: '',
@@ -146,10 +148,16 @@ export function SectorsPage() {
     });
   };
 
-  const filteredSectors = sectors.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSectors = sectors.filter(s => {
+    // Hide sub-sectors from the top level unless searching
+    if (s.parentSectorId && !searchTerm.trim()) {
+      return false;
+    }
+    return (
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
   const uniqueSectors: Sector[] = [];
   const seenNames = new Set<string>();
@@ -234,7 +242,12 @@ export function SectorsPage() {
                   </div>
                 </div>
   
-                <div className="space-y-0.5 sm:space-y-1">
+                <div className="space-y-1.5 sm:space-y-2">
+                  {sector.parentSectorId && (
+                    <div className="flex items-center gap-1 text-[9px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50/70 px-2 py-0.5 rounded-md w-max mb-0.5">
+                      <span>Sub-setor de: {sectors.find(p => p.id === sector.parentSectorId)?.name || 'Outro'}</span>
+                    </div>
+                  )}
                   <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors leading-tight">{formatSectorName(sector.name)}</h3>
                   <p className="text-xs sm:text-sm text-gray-400 font-medium line-clamp-2 leading-relaxed">
                     {sector.description}
@@ -323,6 +336,15 @@ export function SectorsPage() {
                         <option value="ADMINISTRATIVO">Administrativo</option>
                         <option value="MEDIUNICO">Trabalho Mediúnico</option>
                         <option value="OUTROS">Outros / Não Especificado</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Setor Superior / Pai (Opcional - Sub-setor)</label>
+                      <select value={newSector.parentSectorId || ''} onChange={e => setNewSector({...newSector, parentSectorId: e.target.value})} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700">
+                        <option value="">-- Sem Setor Superior (Setor Principal) --</option>
+                        {sectors.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="space-y-1.5 md:col-span-2">

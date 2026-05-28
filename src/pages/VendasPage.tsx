@@ -23,7 +23,11 @@ import {
   Pencil,
   X,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Printer,
+  Lock,
+  Unlock,
+  FileText
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -56,6 +60,21 @@ interface FinancialTransaction {
   paymentMethod?: string;
 }
 
+interface CashSession {
+  isOpen: boolean;
+  openedAt: string;
+  openedBy: string;
+  initialCash: number;
+  closedAt?: string;
+  transactionsCount: number;
+  pixTotal: number;
+  cashTotal: number;
+  cardTotal: number;
+  finalCashExpected?: number;
+  finalCashRecorded?: number;
+  difference?: number;
+}
+
 export const VendasPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -71,6 +90,21 @@ export const VendasPage: React.FC = () => {
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [soldAmount, setSoldAmount] = useState(0);
   const [finalDiscountApplied, setFinalDiscountApplied] = useState(0);
+
+  // Cashier (Caixa Diário) states
+  const [cashSession, setCashSession] = useState<CashSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [closeCashModal, setCloseCashModal] = useState(false);
+  const [openOperator, setOpenOperator] = useState('');
+  const [openInitialCash, setOpenInitialCash] = useState('100.00');
+  const [closeActualCash, setCloseActualCash] = useState('');
+
+  // Snapshot states for the printable receipt mockup
+  const [checkoutCart, setCheckoutCart] = useState<{ name: string; qty: number; price: number }[]>([]);
+  const [checkoutSubtotal, setCheckoutSubtotal] = useState(0);
+  const [checkoutDiscount, setCheckoutDiscount] = useState(0);
+  const [checkoutTxId, setCheckoutTxId] = useState('');
+  const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('');
 
   // Cart discount states
   const [discountType, setDiscountType] = useState<'PERCENT' | 'VALUE'>('PERCENT');
@@ -108,6 +142,15 @@ export const VendasPage: React.FC = () => {
     } else {
       initializeDefaultProducts();
     }
+
+    // 2. Load Cash Session
+    const cachedSession = localStorage.getItem('admin_cash_session');
+    if (cachedSession) {
+      try {
+        setCashSession(JSON.parse(cachedSession));
+      } catch {}
+    }
+    setSessionLoading(false);
   }, []);
 
   const initializeDefaultProducts = () => {
@@ -270,12 +313,205 @@ export const VendasPage: React.FC = () => {
       `Nova venda finalizada via PDV [Líquido: R$ ${finalTotal.toFixed(2)} - ${paymentMethod}]${discountDetail}: ${itemsDescription}`
     );
 
+    // Capture snapshot for receipt print
+    const itemsSnapshot = cart.map(c => ({
+      name: c.product.name.split(':')[0],
+      qty: c.quantity,
+      price: getSellingPrice(c.product)
+    }));
+    setCheckoutCart(itemsSnapshot);
+    setCheckoutSubtotal(cartSubtotal);
+    setCheckoutDiscount(discountAmount);
+    setCheckoutTxId(tx.id);
+    setCheckoutPaymentMethod(paymentMethod);
+
+    // Update active cash session
+    if (cashSession && cashSession.isOpen) {
+      const activeSession = { ...cashSession };
+      activeSession.transactionsCount += 1;
+      if (paymentMethod === 'DINHEIRO') {
+        activeSession.cashTotal += finalTotal;
+      } else if (paymentMethod === 'PIX') {
+        activeSession.pixTotal += finalTotal;
+      } else if (paymentMethod === 'CARTÃO') {
+        activeSession.cardTotal += finalTotal;
+      }
+      setCashSession(activeSession);
+      localStorage.setItem('admin_cash_session', JSON.stringify(activeSession));
+    }
+
     // Show success modal
     setSoldAmount(finalTotal);
     setFinalDiscountApplied(discountAmount);
     setCart([]);
     setDiscountValueInput('0');
     setCheckoutSuccess(true);
+  };
+
+  const handleOpenCashSession = (e: React.FormEvent) => {
+    e.preventDefault();
+    const op = openOperator || currentUser?.name || 'Operador de Vendas';
+    const initCash = parseFloat(openInitialCash) || 0;
+    
+    const newSession: CashSession = {
+      isOpen: true,
+      openedAt: new Date().toISOString(),
+      openedBy: op,
+      initialCash: initCash,
+      transactionsCount: 0,
+      pixTotal: 0,
+      cashTotal: 0,
+      cardTotal: 0
+    };
+    
+    setCashSession(newSession);
+    localStorage.setItem('admin_cash_session', JSON.stringify(newSession));
+    
+    // Audit Log
+    dataService.createLog(
+      'Caixa Aberto', 
+      `Nova sessão de caixa aberta pelo operador ${op} com troco inicial de R$ ${initCash.toFixed(2)}`
+    );
+  };
+
+  const handleCloseCashSession = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cashSession) return;
+    
+    const actualCashCollected = parseFloat(closeActualCash) || 0;
+    const expectedCashValue = cashSession.initialCash + cashSession.cashTotal;
+    const difference = actualCashCollected - expectedCashValue;
+    
+    const finalSession: CashSession = {
+      ...cashSession,
+      closedAt: new Date().toISOString(),
+      finalCashExpected: expectedCashValue,
+      finalCashRecorded: actualCashCollected,
+      difference: difference
+    };
+
+    // Save to historical sessions list
+    let historical: any[] = [];
+    const cachedHist = localStorage.getItem('admin_closed_cash_sessions');
+    if (cachedHist) {
+      try {
+        historical = JSON.parse(cachedHist);
+      } catch {}
+    }
+    
+    localStorage.setItem('admin_closed_cash_sessions', JSON.stringify([finalSession, ...historical]));
+    localStorage.removeItem('admin_cash_session');
+    
+    setCashSession(null);
+    setCloseCashModal(false);
+    
+    // Audit Log
+    dataService.createLog(
+      'Caixa Fechado', 
+      `Sessão de caixa encerrada por ${cashSession.openedBy}. Dinheiro Esperado: R$ ${expectedCashValue.toFixed(2)}, Caixa Físico Contado: R$ ${actualCashCollected.toFixed(2)}. Diferença: R$ ${difference.toFixed(2)}.`
+    );
+    
+    alert(`Caixa fechado com sucesso! Balanço final registrado de R$ ${actualCashCollected.toFixed(2)}.`);
+  };
+
+  const handlePrintReceipt = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor, permita popups para imprimir o recibo.');
+      return;
+    }
+    const itemsHTML = checkoutCart.map(item => `
+      <tr>
+        <td style="font-size: 11px; font-family: monospace;">${item.qty}x ${item.name}</td>
+        <td style="text-align: right; font-size: 11px; font-family: monospace;">R$ ${item.price.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Recibo de Venda - CEMIL</title>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              width: 76mm;
+              padding: 4mm;
+              margin: 0;
+              color: #000;
+              background-color: #fff;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .divider { border-top: 1px dashed #000; margin: 3px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            td { padding: 1px 0; }
+            .font-title { font-size: 14px; margin: 0; font-weight: bold; }
+            .font-sub { font-size: 10px; margin: 2px 0 5px 0; }
+            .font-text { font-size: 11px; }
+            .footer { font-size: 9px; margin-top: 10px; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <p class="font-title">ASSOC. ESPÍRITA MIRANTE DE LUZ</p>
+            <p class="font-sub">MOC-MG • CNPJ: 12.345.678/0001-90</p>
+            <p class="font-sub">CUPOM NÃO-FISCAL - PDV DE VENDAS</p>
+          </div>
+          <div class="divider"></div>
+          <div class="font-text">
+            <b>Data:</b> ${new Date().toLocaleString('pt-BR')}<br />
+            <b>Operador:</b> ${cashSession?.openedBy || currentUser?.name || 'Balcão'}<br />
+            <b>Nº Transação:</b> ${checkoutTxId}<br />
+          </div>
+          <div class="divider"></div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: left; font-size: 11px;">Produto</th>
+                <th style="text-align: right; font-size: 11px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHTML}
+            </tbody>
+          </table>
+          <div class="divider"></div>
+          <table class="font-text bold">
+            <tr>
+              <td>SUBTOTAL:</td>
+              <td style="text-align: right;">R$ ${checkoutSubtotal.toFixed(2)}</td>
+            </tr>
+            ${checkoutDiscount > 0 ? `
+            <tr>
+              <td>DESCONTO:</td>
+              <td style="text-align: right; color: #000;">- R$ ${checkoutDiscount.toFixed(2)}</td>
+            </tr>
+            ` : ''}
+            <tr style="font-size: 12px; border-top: 1px dashed #050505;">
+              <td>TOTAL PAGO:</td>
+              <td style="text-align: right;">R$ ${soldAmount.toFixed(2)}</td>
+            </tr>
+          </table>
+          <div class="divider"></div>
+          <div class="font-text">
+            <b>Pagamento:</b> ${checkoutPaymentMethod}<br />
+          </div>
+          <div class="divider"></div>
+          <div class="center footer">
+            "A caridade é o dever de todos. Obrigado por sua ajuda!"<br />
+            <b>CEMIL • Montes Claros - MG</b>
+          </div>
+          <script>
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 450);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   // Add new product
@@ -425,6 +661,70 @@ export const VendasPage: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
+    );
+  }
+
+  if (!cashSession || !cashSession.isOpen) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center p-4">
+        <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-xl max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
+          <div className="p-4 bg-amber-50 text-amber-500 rounded-full w-fit mx-auto">
+            <Lock size={44} strokeWidth={2} />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-xl font-black text-gray-901 uppercase tracking-tight">Caixa Diário Fechado</h2>
+            <p className="text-xs text-indigo-600 font-black uppercase tracking-widest">Controle de Operador CEMIL</p>
+            <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+              Para realizar vendas de bazar, cantina ou livraria com total controle administrativo do caixa físico, abra o turno de caixa informando seu nome e o fundo de troco atual.
+            </p>
+          </div>
+          
+          <form onSubmit={handleOpenCashSession} className="space-y-4 pt-4 border-t border-gray-100 text-left">
+            <div>
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Operador do Balcão</label>
+              <input
+                type="text"
+                required
+                placeholder="Ex: Pedro Rezende"
+                value={openOperator || currentUser?.name || 'Operador de Vendas'}
+                onChange={e => setOpenOperator(e.target.value)}
+                className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Troco de Abertura (R$)</label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-2.5 text-xs text-gray-450 font-black">R$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="0.00"
+                  value={openInitialCash}
+                  onChange={e => setOpenInitialCash(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-3 py-2.5 text-xs font-mono font-black focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-750 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer mt-2"
+            >
+              Abrir Caixa do Dia
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-500">
       
@@ -447,7 +747,32 @@ export const VendasPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          {/* Active Cash Session Indicator */}
+          {cashSession && cashSession.isOpen && (
+            <div className="flex items-center gap-3 bg-indigo-50/60 hover:bg-indigo-50 border border-indigo-100/50 rounded-2xl px-4 py-2 text-left shadow-sm">
+              <div className="text-left py-0.5">
+                <p className="text-[8px] font-black uppercase text-indigo-600 tracking-wider">Caixa Diário Aberto</p>
+                <p className="text-[11px] font-extrabold text-gray-700 leading-none mt-0.5">Op: {cashSession.openedBy}</p>
+              </div>
+              <div className="h-6 w-px bg-indigo-100" />
+              <div className="text-left font-mono py-0.5">
+                <p className="text-[8px] font-black uppercase text-gray-400 tracking-wider">Mão de Troco</p>
+                <p className="text-[11px] font-black text-emerald-600 leading-none mt-0.5">R$ {cashSession.initialCash.toFixed(2)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCloseActualCash((cashSession.initialCash + cashSession.cashTotal).toFixed(2));
+                  setCloseCashModal(true);
+                }}
+                className="ml-2 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer shadow-sm shadow-rose-100 active:scale-95"
+              >
+                Fechar Caixa
+              </button>
+            </div>
+          )}
+
           <button
             onClick={handleResetCatalog}
             className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-400 hover:text-indigo-600 transition-all active:scale-95 cursor-pointer"
@@ -458,7 +783,7 @@ export const VendasPage: React.FC = () => {
 
           <button
             onClick={() => setShowAddProductModal(true)}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md shadow-indigo-100 hover:shadow-lg active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md shadow-indigo-100 hover:shadow-lg active:scale-95 cursor-pointer"
           >
             <PlusCircle size={16} />
             <span>Cadastrar Produto</span>
@@ -1269,38 +1594,230 @@ export const VendasPage: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-[32px] max-w-sm w-full p-6 shadow-2xl space-y-5 text-center relative border border-gray-100"
+              className="bg-white rounded-[32px] max-w-md w-full p-6 shadow-2xl space-y-5 text-center relative border border-gray-100"
             >
-              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-full w-fit mx-auto">
-                <Check size={40} />
+              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-full w-fit mx-auto">
+                <Check size={32} />
               </div>
 
-              <div className="space-y-1.5">
-                <h3 className="text-lg font-black text-gray-901 uppercase tracking-tight text-emerald-650">Venda de Sucesso!</h3>
-                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Lançamento de Entrada no Caixa</p>
-                <div className="space-y-0.5">
-                  <p className="text-2xl font-black text-indigo-900 tracking-tight font-mono leading-none">
-                    R$ {soldAmount.toFixed(2)}
-                  </p>
-                  {finalDiscountApplied > 0 && (
-                    <p className="text-xs font-bold text-rose-600 font-mono">
-                      (Desconto de R$ {finalDiscountApplied.toFixed(2)} deduzido)
-                    </p>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-gray-900 uppercase tracking-tight text-emerald-600">Venda Processada com Sucesso!</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Entrada de caixa registrada</p>
+              </div>
+
+              {/* Simulated 80mm Thermal Receipt Preview */}
+              <div className="bg-gray-50 border border-gray-200/60 rounded-2xl p-4 text-left font-mono text-[11px] text-gray-800 space-y-3 relative overflow-hidden shadow-inner max-h-[300px] overflow-y-auto">
+                <div className="absolute top-0 right-0 p-1.5 uppercase text-[7px] font-black tracking-widest bg-emerald-100 text-emerald-800 rounded-bl-xl border-l border-b border-gray-200/50 leading-none">
+                  Simulação Térmica
+                </div>
+                
+                <div className="text-center space-y-0.5 pb-2 border-b border-dashed border-gray-300">
+                  <p className="text-xs font-black uppercase text-gray-901">MIRANTE DE LUZ</p>
+                  <p className="text-[9px] text-gray-400">Montes Claros - MG • CNPJ 12.345/0001-90</p>
+                  <p className="text-[9px] font-bold uppercase text-indigo-650">Cupom Não-Fiscal Simplificado</p>
+                </div>
+
+                <div className="space-y-0.5 text-[10px]">
+                  <p><strong>Nº Transação:</strong> {checkoutTxId}</p>
+                  <p><strong>Data/Hora:</strong> {new Date().toLocaleString('pt-BR')}</p>
+                  <p><strong>Operador:</strong> {cashSession?.openedBy || currentUser?.name || 'Balcão'}</p>
+                </div>
+
+                <div className="border-t border-dashed border-gray-300 pt-2">
+                  <table className="w-full text-[10.5px]">
+                    <thead>
+                      <tr className="border-b border-dashed border-gray-200 text-gray-400">
+                        <th className="text-left font-normal pb-1">QTD x Item</th>
+                        <th className="text-right font-normal pb-1">Total (R$)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-dashed divide-gray-100">
+                      {checkoutCart.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="py-1">{item.qty}x {item.name}</td>
+                          <td className="text-right py-1">R$ {(item.qty * item.price).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border-t border-dashed border-gray-350 pt-2 font-black text-xs space-y-1">
+                  <div className="flex justify-between font-normal text-[10.5px]">
+                    <span>Subtotal:</span>
+                    <span>R$ {checkoutSubtotal.toFixed(2)}</span>
+                  </div>
+                  {checkoutDiscount > 0 && (
+                    <div className="flex justify-between font-medium text-rose-600 text-[10.5px]">
+                      <span>Desconto Aplicado:</span>
+                      <span>- R$ {checkoutDiscount.toFixed(2)}</span>
+                    </div>
                   )}
+                  <div className="flex justify-between text-indigo-700 pt-1 border-t border-dashed border-gray-250">
+                    <span>VALOR TOTAL PAGO:</span>
+                    <span>R$ {soldAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-dashed border-gray-300 pt-2 space-y-0.5 text-[10px]">
+                  <p><strong>Forma de Recibo:</strong> {checkoutPaymentMethod}</p>
+                </div>
+
+                <div className="text-center pt-2 border-t border-dashed border-gray-300 text-[9px] text-gray-400 leading-snug">
+                  "A caridade de cada tostão constrói<br />pontos de socorro. Deus lhe pague!"
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 text-[10.5px] text-gray-500 font-medium leading-relaxed">
-                As unidades do estoque foram atualizadas em tempo real e o faturamento líquido foi lançado com sucesso no livro caixa financeiro do portal (Mirante de Luz) na modalidade <span className="font-extrabold text-indigo-650 leading-none">{paymentMethod}</span>.
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handlePrintReceipt}
+                  className="py-3 px-4 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-600 font-extrabold text-[11px] uppercase tracking-wider rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Printer size={15} />
+                  Imprimir Recibo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutSuccess(false)}
+                  className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center"
+                >
+                  Confirmar & OK
+                </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
+      {/* FECHAR CAIXA DIÁRIO MODAL */}
+      <AnimatePresence>
+        {closeCashModal && cashSession && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-[32px] max-w-md w-full p-6 shadow-2xl space-y-5 text-left relative border border-gray-100"
+            >
               <button
                 type="button"
-                onClick={() => setCheckoutSuccess(false)}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-md active:scale-95 cursor-pointer animate-pulse"
+                onClick={() => setCloseCashModal(false)}
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 transition-all cursor-pointer"
               >
-                Nova venda no PDV
+                <X size={18} />
               </button>
+
+              <div className="space-y-1 border-b border-gray-50 pb-4">
+                <h2 className="text-lg font-black text-gray-901 uppercase tracking-tight flex items-center gap-2">
+                  <Lock className="text-rose-500" size={20} />
+                  Fechar Caixa do Turno
+                </h2>
+                <p className="text-xs text-gray-400 font-medium">Preste contas e feche o caixa do balcão diário.</p>
+              </div>
+
+              <div className="space-y-4 text-xs font-medium text-gray-600">
+                <div className="grid grid-cols-2 gap-3 py-2 bg-gray-50 p-4 rounded-2xl border border-gray-100 font-sans">
+                  <div>
+                    <span className="text-[9px] text-gray-400 font-black uppercase">Operador:</span>
+                    <p className="font-extrabold text-gray-800">{cashSession.openedBy}</p>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-gray-400 font-black uppercase">Hora de Abertura:</span>
+                    <p className="font-bold text-gray-800">{new Date(cashSession.openedAt).toLocaleTimeString('pt-BR')}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t border-gray-50 pt-2">
+                  <h4 className="font-black text-[10px] text-indigo-600 uppercase tracking-widest italic">Resumo de Movimentações</h4>
+                  <div className="space-y-1 pt-1 text-gray-700">
+                    <div className="flex justify-between">
+                      <span>(+) Fundo de Troco Inicial:</span>
+                      <span className="font-mono font-bold">R$ {cashSession.initialCash.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>(+) Entradas em Dinheiro:</span>
+                      <span className="font-mono font-bold text-emerald-600">R$ {cashSession.cashTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>(+) Recebido por PIX:</span>
+                      <span className="font-mono font-bold">R$ {cashSession.pixTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>(+) Recebido por CARTÃO:</span>
+                      <span className="font-mono font-bold">R$ {cashSession.cardTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-indigo-50 pt-2 text-indigo-750 font-extrabold text-[12px]">
+                      <span>(=) Dinheiro Esperado em Caixa:</span>
+                      <span className="font-mono">R$ {(cashSession.initialCash + cashSession.cashTotal).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleCloseCashSession} className="space-y-4 pt-4 border-t border-gray-100">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Dinheiro Físico Contado (R$)</label>
+                    <p className="text-[9px] text-gray-400 mt-0.5 leading-snug">Conte o dinheiro físico no gaveteiro e informe o total real encontrado (excluindo PIX/Cartão).</p>
+                    <div className="relative mt-1">
+                      <span className="absolute left-3 top-2.5 text-xs text-gray-450 font-black">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        placeholder="0.00"
+                        value={closeActualCash}
+                        onChange={e => setCloseActualCash(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-3 py-2.5 text-xs font-mono font-black focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Profit or loss indicator */}
+                  {closeActualCash && (
+                    (() => {
+                      const actual = parseFloat(closeActualCash) || 0;
+                      const expected = cashSession.initialCash + cashSession.cashTotal;
+                      const diff = actual - expected;
+                      if (Math.abs(diff) < 0.01) {
+                        return (
+                          <div className="p-3 bg-emerald-50 text-emerald-800 text-[10.5px] rounded-xl font-bold flex items-center gap-1.5 border border-emerald-100 animate-in zoom-in-95 leading-relaxed">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                            Fechamento Perfeito! Nenhuma divergência física encontrada.
+                          </div>
+                        );
+                      } else if (diff < 0) {
+                        return (
+                          <div className="p-3 bg-rose-50 text-rose-800 text-[10.5px] rounded-xl font-bold flex flex-col gap-0.5 border border-rose-100 animate-in zoom-in-95 leading-normal">
+                            <div className="flex items-center gap-1.5 font-black text-rose-900 uppercase text-[9px] tracking-wider">
+                              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                              Divergência: Diferença de Caixa (Quebra)
+                            </div>
+                            <span>Faltando <strong>R$ {Math.abs(diff).toFixed(2)}</strong> em relação ao esperado. Verifique possíveis erros de troco ou pagamentos esquecidos.</span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="p-3 bg-amber-50 text-amber-800 text-[10.5px] rounded-xl font-bold flex flex-col gap-0.5 border border-amber-100 animate-in zoom-in-95 leading-normal">
+                            <div className="flex items-center gap-1.5 font-black text-amber-900 uppercase text-[9px] tracking-wider">
+                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                              Divergência: Sobra de Caixa
+                            </div>
+                            <span>Excesso de <strong>R$ {diff.toFixed(2)}</strong> em relação ao esperado. Pode ser troco não entregue ou doações extras recebidas no balcão.</span>
+                          </div>
+                        );
+                      }
+                    })()
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    Confirmar & Fechar Caixa Turno
+                  </button>
+                </form>
+              </div>
             </motion.div>
           </div>
         )}
