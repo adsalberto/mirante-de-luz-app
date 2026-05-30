@@ -27,6 +27,7 @@ import {
   ArrowLeft,
   BookOpen,
   Music,
+  Smile,
   Home
 } from 'lucide-react';
 import { 
@@ -930,6 +931,30 @@ export const ReportsPage: React.FC = () => {
     return res;
   };
 
+  // 6. Chart Data: Multidimensional Breakdown from Fraternal Attendance (Atendimento Fraterno)
+  const getMultidimensionalStats = (field: 'emotionalStatus' | 'physicalHealth' | 'familyRelationship' | 'spirituality') => {
+    const counts: Record<string, number> = {};
+    let total = 0;
+    
+    filteredEvolutions.forEach(e => {
+      const val = e[field];
+      if (val) {
+        counts[val] = (counts[val] || 0) + 1;
+        total++;
+      }
+    });
+
+    if (total === 0) {
+      return [];
+    }
+
+    return Object.entries(counts).map(([name, value]) => ({
+      name,
+      value,
+      percentage: Math.round((value / total) * 100)
+    })).sort((a, b) => b.value - a.value);
+  };
+
   // Generate Executive Comprehensive PDF Analytics (Joint or Individual)
   const generateJointExecutivePDF = () => {
     try {
@@ -1659,6 +1684,135 @@ export const ReportsPage: React.FC = () => {
 
           </div>
 
+          {/* Section 3.4: Vital Multidimensional Indicators (Added for deep sector reporting and integration) */}
+          <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-10 shadow-sm space-y-6 sm:space-y-8 print:break-inside-avoid">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-gray-100 pb-5">
+              <div>
+                <span className="text-[10px] font-black uppercase text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg tracking-wider inline-flex items-center gap-1">
+                  <Heart size={11} className="text-rose-500 animate-pulse" /> Triagem &amp; Assistência Fraterna Multidimensional
+                </span>
+                <h3 className="text-xl font-black text-gray-950 mt-1.5 leading-none">Perfil de Acolhimento Consolar</h3>
+                <p className="text-gray-400 font-semibold text-xs mt-1">
+                  Visão agregada do estado de saúde mental, física, relações sociais e integridade espiritual dos que buscam amparo na nossa casa.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Category 1: Emotional Status */}
+              <div className="p-5 bg-[#F8FAFC] rounded-3xl border border-gray-100 flex flex-col justify-between space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-200/50 pb-2">
+                  <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <Smile size={16} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wider text-gray-700">Equilíbrio Emocional</span>
+                </div>
+                
+                <div className="space-y-2 flex-1">
+                  {getMultidimensionalStats('emotionalStatus').length === 0 ? (
+                    <p className="text-[10px] text-gray-400 font-bold italic py-4">Sem dados emocionais registrados para este setor.</p>
+                  ) : (
+                    getMultidimensionalStats('emotionalStatus').slice(0, 4).map((item) => (
+                      <div key={item.name} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-gray-650">
+                          <span className="truncate max-w-[110px]">{item.name}</span>
+                          <span>{item.percentage}% ({item.value})</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${item.percentage}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Category 2: Physical Health */}
+              <div className="p-5 bg-[#F8FAFC] rounded-3xl border border-gray-100 flex flex-col justify-between space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-200/50 pb-2">
+                  <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
+                    <Activity size={16} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wider text-gray-700">Aspectos Físicos</span>
+                </div>
+                
+                <div className="space-y-2 flex-1">
+                  {getMultidimensionalStats('physicalHealth').length === 0 ? (
+                    <p className="text-[10px] text-gray-400 font-bold italic py-4">Sem dados físicos registrados para este setor.</p>
+                  ) : (
+                    getMultidimensionalStats('physicalHealth').slice(0, 4).map((item) => (
+                      <div key={item.name} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-gray-655">
+                          <span className="truncate max-w-[110px]">{item.name}</span>
+                          <span>{item.percentage}% ({item.value})</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-rose-500 rounded-full" style={{ width: `${item.percentage}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Category 3: Family Connection */}
+              <div className="p-5 bg-[#F8FAFC] rounded-3xl border border-gray-100 flex flex-col justify-between space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-200/50 pb-2">
+                  <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <Home size={16} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wider text-gray-700">Família &amp; Convivência</span>
+                </div>
+                
+                <div className="space-y-2 flex-1">
+                  {getMultidimensionalStats('familyRelationship').length === 0 ? (
+                    <p className="text-[10px] text-gray-400 font-bold italic py-4">Sem dados familiares registrados para este setor.</p>
+                  ) : (
+                    getMultidimensionalStats('familyRelationship').slice(0, 4).map((item) => (
+                      <div key={item.name} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-gray-650">
+                          <span className="truncate max-w-[110px]">{item.name}</span>
+                          <span>{item.percentage}% ({item.value})</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${item.percentage}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Category 4: Spiritual Outlook */}
+              <div className="p-5 bg-[#F8FAFC] rounded-3xl border border-gray-100 flex flex-col justify-between space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-200/50 pb-2">
+                  <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+                    <BookOpen size={16} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wider text-gray-700">Equilíbrio Doutrinário</span>
+                </div>
+                
+                <div className="space-y-2 flex-1">
+                  {getMultidimensionalStats('spirituality').length === 0 ? (
+                    <p className="text-[10px] text-gray-400 font-bold italic py-4">Sem dados espirituais registrados para este setor.</p>
+                  ) : (
+                    getMultidimensionalStats('spirituality').slice(0, 4).map((item) => (
+                      <div key={item.name} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-gray-650">
+                          <span className="truncate max-w-[110px]">{item.name}</span>
+                          <span>{item.percentage}% ({item.value})</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-purple-500 rounded-full" style={{ width: `${item.percentage}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Section 3.5: Realtime Auditor Compliance Ledger Grid */}
           <div className="bg-white rounded-[32px] border border-gray-150 p-6 sm:p-8 shadow-sm space-y-6 print:hidden">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-gray-100 pb-5">
@@ -1834,7 +1988,7 @@ export const ReportsPage: React.FC = () => {
                                      part?.currentStatus === 'IDLE' ? 'Livre' : 'Concluído'}
                                   </span>
                                 </td>
-                                <td className="p-3.5 pr-5 text-gray-400 text-xs truncate max-w-[280px]" title={e.notes}>{e.notes || 'Consulta e passe prestado.'}</td>
+                                <td className="p-3.5 pr-5 text-gray-400 text-xs truncate max-w-[280px]" title={e.notesEncrypted || e.notes}>{e.notesEncrypted || e.notes || 'Consulta e passe prestado.'}</td>
                               </tr>
                             );
                           })

@@ -150,6 +150,17 @@ export interface Evolution {
   nextStepSectorIds?: string[]; // Referral
   encaminhamento?: string; // NEW: Specific referral type/destination
   attachments?: SectorDocument[];
+  emotionalStatus?: string;
+  physicalHealth?: string;
+  familyRelationship?: string;
+  spirituality?: string;
+  observations?: string;
+  aspectsReports?: {
+    emotionalStatus?: string;
+    physicalHealth?: string;
+    familyRelationship?: string;
+    spirituality?: string;
+  };
 }
 
 export interface Session {

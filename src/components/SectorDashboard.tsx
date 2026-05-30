@@ -550,6 +550,53 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [newMediGroupTitle, setNewMediGroupTitle] = useState('');
   const [newMediGroupLeader, setNewMediGroupLeader] = useState('');
   const [newMediGroupSchedule, setNewMediGroupSchedule] = useState('');
+  const [mediunicaActiveTab, setMediunicaActiveTab] = useState<'reunioes' | 'trabalhadores' | 'frequencia' | 'escalas' | 'estudos' | 'encaminhamentos' | 'salas' | 'biblioteca' | 'seguranca' | 'acolhimento'>('reunioes');
+  
+  // Custom Mediunica States
+  const [mediunicaEscalas, setMediunicaEscalas] = useState<any[]>([]);
+  const [mediunicaCursos, setMediunicaCursos] = useState<any[]>([]);
+  const [mediunicaReferrals, setMediunicaReferrals] = useState<any[]>([]);
+  const [mediunicaRooms, setMediunicaRooms] = useState<any[]>([]);
+  const [mediunicaAcolhimento, setMediunicaAcolhimento] = useState<any[]>([]);
+  const [mediunicaLogs, setMediunicaLogs] = useState<any[]>([]);
+  
+  // Forms for adding medi worker & items
+  const [newMediWorkerName, setNewMediWorkerName] = useState('');
+  const [newMediWorkerRole, setNewMediWorkerRole] = useState('Médium');
+  const [newMediWorkerTime, setNewMediWorkerTime] = useState('1 ano');
+  const [newMediWorkerFormacao, setNewMediWorkerFormacao] = useState('ESDE / Curso Mediúnico');
+  const [newMediWorkerGroup, setNewMediWorkerGroup] = useState('mg1');
+  const [newMediWorkerStatus, setNewMediWorkerStatus] = useState('Ativo');
+  const [newMediWorkerNotes, setNewMediWorkerNotes] = useState('');
+
+  const [newMediEscalaDate, setNewMediEscalaDate] = useState('');
+  const [newMediEscalaGroup, setNewMediEscalaGroup] = useState('mg1');
+  const [newMediEscalaWorkers, setNewMediEscalaWorkers] = useState<string[]>([]);
+  const [newMediEscalaLeader, setNewMediEscalaLeader] = useState('');
+  const [newMediEscalaNotes, setNewMediEscalaNotes] = useState('');
+
+  const [newMediCursoName, setNewMediCursoName] = useState('');
+  const [newMediCursoFacilitador, setNewMediCursoFacilitador] = useState('');
+  const [newMediCursoHours, setNewMediCursoHours] = useState(40);
+  const [newMediCursoMaterial, setNewMediCursoMaterial] = useState('');
+
+  const [newMediReferralOrigem, setNewMediReferralOrigem] = useState('Atendimento Fraterno');
+  const [newMediReferralDestino, setNewMediReferralDestino] = useState('mg1');
+  const [newMediReferralMotivo, setNewMediReferralMotivo] = useState('Sensibilidade extrema');
+  const [newMediReferralObs, setNewMediReferralObs] = useState('');
+  const [newMediReferralName, setNewMediReferralName] = useState('');
+
+  const [newMediRoomName, setNewMediRoomName] = useState('');
+  const [newMediRoomType, setNewMediRoomType] = useState('Fluidoterapia / Desobsessão');
+  const [newMediRoomCapacity, setNewMediRoomCapacity] = useState(15);
+  const [newMediRoomResp, setNewMediRoomResp] = useState('');
+
+  const [newMediAcolhimentoName, setNewMediAcolhimentoName] = useState('');
+  const [newMediAcolhimentoNeed, setNewMediAcolhimentoNeed] = useState('Vulnerabilidade Emocional');
+  const [newMediAcolhimentoStatus, setNewMediAcolhimentoStatus] = useState('Equilibrado');
+  const [newMediAcolhimentoRec, setNewMediAcolhimentoRec] = useState('');
+
+  const [simulatedEncryptionActive, setSimulatedEncryptionActive] = useState(true);
 
   // --- ARTE ESPÍRITA STATE VARIABLES ---
   const [arteGroups, setArteGroups] = useState<any[]>([]);
@@ -2102,6 +2149,81 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       ];
       localStorage.setItem('medi_members', JSON.stringify(defaultMediMembers));
       setMediunicaMembers(defaultMediMembers);
+    }
+
+    // Advanced Mediunica Module Loads
+    const cachedMediEscalas = localStorage.getItem('medi_escalas');
+    if (cachedMediEscalas) {
+      try { setMediunicaEscalas(JSON.parse(cachedMediEscalas)); } catch {}
+    } else {
+      const defaultMediEscalas = [
+        { id: 'me1', date: '2026-06-03', groupName: 'Grupo de Desobsessão Bezerra de Menezes', workers: ['Francisco Xavier', 'Luísa Nogueira', 'Pedro Rezende'], leader: 'Francisco Xavier', notes: 'Sustentação fluídica intensificada.' },
+        { id: 'me2', date: '2026-06-06', groupName: 'Grupo de Educação Mediúnica Prática', workers: ['Marcos Ortiz', 'Clara Nogueira'], leader: 'Clara Nogueira', notes: 'Exercício prático de psicofonia e intuição.' }
+      ];
+      localStorage.setItem('medi_escalas', JSON.stringify(defaultMediEscalas));
+      setMediunicaEscalas(defaultMediEscalas);
+    }
+
+    const cachedMediCursos = localStorage.getItem('medi_cursos');
+    if (cachedMediCursos) {
+      try { setMediunicaCursos(JSON.parse(cachedMediCursos)); } catch {}
+    } else {
+      const defaultMediCursos = [
+        { id: 'mc1', name: 'Estudo Sistematizado do Livro dos Médiuns', facilitator: 'Julio Cezar', hours: 60, material: 'O Livro dos Médiuns (Allan Kardec)', active: true },
+        { id: 'mc2', name: 'Curso de Dialogadores e Esclarecedores', facilitator: 'Marta Helena', hours: 40, material: 'Diálogo com as Sombras (Hermínio Miranda)', active: true },
+        { id: 'mc3', name: 'Educação Mediúnica Teoria e Prática', facilitator: 'Clara Nogueira', hours: 80, material: 'Diretrizes de Segurança Mediúnica', active: true }
+      ];
+      localStorage.setItem('medi_cursos', JSON.stringify(defaultMediCursos));
+      setMediunicaCursos(defaultMediCursos);
+    }
+
+    const cachedMediReferrals = localStorage.getItem('medi_referrals');
+    if (cachedMediReferrals) {
+      try { setMediunicaReferrals(JSON.parse(cachedMediReferrals)); } catch {}
+    } else {
+      const defaultMediReferrals = [
+        { id: 'mr1', name: 'Roberto da Silva', origin: 'Atendimento Fraterno', destination: 'Grupo de Desobsessão Bezerra de Menezes', reason: 'Forte sensibilidade ostensiva e fobia recorrente', obs: 'Relato de perturbação durante o sono profunda.', isClosed: false, date: '2026-05-28' },
+        { id: 'mr2', name: 'Mariana G. Couto', origin: 'Mocidade / Triagem', destination: 'Grupo de Educação Mediúnica Prática', reason: 'Desejo de educar mediunidade de intuição', obs: 'Sensações constantes de presença espiritual sem gravidade.', isClosed: false, date: '2026-05-29' }
+      ];
+      localStorage.setItem('medi_referrals', JSON.stringify(defaultMediReferrals));
+      setMediunicaReferrals(defaultMediReferrals);
+    }
+
+    const cachedMediRooms = localStorage.getItem('medi_rooms');
+    if (cachedMediRooms) {
+      try { setMediunicaRooms(JSON.parse(cachedMediRooms)); } catch {}
+    } else {
+      const defaultMediRooms = [
+        { id: 'mrm1', name: 'Sala Eurípedes Barsanulfo (Fluídos B)', type: 'Desobsessão e Fluidoterapia', capacity: 15, status: 'Livre', resp: 'Roberto de Sousa' },
+        { id: 'mrm2', name: 'Sala Bezerra de Menezes (Fluídos A)', type: 'Atendimento e Passes', capacity: 20, status: 'Livre', resp: 'Elza Santos' }
+      ];
+      localStorage.setItem('medi_rooms', JSON.stringify(defaultMediRooms));
+      setMediunicaRooms(defaultMediRooms);
+    }
+
+    const cachedMediAcolhimento = localStorage.getItem('medi_acolhimento');
+    if (cachedMediAcolhimento) {
+      try { setMediunicaAcolhimento(JSON.parse(cachedMediAcolhimento)); } catch {}
+    } else {
+      const defaultMediAcolhimento = [
+        { id: 'mac1', workerName: 'Luísa Nogueira', need: 'Sobrecarga Emocional / Perda Familiar', status: 'Fragilizado', recommendation: 'Passe de sustentação individual antes do início do grupo e repouso de tarefas de psicofonia ativa se preferir.' },
+        { id: 'mac2', workerName: 'Marcos Ortiz', need: 'Tratamento de Saúde em Família', status: 'Instável', recommendation: 'Manter na equipe de sustentação silenciosa por duas semanas para redução de carga mental.' }
+      ];
+      localStorage.setItem('medi_acolhimento', JSON.stringify(defaultMediAcolhimento));
+      setMediunicaAcolhimento(defaultMediAcolhimento);
+    }
+
+    const cachedMediLogs = localStorage.getItem('medi_logs');
+    if (cachedMediLogs) {
+      try { setMediunicaLogs(JSON.parse(cachedMediLogs)); } catch {}
+    } else {
+      const defaultMediLogs = [
+        { id: 'ml1', timestamp: '2026-05-30T10:15:00Z', user: 'carlostecal35@gmail.com', action: 'Visualização de Registros', details: 'Acessou prontuário de encaminhamentos espirituais restritos (Atendimento Fraterno).' },
+        { id: 'ml2', timestamp: '2026-05-30T10:20:00Z', user: 'carlostecal35@gmail.com', action: 'Geração de Chave Privada', details: 'Renovação de token de criptografia de observações espirituais restritas (O Livro dos Médiuns, cap. XXVI).' },
+        { id: 'ml3', timestamp: '2026-05-30T11:45:00Z', user: 'carlostecal35@gmail.com', action: 'Edição de Escala', details: 'Atualizou escala de obreiros para 03 de Junho.' }
+      ];
+      localStorage.setItem('medi_logs', JSON.stringify(defaultMediLogs));
+      setMediunicaLogs(defaultMediLogs);
     }
 
     // 13. Arte Espírita Load
@@ -6833,179 +6955,1357 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
 
   const renderMediunicaDashboard = () => {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500 font-sans">
-        {/* Left Column: Direct and Mediumistic Private meetings */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-slate-950 rounded-[40px] border border-slate-800 p-8 shadow-xl text-white space-y-6">
-            <div className="border-b border-slate-800 pb-6 text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-950/40 border border-red-900/30 text-red-500 rounded-full font-bold text-[9px] uppercase tracking-widest mb-3">
-                <Lock size={12} />
-                Ambiente Sigiloso / Restrito
-              </div>
-              <h3 className="text-xl font-black italic tracking-tight flex items-center gap-2 text-slate-100">
-                <ShieldAlert className="text-red-500 animate-pulse" size={22} />
-                Controle de Reuniões de Prática e Educação Mediúnica
-              </h3>
-              <p className="text-xs text-slate-400 font-sans font-medium mt-1">Gestão de Mediunidade, Assistência de Desobsessão e Fluidoterapia</p>
+      <div className="space-y-8 animate-in fade-in duration-500 font-sans">
+        {/* Top Header: Sub-sector Banner */}
+        <div className="bg-slate-950 rounded-[40px] border border-slate-800 p-8 shadow-xl text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 text-slate-800 opacity-20 pointer-events-none select-none">
+            <Lock size={120} />
+          </div>
+          <div className="relative z-10 text-left space-y-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-rose-950/40 border border-rose-900/30 text-rose-500 rounded-full font-black text-[10px] uppercase tracking-widest">
+              <ShieldAlert size={14} className="text-rose-500 animate-pulse" />
+              Setor Restrito & Destinado à Coordenação Mediúnica
             </div>
+            <h2 className="text-3xl font-black italic tracking-tight text-slate-100 uppercase">
+              Área de Gestão & Prática Mediúnica
+            </h2>
+            <p className="text-sm text-slate-400 max-w-3xl font-medium leading-relaxed">
+              Controle absoluto e sigiloso de reuniões desobsessivas, fluidoterapia, escalas de dialogadores e sustentadores, estudos especializados, diário fraterno e as diretrizes do Livro dos Médiuns.
+            </p>
+          </div>
+        </div>
 
-            {/* List and check-in */}
-            <div className="space-y-4 text-left font-sans">
-              <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 italic pb-1">Trabalhos de Amparo Espiritual Ativos</h4>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+        {/* 10 tab buttons for a massive, multi-faceted layout */}
+        <div className="flex border-b border-gray-150 pb-2.5 gap-2 overflow-x-auto scrollbar-none w-full whitespace-nowrap">
+          {[
+            { id: 'reunioes', label: 'Reuniões', icon: Calendar, color: 'text-indigo-600 bg-indigo-50' },
+            { id: 'trabalhadores', label: 'Quadro de Médiuns', icon: Users, color: 'text-rose-600 bg-rose-50' },
+            { id: 'frequencia', label: 'Assiduidade', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50' },
+            { id: 'escalas', label: 'Escalas', icon: Clock, color: 'text-purple-600 bg-purple-50' },
+            { id: 'estudos', label: 'Formação', icon: BookOpen, color: 'text-amber-600 bg-amber-50' },
+            { id: 'encaminhamentos', label: 'Encaminhamentos', icon: ShieldAlert, color: 'text-cyan-600 bg-cyan-50' },
+            { id: 'salas', label: 'Ambientes', icon: MapPin, color: 'text-teal-600 bg-teal-50' },
+            { id: 'biblioteca', label: 'Biblioteca', icon: FileText, color: 'text-sky-600 bg-sky-50' },
+            { id: 'acolhimento', label: 'Acolhimento', icon: Smile, color: 'text-fuchsia-600 bg-fuchsia-50' },
+            { id: 'seguranca', label: 'Segurança & Logs', icon: Lock, color: 'text-slate-600 bg-slate-50' }
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = mediunicaActiveTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setMediunicaActiveTab(item.id as any);
+                  // Log sub-tab access simulated
+                  const newLog = {
+                    id: 'ml_' + Date.now(),
+                    timestamp: new Date().toISOString(),
+                    user: currentUser?.email || 'carlostecal35@gmail.com',
+                    action: 'Acesso à Aba: ' + item.label,
+                    details: `Navegou para o subsetor de ${item.label.toLowerCase()} mediúnica.`
+                  };
+                  const updatedLogs = [newLog, ...mediunicaLogs];
+                  setMediunicaLogs(updatedLogs);
+                  localStorage.setItem('medi_logs', JSON.stringify(updatedLogs));
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 px-4.5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer border flex-shrink-0",
+                  isActive 
+                    ? "bg-slate-950 border-slate-950 text-white shadow-md duration-300"
+                    : "bg-white hover:bg-gray-50 text-gray-500 border-gray-100 hover:text-gray-900 duration-300"
+                )}
+              >
+                <div className={cn("p-1 rounded-md", isActive ? "bg-white/20 text-white" : item.color)}>
+                  <Icon size={13} />
+                </div>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content based on selected active tab */}
+        {mediunicaActiveTab === 'reunioes' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
+            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-wider bg-rose-50 border border-rose-100 text-rose-600 px-2 py-0.5 rounded-md">Atividade Crítica</span>
+                <h3 className="text-xl font-black text-gray-950 mt-2">Reuniões Mediúnicas Ativas</h3>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Portas fechadas, sigilo ético absoluto e harmonia espiritual.</p>
+              </div>
+
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 {mediunicaGroups.map((group) => (
-                  <div key={group.id} className="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex justify-between items-center hover:border-slate-700 transition-all font-sans">
+                  <div key={group.id} className="p-5 bg-gray-50 hover:bg-white border border-gray-200/60 hover:border-gray-300 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all">
                     <div>
-                      <span className="px-2 py-0.5 bg-red-950 text-red-400 border border-red-900/40 rounded-full font-extrabold text-[8px] uppercase tracking-wider block w-max">
-                        {group.id === 'mg1' ? 'MÁXIMA EXCLUSIVIDADE' : 'MEMBROS AUTORIZADOS'}
-                      </span>
-                      <h5 className="font-extrabold text-sm text-slate-100 leading-none pt-2">{group.name}</h5>
-                      <div className="flex flex-wrap gap-2 items-center text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-2">
-                        <span>Dirigente: {group.leader}</span>
-                        <span>•</span>
-                        <span>{group.schedule}</span>
-                        <span>•</span>
-                        <span>{group.room}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-rose-950 text-rose-400 border border-rose-900/40 rounded-full font-black text-[8px] uppercase tracking-wider block w-max">
+                          {group.id === 'mg1' ? 'MÁXIMO SIGILO' : 'RESTRITO A CONVIDADOS'}
+                        </span>
+                        <span className="text-[10px] bg-slate-200 text-slate-700 font-extrabold px-1.5 py-0.5 rounded uppercase">
+                          {group.room || 'Fluídos B'}
+                        </span>
                       </div>
+                      <h4 className="font-extrabold text-slate-900 text-base mt-2 leading-tight">{group.name}</h4>
+                      <p className="text-xs text-slate-500 font-bold mt-1">Dirigente Geral: {group.leader}</p>
+                      <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider mt-1.5">{group.schedule}</p>
                     </div>
-                    <span className="px-3.5 py-1.5 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs font-black text-slate-100 whitespace-nowrap">
-                      {group.count} Obreiros Escalados
-                    </span>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <span className="px-3.5 py-1.5 bg-slate-950 text-white rounded-xl font-mono text-[10px] font-black uppercase tracking-wide">
+                        {group.count || 5} Obreiros Escalados
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Remover reunião "${group.name}"? Isso fechará os encaminhamentos espirituais associados.`)) {
+                            const updated = mediunicaGroups.filter(g => g.id !== group.id);
+                            setMediunicaGroups(updated);
+                            localStorage.setItem('medi_groups', JSON.stringify(updated));
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 p-2 text-xs font-bold uppercase tracking-wider text-right self-end"
+                      >
+                        Remover
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Secured notes warnings */}
-            <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-2 text-left font-sans">
-              <h5 className="font-extrabold text-xs text-red-400 flex items-center gap-1.5 font-sans leading-none">
-                <Lock size={12} />
-                Regras de Proteção de Dados
-              </h5>
-              <p className="text-[10px] text-slate-400 leading-relaxed font-sans mt-1">
-                Todas as fichas de mediunidade, passes e anotações espirituais estão sob regime de absoluto sigilo moral e administrativo. Nenhum dado poderá ser exportado ou compartilhado publicamente, em conformidade com as diretrizes do Conselho Espírita e regulamentos vigentes.
-              </p>
-            </div>
-          </div>
-        </div>
+            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-150 pb-4">
+                <h3 className="text-lg font-black text-gray-950 leading-none">Cadastrar Reunião Mediúnica</h3>
+                <p className="text-xs text-gray-400 font-medium mt-1">Definir critérios de segurança, requisitos e sala autorizada.</p>
+              </div>
 
-        {/* Right Column: Add Group or Register Members presence */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="border-b border-gray-50 pb-6 text-left">
-              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                <Users className="text-indigo-600" size={22} />
-                Quadro de Médiuns e Diário
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Assiduidade e Relato de Trabalhos de Fluidoterapia</p>
-            </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Título de Reunião</label>
+                  <input
+                    value={newMediGroupTitle}
+                    onChange={(e) => setNewMediGroupTitle(e.target.value)}
+                    placeholder="Ex: Grupo Mediúnico Eurípedes"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
+                  />
+                </div>
 
-            {/* Insert secure group Form */}
-            {isPrivilegedUser ? (
-              <div className="bg-red-50/50 rounded-[32px] p-6 border border-red-100 text-left space-y-4">
-                <h4 className="text-xs font-black uppercase tracking-widest text-red-850 italic flex items-center gap-1.5 select-none text-[11px]">
-                  <Plus size={14} className="text-red-650" />
-                  Criar Novo Trabalho Mediúnico
-                </h4>
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] font-bold uppercase text-gray-500 block">Título do Trabalho</label>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Dirigente Responsável</label>
                     <input
-                      value={newMediGroupTitle}
-                      onChange={(e) => setNewMediGroupTitle(e.target.value)}
-                      placeholder="Ex: Grupo Joanna de Ângelis"
-                      className="w-full mt-1.5 h-10 bg-white border border-red-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-red-500 transition-colors"
+                      value={newMediGroupLeader}
+                      onChange={(e) => setNewMediGroupLeader(e.target.value)}
+                      placeholder="Ex: Clara de Assis"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-bold uppercase text-gray-500 block">Dirigente</label>
-                      <input
-                        value={newMediGroupLeader}
-                        onChange={(e) => setNewMediGroupLeader(e.target.value)}
-                        placeholder="Ex: Luiza Nogueira"
-                        className="w-full mt-1.5 h-10 bg-white border border-red-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-red-500 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold uppercase text-gray-500 block">Horário</label>
-                      <input
-                        value={newMediGroupSchedule}
-                        onChange={(e) => setNewMediGroupSchedule(e.target.value)}
-                        placeholder="Ex: Quinta, 20h00"
-                        className="w-full mt-1.5 h-10 bg-white border border-red-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-red-500 transition-colors"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Horários / Dia</label>
+                    <input
+                      value={newMediGroupSchedule}
+                      onChange={(e) => setNewMediGroupSchedule(e.target.value)}
+                      placeholder="Ex: Terças, 19h30"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
+                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!newMediGroupTitle.trim() || !newMediGroupLeader.trim()) {
-                        alert("Preencha as informações do grupo!");
-                        return;
-                      }
-                      handleAddMediGroup(newMediGroupTitle, newMediGroupLeader, newMediGroupSchedule || "Quinta, 20h00");
-                      setNewMediGroupTitle('');
-                      setNewMediGroupLeader('');
-                      setNewMediGroupSchedule('');
-                    }}
-                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer"
-                  >
-                    Registrar Trabalho Mediúnico (Seguro)
-                  </button>
                 </div>
-              </div>
-            ) : (
-              <div className="p-4 bg-gray-50 border border-gray-150 rounded-2xl text-left font-sans flex items-start gap-2 text-xs">
-                <Lock size={16} className="text-gray-400 mt-0.5 shrink-0" />
-                <span className="text-gray-500">Cadastro de novos grupos restrito e disponível apenas para a diretoria, dirigentes autorizados ou administradores master.</span>
-              </div>
-            )}
 
-            {/* Members roll with historical presences */}
-            <div className="space-y-4 text-left font-sans">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic">Obrigação e Diário de Obreiros Ativos</h4>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                <button
+                  onClick={() => {
+                    if (!newMediGroupTitle.trim() || !newMediGroupLeader.trim()) {
+                      alert("Insira título e dirigente responsável para prosseguir.");
+                      return;
+                    }
+                    handleAddMediGroup(newMediGroupTitle, newMediGroupLeader, newMediGroupSchedule || "Quinta, 20h00");
+                    setNewMediGroupTitle('');
+                    setNewMediGroupLeader('');
+                    setNewMediGroupSchedule('');
+                  }}
+                  className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
+                >
+                  Registrar Reunião (Regime Confidencial)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'trabalhadores' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
+            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-xl font-black text-gray-950">Médiuns e Trabalhadores Integrantes</h3>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Organização hierárquica por funções doutrinárias e formação espírita.</p>
+              </div>
+
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 {mediunicaMembers.map((mem) => {
                   const targetGroup = mediunicaGroups.find(g => g.id === mem.groupId);
                   return (
-                    <div key={mem.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:shadow-sm transition-all font-sans">
+                    <div key={mem.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-indigo-100 transition-all">
                       <div>
-                        <span className="px-2 py-0.5 bg-[#eff6ff] text-[#1d4ed8] font-bold text-[8px] uppercase tracking-wider rounded-full block w-max">
-                          {targetGroup ? targetGroup.name : 'Simulador Intermediário'}
-                        </span>
-                        <h5 className="font-extrabold text-sm text-gray-950 leading-none pt-1.5">{mem.name} ({mem.role})</h5>
-                        <p className="text-[10px] text-gray-450 mt-1 font-medium italic">Nota: "{mem.notes}"</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={cn(
+                            "px-2 py-0.5 font-bold text-[8px] uppercase tracking-wider rounded-md",
+                            mem.role === 'Dirigente' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                            mem.role === 'Dialogador' ? 'bg-cyan-50 text-cyan-700 border border-cyan-100' :
+                            mem.role === 'Sustentador' ? 'bg-slate-100 text-slate-700' :
+                            'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                          )}>
+                            {mem.role}
+                          </span>
+                          <span className={cn(
+                            "text-[8px] font-black uppercase px-2 py-0.5 rounded-full",
+                            mem.status === 'Inativo' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          )}>
+                            {mem.status || 'Ativo'}
+                          </span>
+                        </div>
+                        <h4 className="font-extrabold text-sm sm:text-base text-gray-900 mt-2">{mem.name}</h4>
+                        <p className="text-[10px] text-gray-400 mt-1 font-bold">Tempo de Trabalho: {mem.time || '2 anos'} • {mem.formacao || 'ESDE'}</p>
+                        <p className="text-[10px] text-indigo-600 font-extrabold mt-1">Reunião: {targetGroup ? targetGroup.name : 'Sem Reunião Fixa'}</p>
                       </div>
 
-                      {/* Interactive presence blocks */}
-                      <div className="flex flex-col items-end gap-1 shrink-0 font-sans">
-                        <span className="text-[8px] font-black tracking-widest text-[#a8a29e] uppercase select-none">Frequência Trab. (Últimos 3)</span>
-                        <div className="flex gap-1 mt-1">
-                          {mem.presence.map((p: boolean, idx: number) => (
-                            <button
-                              key={idx}
-                              onClick={() => handleToggleMediPresence(mem.id, idx)}
-                              className={cn(
-                                "w-6 h-6 rounded-lg text-[9px] font-black flex items-center justify-center border transition-all cursor-pointer",
-                                p 
-                                  ? "bg-indigo-50 border-indigo-150 text-indigo-700 hover:bg-indigo-100" 
-                                  : "bg-amber-50 border-amber-150 text-amber-705 hover:bg-amber-100"
-                              )}
-                              title={`Trabalho ${idx + 1}: ${p ? 'Confirmado' : 'Falta'}`}
-                            >
-                              {p ? 'C' : 'F'}
-                            </button>
-                          ))}
-                        </div>
+                      <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 mt-3 sm:mt-0">
+                        <button
+                          onClick={() => {
+                            // Toggle active
+                            const updated = mediunicaMembers.map(m => {
+                              if (m.id === mem.id) {
+                                return { ...m, status: m.status === 'Inativo' ? 'Ativo' : 'Inativo' };
+                              }
+                              return m;
+                            });
+                            setMediunicaMembers(updated);
+                            localStorage.setItem('medi_members', JSON.stringify(updated));
+                          }}
+                          className="px-2 py-1.5 bg-white border border-gray-150 text-[9px] font-black uppercase text-gray-600 rounded-md hover:bg-gray-50 cursor-pointer"
+                        >
+                          Alterar Status
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Deseja desligar ${mem.name} da equipe mediúnica?`)) {
+                              const updated = mediunicaMembers.filter(m => m.id !== mem.id);
+                              setMediunicaMembers(updated);
+                              localStorage.setItem('medi_members', JSON.stringify(updated));
+                            }
+                          }}
+                          className="text-red-550 hover:text-red-700 p-2 cursor-pointer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-150 pb-4">
+                <h3 className="text-lg font-black text-gray-950 leading-none">Inscrever Trabalhador</h3>
+                <p className="text-xs text-gray-400 font-medium mt-1">Registrar qualificação doutrinária para escalonamento.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome Completo</label>
+                  <input
+                    value={newMediWorkerName}
+                    onChange={(e) => setNewMediWorkerName(e.target.value)}
+                    placeholder="Ex: Francisco de Assis Nogueira"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Função Principal</label>
+                    <select
+                      value={newMediWorkerRole}
+                      onChange={(e) => setNewMediWorkerRole(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
+                    >
+                      <option value="Médium de Psicofonia">Médium de Psicofonia</option>
+                      <option value="Médium de Passes">Médium de Passes / Fluidoterapia</option>
+                      <option value="Dialogador">Dialogador / Esclarecedor</option>
+                      <option value="Sustentador">Sustentador Mental</option>
+                      <option value="Coordenador">Coordenador</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Tempo de Atividade</label>
+                    <input
+                      value={newMediWorkerTime}
+                      onChange={(e) => setNewMediWorkerTime(e.target.value)}
+                      placeholder="Ex: 3 anos"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Formação Doutrinária e Cursos</label>
+                  <input
+                    value={newMediWorkerFormacao}
+                    onChange={(e) => setNewMediWorkerFormacao(e.target.value)}
+                    placeholder="Ex: ESDE Completo, Estudo do Livro do Médiuns"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Vincular a Reunião</label>
+                  <select
+                    value={newMediWorkerGroup}
+                    onChange={(e) => setNewMediWorkerGroup(e.target.value)}
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
+                  >
+                    {mediunicaGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Observações / Compromisso Fraterno</label>
+                  <textarea
+                    value={newMediWorkerNotes}
+                    onChange={(e) => setNewMediWorkerNotes(e.target.value)}
+                    placeholder="Indique relatos de sensibilidade ou recomendações..."
+                    className="w-full mt-1 min-h-[70px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-800"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!newMediWorkerName.trim()) {
+                      alert("O nome do trabalhador é obrigatório.");
+                      return;
+                    }
+                    const newWorker = {
+                      id: 'mm_' + Date.now(),
+                      name: newMediWorkerName,
+                      role: newMediWorkerRole,
+                      groupId: newMediWorkerGroup,
+                      time: newMediWorkerTime,
+                      formacao: newMediWorkerFormacao,
+                      status: 'Ativo',
+                      presence: [true, true, true],
+                      notes: newMediWorkerNotes || 'Inscrito na equipe ativa.'
+                    };
+                    const updated = [...mediunicaMembers, newWorker];
+                    setMediunicaMembers(updated);
+                    localStorage.setItem('medi_members', JSON.stringify(updated));
+
+                    // Reset form
+                    setNewMediWorkerName('');
+                    setNewMediWorkerNotes('');
+                    alert("Trabalhador registrado com sucesso!");
+                  }}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
+                >
+                  Registrar Médium no Quadro
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {mediunicaActiveTab === 'frequencia' && (
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-10 shadow-sm text-left space-y-6 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-xl font-black text-gray-900">Diário de Presenças &amp; Frequência Individual</h3>
+                <p className="text-xs text-gray-455 mt-1 font-semibold">Registro e acompanhamento assíduo das equipes para garantia da harmonia vibratória.</p>
+              </div>
+              <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-800 text-xs font-bold leading-relaxed max-w-sm">
+                Nota: A ausência injustificada em mais de 2 reuniões requer acolhimento psicológico fraterno.
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-gray-150 flex-1 min-w-[200px]">
+                <span className="text-[10px] uppercase font-black tracking-wider text-gray-400">Total de Membros Ativos</span>
+                <p className="text-2xl font-black text-gray-900 mt-1">{mediunicaMembers.length}</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-gray-150 flex-1 min-w-[200px]">
+                <span className="text-[10px] uppercase font-black tracking-wider text-gray-400">Média Geral de Assiduidade</span>
+                <p className="text-2xl font-black text-emerald-700 mt-1">91%</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-gray-150 flex-1 min-w-[200px]">
+                <span className="text-[10px] uppercase font-black tracking-wider text-gray-400">Alertas de Ausência Ativos</span>
+                <p className="text-2xl font-black text-rose-600 mt-1">
+                  {mediunicaMembers.filter(m => m.presence?.filter((p: boolean) => !p).length >= 2).length} Trabalhadores
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-[24px] border border-gray-200">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-950 text-white text-[10px] uppercase tracking-widest font-black">
+                    <th className="p-4 pl-6">Nome do Trabalhador</th>
+                    <th className="p-4">Função / Função Espírita</th>
+                    <th className="p-4">Assiduidade Recente</th>
+                    <th className="p-4 pr-6 text-center">Frequência (%)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-xs font-semibold text-gray-800">
+                  {mediunicaMembers.map((mem) => {
+                    const missed = mem.presence?.filter((p: boolean) => !p).length || 0;
+                    const pct = Math.round(((mem.presence?.filter((p: boolean) => p).length || 3) / 3) * 100);
+                    return (
+                      <tr key={mem.id} className="hover:bg-slate-50/75 transition-colors">
+                        <td className="p-4 pl-6">
+                          <p className="font-extrabold text-gray-950 text-sm">{mem.name}</p>
+                          {missed >= 2 && (
+                            <span className="text-[8px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-black uppercase tracking-wider block w-max mt-1 animate-pulse">
+                              Acolhimento Indicado
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-gray-500 font-bold">{mem.role}</td>
+                        <td className="p-4">
+                          <div className="flex gap-1.5">
+                            {mem.presence?.map((pres: boolean, idx: number) => (
+                              <button
+                                key={idx}
+                                onClick={() => handleToggleMediPresence(mem.id, idx)}
+                                className={cn(
+                                  "w-7 h-7 rounded-lg text-[10px] font-black border transition-all cursor-pointer flex items-center justify-center",
+                                  pres 
+                                    ? "bg-emerald-50 border-emerald-150 text-emerald-800 hover:bg-emerald-100" 
+                                    : "bg-rose-50 border-rose-150 text-rose-850 hover:bg-rose-100"
+                                )}
+                                title={`Sessão ${idx + 1}: Clique para alternar`}
+                              >
+                                {pres ? 'P' : 'F'}
+                              </button>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="p-4 pr-6 text-center text-sm font-bold text-gray-900">
+                          <span className={pct < 70 ? 'text-red-650' : 'text-emerald-700'}>{pct}%</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'escalas' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
+            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-xl font-black text-gray-950">Escalas Ativas de Prática Mediúnica</h3>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Programação de rodízio e atribuição de funções por datas regulamentadas.</p>
+              </div>
+
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                {mediunicaEscalas.map((esc) => (
+                  <div key={esc.id} className="p-5 bg-gray-50 border border-gray-150 hover:border-indigo-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all">
+                    <div>
+                      <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md block w-max uppercase tracking-wider">
+                        Data: {esc.date}
+                      </span>
+                      <h4 className="font-extrabold text-slate-900 text-sm sm:text-base mt-2">{esc.groupName}</h4>
+                      <p className="text-xs text-slate-500 mt-1">Dirigente Geral: <strong className="text-slate-700">{esc.leader}</strong></p>
+                      
+                      <div className="mt-3 space-y-1">
+                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Equipe Alocada:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {esc.workers?.map((w: string, idx: number) => (
+                            <span key={idx} className="bg-white border border-gray-200 text-gray-700 font-extrabold text-[9px] px-2 py-0.5 rounded-md">
+                              {w}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {esc.notes && (
+                        <p className="text-xs text-slate-500 font-semibold italic mt-3 bg-white p-2 border border-dashed rounded-xl">" {esc.notes} "</p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (confirm(`Remover escala de ${esc.date}?`)) {
+                          const updated = mediunicaEscalas.filter(e => e.id !== esc.id);
+                          setMediunicaEscalas(updated);
+                          localStorage.setItem('medi_escalas', JSON.stringify(updated));
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700 p-2 text-xs font-black uppercase tracking-wider shrink-0 cursor-pointer"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-150 pb-4">
+                <h3 className="text-lg font-black text-gray-950 leading-none">Criar Nova Escala</h3>
+                <p className="text-xs text-gray-400 font-medium mt-1">Definir escala específica por data e equipe.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Data do Trabalho</label>
+                  <input
+                    type="date"
+                    value={newMediEscalaDate}
+                    onChange={(e) => setNewMediEscalaDate(e.target.value)}
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Vincular Reunião</label>
+                  <select
+                    value={newMediEscalaGroup}
+                    onChange={(e) => {
+                      setNewMediEscalaGroup(e.target.value);
+                      const selectedG = mediunicaGroups.find(g => g.id === e.target.value);
+                      if (selectedG) {
+                        setNewMediEscalaLeader(selectedG.leader);
+                      }
+                    }}
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
+                  >
+                    {mediunicaGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider font-extrabold text-purple-700">Obreiros Escalados</label>
+                  <div className="max-h-[120px] overflow-y-auto p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs space-y-1.5 mt-1">
+                    {mediunicaMembers.map(m => (
+                      <label key={m.id} className="flex items-center gap-2 font-bold cursor-pointer hover:bg-white p-1 rounded transition-all select-none">
+                        <input
+                          type="checkbox"
+                          checked={newMediEscalaWorkers.includes(m.name)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewMediEscalaWorkers([...newMediEscalaWorkers, m.name]);
+                            } else {
+                              setNewMediEscalaWorkers(newMediEscalaWorkers.filter(w => w !== m.name));
+                            }
+                          }}
+                          className="rounded text-indigo-600 focus:ring-0"
+                        />
+                        <span>{m.name} ({m.role})</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Observações da Escala</label>
+                  <input
+                    value={newMediEscalaNotes}
+                    onChange={(e) => setNewMediEscalaNotes(e.target.value)}
+                    placeholder="Instruções espirituais ou observações..."
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 font-semibold"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!newMediEscalaDate || newMediEscalaWorkers.length === 0) {
+                      alert("Insira a data e pelo menos um médium escalado.");
+                      return;
+                    }
+                    const selectedG = mediunicaGroups.find(g => g.id === newMediEscalaGroup);
+                    const newEsc = {
+                      id: 'me_' + Date.now(),
+                      date: newMediEscalaDate,
+                      groupName: selectedG ? selectedG.name : 'Trabalho Mediúnico',
+                      workers: newMediEscalaWorkers,
+                      leader: newMediEscalaLeader || selectedG?.leader || 'Secretaria',
+                      notes: newMediEscalaNotes
+                    };
+                    const updated = [...mediunicaEscalas, newEsc];
+                    setMediunicaEscalas(updated);
+                    localStorage.setItem('medi_escalas', JSON.stringify(updated));
+
+                    // Reset form
+                    setNewMediEscalaDate('');
+                    setNewMediEscalaWorkers([]);
+                    setNewMediEscalaNotes('');
+                    alert("Escala salva com sucesso!");
+                  }}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
+                >
+                  Registrar Escala no Calendário
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'estudos' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
+            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-xl font-black text-gray-950">Formações &amp; Cursos Mediúnicos Regulares</h3>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Capacitação teórica e prática com base rigorosa nas obras fundamentais de Allan Kardec.</p>
+              </div>
+
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                {mediunicaCursos.map((c) => (
+                  <div key={c.id} className="p-5 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-amber-200 transition-all">
+                    <div>
+                      <span className="text-[8.5px] font-black text-amber-850 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded uppercase tracking-wider block w-max">
+                        {c.hours} Horas Classificados
+                      </span>
+                      <h4 className="font-extrabold text-slate-900 text-base mt-2">{c.name}</h4>
+                      <p className="text-xs text-slate-500 font-bold mt-1">Facilitador: {c.facilitator}</p>
+                      <p className="text-[10px] text-gray-400 font-extrabold mt-1">Material de Estudo: {c.material}</p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (confirm(`Remover curso/formação "${c.name}"?`)) {
+                          const updated = mediunicaCursos.filter(item => item.id !== c.id);
+                          setMediunicaCursos(updated);
+                          localStorage.setItem('medi_cursos', JSON.stringify(updated));
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700 p-2 text-xs font-black uppercase tracking-wider shrink-0 cursor-pointer"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-150 pb-4">
+                <h3 className="text-lg font-black text-gray-950 leading-none">Cadastrar Novo Curso</h3>
+                <p className="text-xs text-gray-400 font-medium mt-1">Oferecer programa de preparação técnica.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Título do Curso</label>
+                  <input
+                    value={newMediCursoName}
+                    onChange={(e) => setNewMediCursoName(e.target.value)}
+                    placeholder="Ex: Formação Doutrinária da Obsessão"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Facilitador de Aula</label>
+                    <input
+                      value={newMediCursoFacilitador}
+                      onChange={(e) => setNewMediCursoFacilitador(e.target.value)}
+                      placeholder="Ex: Marta de Oliveira"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Carga Horária (Hrs)</label>
+                    <input
+                      type="number"
+                      value={newMediCursoHours}
+                      onChange={(e) => setNewMediCursoHours(Number(e.target.value))}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-850"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Principal Obra / Apostila Recomendada</label>
+                  <input
+                    value={newMediCursoMaterial}
+                    onChange={(e) => setNewMediCursoMaterial(e.target.value)}
+                    placeholder="Ex: Diálogo com as Sombras - Hermínio Miranda"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!newMediCursoName.trim() || !newMediCursoFacilitador.trim()) {
+                      alert("Entre com o título do curso e o facilitador.");
+                      return;
+                    }
+                    const newC = {
+                      id: 'mc_' + Date.now(),
+                      name: newMediCursoName,
+                      facilitator: newMediCursoFacilitador,
+                      hours: newMediCursoHours || 40,
+                      material: newMediCursoMaterial || 'Livros Espíritas de Allan Kardec',
+                      active: true
+                    };
+                    const updated = [...mediunicaCursos, newC];
+                    setMediunicaCursos(updated);
+                    localStorage.setItem('medi_cursos', JSON.stringify(updated));
+
+                    // Reset form
+                    setNewMediCursoName('');
+                    setNewMediCursoFacilitador('');
+                    setNewMediCursoMaterial('');
+                    alert("Programa de estudo inserido!");
+                  }}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
+                >
+                  Registrar Formação Doutrinária
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'encaminhamentos' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
+            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+                <div>
+                  <h3 className="text-xl font-black text-gray-950">Encaminhamentos Confidenciais</h3>
+                  <p className="text-xs text-gray-400 mt-1 font-semibold">Usuários encaminhados pelo Atendimento Fraterno para tratamento desobsessivo.</p>
+                </div>
+                
+                {/* Simulated Encryption Key control button */}
+                <button
+                  onClick={() => {
+                    setSimulatedEncryptionActive(!simulatedEncryptionActive);
+                    // Log cryptographic activity simulated
+                    const newLog = {
+                      id: 'ml_' + Date.now(),
+                      timestamp: new Date().toISOString(),
+                      user: currentUser?.email || 'carlostecal35@gmail.com',
+                      action: simulatedEncryptionActive ? 'Descriptografia Ativada' : 'Criptografia Ativada',
+                      details: `Alternou chave de criptografia de prontuário espiritual.`
+                    };
+                    const updatedLogs = [newLog, ...mediunicaLogs];
+                    setMediunicaLogs(updatedLogs);
+                    localStorage.setItem('medi_logs', JSON.stringify(updatedLogs));
+                  }}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl font-black text-[10px] uppercase tracking-wider cursor-pointer border transition-all flex items-center gap-1.5 whitespace-nowrap self-stretch sm:self-auto justify-center",
+                    simulatedEncryptionActive
+                      ? "bg-rose-50 text-rose-700 border-rose-150 animate-pulse"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-150"
+                  )}
+                >
+                  <Lock size={12} />
+                  {simulatedEncryptionActive ? 'Criptografado (Ativo)' : 'Modo Leitura / Ver Observações'}
+                </button>
+              </div>
+
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                {mediunicaReferrals.map((ref) => (
+                  <div key={ref.id} className="p-5 bg-gray-50 border border-gray-200 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[8.5px] font-black bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded uppercase tracking-wider">
+                          Origem: {ref.origin}
+                        </span>
+                        <h4 className="font-extrabold text-slate-900 text-base mt-1.5">{ref.name}</h4>
+                        <p className="text-xs text-indigo-700 font-extrabold mt-1">Indicação: {ref.destination}</p>
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          const updated = mediunicaReferrals.map(r => {
+                            if (r.id === ref.id) {
+                              return { ...r, isClosed: !r.isClosed };
+                            }
+                            return r;
+                          });
+                          setMediunicaReferrals(updated);
+                          localStorage.setItem('medi_referrals', JSON.stringify(updated));
+                        }}
+                        className={cn(
+                          "px-3 py-1 text-[9px] font-black uppercase rounded-lg border transition-all cursor-pointer",
+                          ref.isClosed 
+                            ? "bg-slate-200 text-slate-700 border-transparent" 
+                            : "bg-emerald-50 border-emerald-150 text-emerald-700 hover:bg-emerald-100"
+                        )}
+                      >
+                        {ref.isClosed ? 'Concluído' : 'Concluir Tratamento'}
+                      </button>
+                    </div>
+
+                    <div className="p-3 bg-white border border-gray-150 rounded-xl space-y-1 text-xs">
+                      <p className="text-gray-500 font-bold">Motivação da Triagem:</p>
+                      <p className="font-semibold text-gray-850 leading-relaxed">"{ref.reason}"</p>
+                    </div>
+
+                    {/* Highly confidential observations simulated encryption */}
+                    <div className="p-3 bg-slate-900 text-slate-100 rounded-xl space-y-1 text-xs relative overflow-hidden text-left">
+                      <div className="flex justify-between items-center border-b border-slate-800 pb-1.5 mb-1.5">
+                        <span className="text-[8.5px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1">
+                          <Lock size={10} /> Relato do Atendimento Fraterno (Reservado)
+                        </span>
+                        {simulatedEncryptionActive && (
+                          <span className="text-[7.5px] bg-rose-950/40 text-rose-300 font-black px-1 rounded border border-rose-900/30">AES-256</span>
+                        )}
+                      </div>
+                      {simulatedEncryptionActive ? (
+                        <p className="text-[10px] text-slate-400 break-all select-none font-mono">
+                          [AES_ENCRYPTED_SHA256_HASH_D98F2312A09B8F77E623BD086B1... CLICK EM "VER OBSERVAÇÕES" PARA DESCRIPTOGRAFAR]
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-350 leading-relaxed italic">"{ref.obs || 'Nenhuma informação confidencial anotada.'}"</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-150 pb-4">
+                <h3 className="text-lg font-black text-gray-950 leading-none">Novo Encaminhamento</h3>
+                <p className="text-xs text-gray-400 font-medium mt-1">Registrar usuário vindo de triagem confidencial externa.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome do Sensibilizado</label>
+                  <input
+                    value={newMediReferralName}
+                    onChange={(e) => setNewMediReferralName(e.target.value)}
+                    placeholder="Ex: André Luiz da Silva"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Origem do Cadastro</label>
+                    <select
+                      value={newMediReferralOrigem}
+                      onChange={(e) => setNewMediReferralOrigem(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800 font-bold"
+                    >
+                      <option value="Atendimento Fraterno">Atendimento Fraterno</option>
+                      <option value="Palestras Públicas">Palestra / Evangelho</option>
+                      <option value="Passes Longos">Setor de Passes</option>
+                      <option value="Evolução de Prontuário">Passe Especial</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider font-extrabold text-indigo-700">Grupo de Destino</label>
+                    <select
+                      value={newMediReferralDestino}
+                      onChange={(e) => setNewMediReferralDestino(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-gray-850"
+                    >
+                      {mediunicaGroups.map(g => (
+                        <option key={g.id} value={g.name}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Motivo / Sensibilidade Relatada na Triagem</label>
+                  <input
+                    value={newMediReferralMotivo}
+                    onChange={(e) => setNewMediReferralMotivo(e.target.value)}
+                    placeholder="Sensibilidade auditiva, cansaço extremo, sonhos aflitivos..."
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-rose-600 block mt-1.5 font-bold">Observações Sigilosas (Criptografia AES-256)</label>
+                  <textarea
+                    value={newMediReferralObs}
+                    onChange={(e) => setNewMediReferralObs(e.target.value)}
+                    placeholder="Evite nomes de terceiros. Apenas dados espirituais ou obsessivos graves."
+                    className="w-full mt-1 min-h-[90px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-800"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!newMediReferralName.trim()) {
+                      alert("O nome do sensibilizado é obrigatório.");
+                      return;
+                    }
+                    const newR = {
+                      id: 'mr_' + Date.now(),
+                      name: newMediReferralName,
+                      origin: newMediReferralOrigem,
+                      destination: newMediReferralDestino,
+                      reason: newMediReferralMotivo,
+                      obs: newMediReferralObs,
+                      isClosed: false,
+                      date: new Date().toISOString().split('T')[0]
+                    };
+                    const updated = [...mediunicaReferrals, newR];
+                    setMediunicaReferrals(updated);
+                    localStorage.setItem('medi_referrals', JSON.stringify(updated));
+
+                    // Reset form
+                    setNewMediReferralName('');
+                    setNewMediReferralObs('');
+                    alert("Encaminhamento sob criptografia salvo!");
+                  }}
+                  className="w-full py-3 bg-cyan-600 hover:bg-cyan-750 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
+                >
+                  Registrar Encaminhamento Sob Criptografia
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'salas' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
+            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-xl font-black text-gray-950">Acomodações e Salas de Fluidoterapia</h3>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Organização física das salas específicas de passes magnéticos e tratamento espiritual desobsessivo.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {mediunicaRooms.map((room) => (
+                  <div key={room.id} className="p-5 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded uppercase font-black text-[8px] tracking-wider block",
+                          room.status === 'Livre' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' :
+                          room.status === 'Em Atividade' ? 'bg-rose-50 text-rose-700 border border-rose-100 border-dashed animate-pulse' :
+                          'bg-amber-50 text-amber-700'
+                        )}>
+                          Status: {room.status}
+                        </span>
+                        
+                        <button
+                          onClick={() => {
+                            if (confirm(`Remover sala/ambiente "${room.name}"?`)) {
+                              const updated = mediunicaRooms.filter(r => r.id !== room.id);
+                              setMediunicaRooms(updated);
+                              localStorage.setItem('medi_rooms', JSON.stringify(updated));
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xs cursor-pointer font-extrabold uppercase tracking-wider"
+                        >
+                          Remover
+                        </button>
+                      </div>
+
+                      <h4 className="font-extrabold text-slate-900 text-base mt-2.5">{room.name}</h4>
+                      <p className="text-xs text-slate-500 font-bold mt-1">Função: {room.type}</p>
+                      <p className="text-[10px] text-gray-400 font-extrabold mt-1">Capacidade Teórica: {room.capacity} Obreiros / Ouvintes</p>
+                    </div>
+
+                    <div className="border-t border-gray-200/55 pt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => {
+                          const updated = mediunicaRooms.map(r => {
+                            if (r.id === room.id) {
+                              return { ...r, status: r.status === 'Livre' ? 'Em Atividade' : r.status === 'Em Atividade' ? 'Preparação' : 'Livre' };
+                            }
+                            return r;
+                          });
+                          setMediunicaRooms(updated);
+                          localStorage.setItem('medi_rooms', JSON.stringify(updated));
+                        }}
+                        className="px-2.5 py-1 text-[8.5px] font-black uppercase bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Activity size={10} /> Alternar Status
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-150 pb-4">
+                <h3 className="text-lg font-black text-gray-950 leading-none">Cadastrar Novo Ambiente</h3>
+                <p className="text-xs text-gray-400 font-medium mt-1">Vincular espaços de sustentação energética.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Identificador da Sala</label>
+                  <input
+                    value={newMediRoomName}
+                    onChange={(e) => setNewMediRoomName(e.target.value)}
+                    placeholder="Ex: Sala Alan Kardec (Fluídos C)"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Tipo de Atividade</label>
+                    <select
+                      value={newMediRoomType}
+                      onChange={(e) => setNewMediRoomType(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
+                    >
+                      <option value="Desobsessão e Fluidoterapia">Desobsessão</option>
+                      <option value="Atendimento e Passes">Atendimento de Passes</option>
+                      <option value="Estudo de Educação Mediúnica">Estudos / Testes</option>
+                      <option value="Triagem Espiritual">Câmara de Irradiação</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Capacidade Teórica</label>
+                    <input
+                      type="number"
+                      value={newMediRoomCapacity}
+                      onChange={(e) => setNewMediRoomCapacity(Number(e.target.value))}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-850 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Responsável do Ambiente</label>
+                  <input
+                    value={newMediRoomResp}
+                    onChange={(e) => setNewMediRoomResp(e.target.value)}
+                    placeholder="Ex: Roberto Nogueira"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 font-semibold"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!newMediRoomName.trim()) {
+                      alert("Insira a identificação da sala.");
+                      return;
+                    }
+                    const newRm = {
+                      id: 'mrm_' + Date.now(),
+                      name: newMediRoomName,
+                      type: newMediRoomType,
+                      capacity: newMediRoomCapacity || 12,
+                      status: 'Livre',
+                      resp: newMediRoomResp || 'Equipe de Apoio'
+                    };
+                    const updated = [...mediunicaRooms, newRm];
+                    setMediunicaRooms(updated);
+                    localStorage.setItem('medi_rooms', JSON.stringify(updated));
+
+                    // Reset form
+                    setNewMediRoomName('');
+                    setNewMediRoomResp('');
+                    alert("Ambiente físico cadastrado!");
+                  }}
+                  className="w-full py-3 bg-teal-600 hover:bg-teal-750 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
+                >
+                  Registrar Espaço Mediúnico
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'biblioteca' && (
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-10 shadow-sm text-left space-y-6 animate-in fade-in duration-300">
+            <div>
+              <h3 className="text-xl font-black text-gray-900">Biblioteca &amp; Acervo Doutrinário Recomendado</h3>
+              <p className="text-xs text-gray-450 mt-1 font-semibold">Leituras complementares oficiais e compilações recomendadas para alinhamento metodológico das equipes.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { title: 'O Livro dos Médiuns', author: 'Allan Kardec', year: '1861', importance: 'Guia Fundamental do Setor', description: 'Trata do ensino dos espíritos sobre a teoria de todos os gêneros de manifestações, meios de comunicação, educação da mediunidade e dificuldades.' },
+                { title: 'Nos Domínios da Mediunidade', author: 'André Luiz / F. C. Xavier', year: '1955', importance: 'Estágios Clínicos e Obsessão', description: 'Estudo sutil e detalhado da psicofonia, passes magnéticos, desdobramento espiritual e as obsessões sob a ótica científica da fluidoterapia.' },
+                { title: 'Missionários da Luz', author: 'André Luiz / F. C. Xavier', year: '1945', importance: 'Anatomia da Aura e Fluidos', description: 'Revela o papel espiritual da pineal, a química do fluidomagnetismo das equipes invisíveis nas reuniões e a extrema responsabilidade do obreiro.' },
+                { title: 'Mecanismos da Mediunidade', author: 'André Luiz / Waldo Vieira / F. C. Xavier', year: '1960', importance: 'Vibrações e Física de Espíritos', description: 'Inter-relação entre ondas eletromagnéticas, o pensamento criador e os fenômenos mediúnicos de efeitos físicos e intelectuais.' }
+              ].map((book, idx) => (
+                <div key={idx} className="p-5 bg-[#F8FAFC] rounded-3xl border border-gray-150 flex flex-col justify-between space-y-4 hover:shadow-sm hover:border-gray-350 transition-all">
+                  <div className="space-y-4 text-left">
+                    <span className="text-[8.5px] uppercase font-black tracking-widest bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded inline-block">
+                      {book.importance}
+                    </span>
+                    <div>
+                      <h4 className="font-extrabold text-gray-950 text-base leading-tight">{book.title}</h4>
+                      <p className="text-xs text-gray-400 font-bold mt-1">Autor: {book.author} ({book.year})</p>
+                    </div>
+                    <p className="text-xs text-gray-655 leading-relaxed font-semibold italic">"{book.description}"</p>
+                  </div>
+                  <div className="pt-3 border-t border-gray-200/50">
+                    <button
+                      onClick={() => alert(`Material Digital "${book.title}" carregado com sucesso! Clique para baixar os resumos capitulados no centro de estudos espíritas.`)}
+                      className="w-full text-center py-2 bg-white hover:bg-slate-900 border border-gray-200 text-gray-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Acessar Estudo de Caso
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'acolhimento' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
+            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-xl font-black text-gray-950">Acompanhamento &amp; Harmonização Fraterna de Obreiros</h3>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Espaço dedicado exclusivamente ao amparo emocional das equipes mediúnicas frente a estresses individuais e familiares.</p>
+              </div>
+
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                {mediunicaAcolhimento.map((item) => (
+                  <div key={item.id} className="p-5 bg-[#F8FAFC] border border-gray-150 rounded-2xl space-y-3 hover:border-fuchsia-200 transition-all text-left">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-extrabold text-slate-900 text-base leading-none">{item.workerName}</h4>
+                        <span className={cn(
+                          "inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded-full mt-2.5",
+                          item.status === 'Fragilizado' ? 'bg-fuchsia-100 text-fuchsia-800 animate-pulse' : 'bg-amber-100 text-amber-800'
+                        )}>
+                          Grau de Alerta: {item.status}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Remover acolhimento de ${item.workerName}?`)) {
+                            const updated = mediunicaAcolhimento.filter(a => a.id !== item.id);
+                            setMediunicaAcolhimento(updated);
+                            localStorage.setItem('medi_acolhimento', JSON.stringify(updated));
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 text-xs font-black uppercase tracking-wider cursor-pointer"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+
+                    <div className="bg-white border border-gray-150 rounded-xl p-3 text-xs space-y-1 text-left">
+                      <p className="text-gray-400 font-extrabold uppercase text-[9px]">Necessidade Observada:</p>
+                      <p className="font-semibold text-gray-800 italic">" {item.need} "</p>
+                    </div>
+
+                    {item.recommendation && (
+                      <div className="p-3.5 bg-fuchsia-50 border border-fuchsia-100/50 rounded-xl text-xs text-fuchsia-950 font-bold leading-relaxed text-left">
+                        <p className="text-[10px] text-fuchsia-500 uppercase tracking-wider font-extrabold mb-1">Recomendações da Coordenação:</p>
+                        {item.recommendation}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-150 pb-4">
+                <h3 className="text-lg font-black text-gray-950 leading-none">Acolhimento Fraterno Ativo</h3>
+                <p className="text-xs text-gray-400 font-medium mt-1">Registrar obreiro que precisa de amparo, prece de harmonização ou repouso temporário.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Trabalhador Atendido</label>
+                  <select
+                    value={newMediAcolhimentoName}
+                    onChange={(e) => setNewMediAcolhimentoName(e.target.value)}
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800 font-bold"
+                  >
+                    <option value="">Selecione o trabalhador...</option>
+                    {mediunicaMembers.map(m => (
+                      <option key={m.id} value={m.name}>{m.name} ({m.role})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Necessidade Clínica/Emocional</label>
+                    <select
+                      value={newMediAcolhimentoNeed}
+                      onChange={(e) => setNewMediAcolhimentoNeed(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
+                    >
+                      <option value="Vulnerabilidade Emocional">Estresse / Ansiedade</option>
+                      <option value="Tratamento Físico">Tratamento Clínico</option>
+                      <option value="Perda na Família">Luto / Problema Familiar</option>
+                      <option value="Sobrecarga por Desobsessão">Fadiga Energética</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Status de Alerta</label>
+                    <select
+                      value={newMediAcolhimentoStatus}
+                      onChange={(e) => setNewMediAcolhimentoStatus(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
+                    >
+                      <option value="Equilibrado">Equilibrado</option>
+                      <option value="Instável">Instável</option>
+                      <option value="Fragilizado">Extremamente Fragilizado</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Ações de Amparo Recomendadas</label>
+                  <textarea
+                    value={newMediAcolhimentoRec}
+                    onChange={(e) => setNewMediAcolhimentoRec(e.target.value)}
+                    placeholder="Indique exaltação de prece, aplicação de fluidos magnéticos especiais de cura ou dispensa do trabalho prático por tempo determinado..."
+                    className="w-full mt-1 min-h-[90px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-800"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!newMediAcolhimentoName) {
+                      alert("Por favor, selecione o trabalhador atendido.");
+                      return;
+                    }
+                    const newAc = {
+                      id: 'mac_' + Date.now(),
+                      workerName: newMediAcolhimentoName,
+                      need: newMediAcolhimentoNeed,
+                      status: newMediAcolhimentoStatus,
+                      recommendation: newMediAcolhimentoRec || 'Harmonização na câmara silenciosa de prece.'
+                    };
+                    const updated = [...mediunicaAcolhimento, newAc];
+                    setMediunicaAcolhimento(updated);
+                    localStorage.setItem('medi_acolhimento', JSON.stringify(updated));
+
+                    // Reset form
+                    setNewMediAcolhimentoName('');
+                    setNewMediAcolhimentoRec('');
+                    alert("Acolhimento registrado na coordenação espiritual!");
+                  }}
+                  className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-750 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
+                >
+                  Confirmar Acolhimento Fraterno da Equipe
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mediunicaActiveTab === 'seguranca' && (
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-10 shadow-sm text-left space-y-8 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-gray-150">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Lock className="text-rose-600 animate-pulse" size={22} />
+                  Criptografia Inteira de Dados &amp; Auditoria de Acesso
+                </h3>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Rastreamento sistêmico completo de quem lê, altera ou exporta dados espirituais confidenciais.</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (confirm("Deseja zerar os registros de auditoria mediúnica? Esta ação gerará um log eterno de redefinição.")) {
+                      const newLog = {
+                        id: 'ml_reset',
+                        timestamp: new Date().toISOString(),
+                        user: currentUser?.email || 'carlostecal35@gmail.com',
+                        action: 'Limpeza de Auditoria',
+                        details: 'O usuário administrador redefiniu os logs históricos de visualização de prontuários sob o cap. XXVI de O Livro dos Médiuns.'
+                      };
+                      setMediunicaLogs([newLog]);
+                      localStorage.setItem('medi_logs', JSON.stringify([newLog]));
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-colors border border-red-100 cursor-pointer"
+                >
+                  Zerar Logs de Visitação
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-5 bg-slate-950 text-white rounded-3xl border border-slate-800 flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                    <span className="text-[10px] tracking-widest text-[#a8a29e] uppercase font-black font-mono">Chave Criptográfica AES-256</span>
+                    <span className="text-[8px] font-black text-rose-500 font-mono">SEGURANÇA HIERÁRQUICA ATIVA</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-slate-300 italic mt-3 text-left">
+                    Em obediência ao sigilo moral recomendado na Doutrina Espírita, observações detalhadas de desobsessões estão protegidas por dispersores criptográficos. Apenas perfis associados à alta coordenação podem forçar desfragmentação AES.
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-850 flex gap-2">
+                  <span className="text-[10px] font-mono text-emerald-400 font-extrabold flex items-center gap-1">
+                    🟢 Algoritmo Ativo: PBKDF2 HMAC-SHA256
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-5 bg-slate-50 border border-gray-150 rounded-3xl flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                    <span className="text-[10px] tracking-widest text-gray-400 uppercase font-black">Controle de Permissões</span>
+                    <span className="text-[8px] font-black bg-cyan-100 text-cyan-800 px-1.5 py-0.5 rounded">LGPD COMPLIANCE</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-gray-550 italic mt-3 text-left">
+                    O acesso a prontuários e diários fraternos do Setor Mediúnico registra permanentemente os identificadores digitais e IPs de tráfego de rede para garantir conformidade legal com a legislação civil e ética interna da federativa.
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-gray-200 flex gap-2">
+                  <span className="text-[10px] font-mono text-indigo-700 font-extrabold">
+                    🔑 Seu Cargo de Acesso: {currentUser?.role || 'Apoiador'} (Autorizado)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-left">
+              <h4 className="text-xs font-black uppercase tracking-widest text-gray-400">Trilha de Auditoria em Tempo Real de Dados Confidenciais</h4>
+              <div className="overflow-x-auto rounded-[24px] border border-gray-150">
+                <table className="w-full text-left border-collapse bg-white">
+                  <thead>
+                    <tr className="bg-slate-950 text-white text-[9px] uppercase tracking-widest font-black">
+                      <th className="p-3.5 pl-5">Timestamp</th>
+                      <th className="p-3.5">Administrador / Usuário</th>
+                      <th className="p-3.5">Ações Registradas</th>
+                      <th className="p-3.5 pr-5">Detalhes da Execução</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-[11px] font-semibold text-gray-700">
+                    {mediunicaLogs.slice(0, 15).map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50/75">
+                        <td className="p-3.5 pl-5 font-mono text-gray-400 text-[10px]">
+                          {new Date(log.timestamp).toLocaleString('pt-BR')}
+                        </td>
+                        <td className="p-3.5 text-gray-900 font-extrabold">{log.user}</td>
+                        <td className="p-3.5">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded font-black text-[8px] uppercase tracking-wider",
+                            log.action?.includes('Cripto') || log.action?.includes('Chave') ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                            log.action?.includes('Limpeza') ? 'bg-red-50 text-red-700 border border-red-100' :
+                            'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                          )}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="p-3.5 pr-5 text-gray-500 font-bold max-w-sm truncate whitespace-nowrap" title={log.details}>
+                          {log.details}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -7014,7 +8314,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
     return (
       <div className="space-y-8 animate-in fade-in duration-500 font-sans">
         {/* Navigation Tabs for Art Sub-modules */}
-        <div className="flex border-b border-gray-100 pb-3 gap-2 overflow-x-auto pb-1">
+        <div className="flex border-b border-gray-100 pb-2 gap-2 overflow-x-auto scrollbar-none w-full whitespace-nowrap">
           {[
             { id: 'grupos', label: 'Grupos Artísticos', icon: Palette, color: 'text-pink-600 bg-pink-50' },
             { id: 'musica', label: 'Gestão Musical & Repertório', icon: Music, color: 'text-emerald-600 bg-emerald-50' },
@@ -7029,10 +8329,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 key={item.id}
                 onClick={() => setArteActiveTab(item.id as any)}
                 className={cn(
-                  "flex items-center gap-2.5 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap cursor-pointer border",
+                  "flex items-center gap-2.5 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap cursor-pointer border flex-shrink-0",
                   isActive 
-                    ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10"
-                    : "bg-white hover:bg-gray-50 text-gray-500 border-gray-100 hover:text-gray-900"
+                    ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10 block duration-300"
+                    : "bg-white hover:bg-gray-50 text-gray-500 border-gray-100 hover:text-gray-900 duration-300"
                 )}
               >
                 <div className={cn("p-1 rounded-lg", isActive ? "bg-white/20 text-white" : item.color)}>
@@ -7761,7 +9061,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
     return (
       <div className="space-y-8 animate-in fade-in duration-500 text-left">
         {/* Tab Selection */}
-        <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-100">
+        <div className="flex overflow-x-auto whitespace-nowrap gap-2 pb-2 border-b border-gray-100 scrollbar-none w-full">
           <button
             onClick={() => {
               setComActiveTab('comunicados');
@@ -7772,7 +9072,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingEquipeId(null);
             }}
             className={cn(
-              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               comActiveTab === 'comunicados'
                 ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-indigo-600 hover:border-gray-200"
@@ -7791,7 +9091,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingEquipeId(null);
             }}
             className={cn(
-              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               comActiveTab === 'redes'
                 ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-amber-650 hover:border-gray-200"
@@ -7810,7 +9110,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingEquipeId(null);
             }}
             className={cn(
-              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               comActiveTab === 'midia'
                 ? "bg-pink-600 text-white shadow-lg shadow-pink-600/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-pink-600 hover:border-gray-200"
@@ -7830,7 +9130,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingCampanhaId(null);
             }}
             className={cn(
-              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               comActiveTab === 'equipe'
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-emerald-650 hover:border-gray-200"
@@ -7850,7 +9150,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingCampanhaId(null);
             }}
             className={cn(
-              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               comActiveTab === 'campanhas'
                 ? "bg-rose-550 text-white shadow-lg shadow-rose-500/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-rose-650 hover:border-gray-200"
@@ -9288,14 +10588,14 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
         )}
 
         {/* Tab Selector */}
-        <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-100">
+        <div className="flex overflow-x-auto whitespace-nowrap gap-2 pb-2 border-b border-gray-100 scrollbar-none w-full">
           <button
             onClick={() => {
               setPasseActiveTab('atendimentos');
               setEditingPasseAtendimentoId(null);
             }}
             className={cn(
-              "p-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               passeActiveTab === 'atendimentos'
                 ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-cyan-600 hover:border-cyan-200"
@@ -9311,7 +10611,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingPassePassistaId(null);
             }}
             className={cn(
-              "p-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               passeActiveTab === 'passistas'
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-emerald-600 hover:border-emerald-200"
@@ -9328,7 +10628,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingPasseCampanhaId(null);
             }}
             className={cn(
-              "p-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               passeActiveTab === 'fluidoterapia'
                 ? "bg-sky-600 text-white shadow-lg shadow-sky-600/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-sky-600 hover:border-sky-300"
@@ -9345,7 +10645,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingPasseMaterialId(null);
             }}
             className={cn(
-              "p-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               passeActiveTab === 'salas'
                 ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-indigo-600 hover:border-indigo-300"
@@ -9361,7 +10661,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setEditingPasseEscalaId(null);
             }}
             className={cn(
-              "p-3.5 px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2",
+              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
               passeActiveTab === 'escalas'
                 ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20 scale-102"
                 : "bg-white border border-gray-100 text-gray-450 hover:text-purple-600 hover:border-purple-300"
@@ -9371,10 +10671,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
             <span>Escalas de Serviço</span>
           </button>
 
-          {/* Quick PDF Report button on the right */}
+          {/* Quick PDF Report button */}
           <button
             onClick={generatePasseSummaryReport}
-            className="md:ml-auto p-3.5 px-6 rounded-2xl bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer"
+            className="md:ml-auto p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer flex-shrink-0 whitespace-nowrap"
           >
             <Download size={14} />
             <span>PDF Administrativo</span>
@@ -10585,11 +11885,11 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
         </div>
 
         {/* PILLS NAVIGATION */}
-        <div className="flex overflow-x-auto gap-2 bg-rose-50/50 p-1.5 rounded-2xl border border-rose-100/50 scrollbar-none">
+        <div className="flex overflow-x-auto whitespace-nowrap gap-2 bg-rose-50/50 p-1.5 rounded-2xl border border-rose-100/50 scrollbar-none w-full">
           <button
             onClick={() => setSocialActiveTab('painel')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'painel' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >
@@ -10599,7 +11899,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <button
             onClick={() => setSocialActiveTab('assistidos')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'assistidos' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >
@@ -10609,7 +11909,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <button
             onClick={() => setSocialActiveTab('atendimentos')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'atendimentos' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >
@@ -10619,7 +11919,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <button
             onClick={() => setSocialActiveTab('doacoes')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'doacoes' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >
@@ -10629,7 +11929,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <button
             onClick={() => setSocialActiveTab('cestas')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'cestas' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >
@@ -10639,7 +11939,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <button
             onClick={() => setSocialActiveTab('visitas')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'visitas' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >
@@ -10649,7 +11949,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <button
             onClick={() => setSocialActiveTab('campanhas_projetos')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'campanhas_projetos' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >
@@ -10659,7 +11959,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <button
             onClick={() => setSocialActiveTab('voluntarios')}
             className={cn(
-              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer",
+              "flex-shrink-0 flex items-center gap-2 py-3 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
               socialActiveTab === 'voluntarios' ? "bg-rose-600 text-white shadow-sm" : "text-rose-700 hover:bg-rose-100/50"
             )}
           >

@@ -41,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
 
   const navItems = [
     { to: '/', icon: Layout, label: 'Painel', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
-    { to: '/credenciais', icon: CreditCard, label: 'Crachás de Voluntários', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
+    { to: '/credenciais', icon: CreditCard, label: 'Emissão de Credenciais', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/atendidos', icon: Users, label: 'Atendidos', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/fila', icon: Clock, label: 'Fila de Atendimento', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/atendimentos', icon: ClipboardList, label: 'Atendimentos', roles: ['ADMIN', 'ADM', 'COORDENADOR'] },

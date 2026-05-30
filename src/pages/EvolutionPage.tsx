@@ -27,6 +27,13 @@ import {
   ScrollText,
   Save,
   ArrowLeft,
+  Brain,
+  Smile,
+  Home,
+  Download,
+  Plus,
+  Info,
+  Check,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -85,6 +92,17 @@ export const EvolutionPage: React.FC = () => {
     referralSectors: [] as string[],
     encaminhamento: "",
     attachments: [] as any[],
+    emotionalStatus: "",
+    physicalHealth: "",
+    familyRelationship: "",
+    spirituality: "",
+    observations: "",
+    aspectsReports: {
+      emotionalStatus: "",
+      physicalHealth: "",
+      familyRelationship: "",
+      spirituality: "",
+    } as Record<string, string>,
   });
 
   useEffect(() => {
@@ -134,6 +152,17 @@ export const EvolutionPage: React.FC = () => {
         referralSectors: editingEvo.nextStepSectorIds || [],
         encaminhamento: editingEvo.encaminhamento || "",
         attachments: editingEvo.attachments || [],
+        emotionalStatus: editingEvo.emotionalStatus || "",
+        physicalHealth: editingEvo.physicalHealth || "",
+        familyRelationship: editingEvo.familyRelationship || "",
+        spirituality: editingEvo.spirituality || "",
+        observations: editingEvo.observations || "",
+        aspectsReports: {
+          emotionalStatus: editingEvo.aspectsReports?.emotionalStatus || "",
+          physicalHealth: editingEvo.aspectsReports?.physicalHealth || "",
+          familyRelationship: editingEvo.aspectsReports?.familyRelationship || "",
+          spirituality: editingEvo.aspectsReports?.spirituality || "",
+        },
       });
       // Scroll to form
       const formElement = document.getElementById("evolution-form");
@@ -300,12 +329,39 @@ export const EvolutionPage: React.FC = () => {
       doc.text(`Registro: ${p.id}`, 190, 45, { align: "right" });
 
       // History Table
-      const tableData = history.map((evo) => [
-        safeFormat(evo.date, "dd/MM/yyyy HH:mm"),
-        sectors.find((s) => s.id === evo.sectorId)?.name || "Setor",
-        (evo.notesEncrypted || "").replace(/<[^>]*>?/gm, ""),
-        (evo.recommendations || "").replace(/<[^>]*>?/gm, ""),
-      ]);
+      const tableData = history.map((evo) => {
+        let obsTxt = (evo.notesEncrypted || "").replace(/<[^>]*>?/gm, "");
+        
+        // Append fraternal multidimensional evaluation if any exists
+        const aspects = [];
+        if (evo.emotionalStatus) {
+          aspects.push(`Emocional: ${evo.emotionalStatus}${evo.aspectsReports?.emotionalStatus ? ` ("${evo.aspectsReports.emotionalStatus}")` : ""}`);
+        }
+        if (evo.physicalHealth) {
+          aspects.push(`Física: ${evo.physicalHealth}${evo.aspectsReports?.physicalHealth ? ` ("${evo.aspectsReports.physicalHealth}")` : ""}`);
+        }
+        if (evo.familyRelationship) {
+          aspects.push(`Familiar: ${evo.familyRelationship}${evo.aspectsReports?.familyRelationship ? ` ("${evo.aspectsReports.familyRelationship}")` : ""}`);
+        }
+        if (evo.spirituality) {
+          aspects.push(`Espiritual: ${evo.spirituality}${evo.aspectsReports?.spirituality ? ` ("${evo.aspectsReports.spirituality}")` : ""}`);
+        }
+        
+        if (aspects.length > 0) {
+          obsTxt += `\n\n[Avaliação de Aspectos]:\n- ` + aspects.join("\n- ");
+        }
+        
+        if (evo.observations) {
+          obsTxt += `\n\n[Observações do Atendente]:\n${evo.observations}`;
+        }
+
+        return [
+          safeFormat(evo.date, "dd/MM/yyyy HH:mm"),
+          sectors.find((s) => s.id === evo.sectorId)?.name || "Setor",
+          obsTxt,
+          (evo.recommendations || "").replace(/<[^>]*>?/gm, ""),
+        ];
+      });
 
       if (tableData.length > 0) {
         autoTable(doc, {
@@ -393,6 +449,12 @@ export const EvolutionPage: React.FC = () => {
           nextStepSectorIds: formData.referralSectors,
           encaminhamento: formData.encaminhamento,
           attachments: formData.attachments,
+          emotionalStatus: formData.emotionalStatus,
+          physicalHealth: formData.physicalHealth,
+          familyRelationship: formData.familyRelationship,
+          spirituality: formData.spirituality,
+          observations: formData.observations,
+          aspectsReports: formData.aspectsReports,
         };
         await dataService.updateEvolution(updatedEvo);
         await dataService.createLog(
@@ -410,6 +472,12 @@ export const EvolutionPage: React.FC = () => {
           nextStepSectorIds: formData.referralSectors,
           encaminhamento: formData.encaminhamento,
           attachments: formData.attachments,
+          emotionalStatus: formData.emotionalStatus,
+          physicalHealth: formData.physicalHealth,
+          familyRelationship: formData.familyRelationship,
+          spirituality: formData.spirituality,
+          observations: formData.observations,
+          aspectsReports: formData.aspectsReports,
         });
 
         // CRITICAL: Add to Queue for each referral
@@ -438,6 +506,17 @@ export const EvolutionPage: React.FC = () => {
         referralSectors: [],
         encaminhamento: "",
         attachments: [],
+        emotionalStatus: "",
+        physicalHealth: "",
+        familyRelationship: "",
+        spirituality: "",
+        observations: "",
+        aspectsReports: {
+          emotionalStatus: "",
+          physicalHealth: "",
+          familyRelationship: "",
+          spirituality: "",
+        },
       }));
       await loadHistory(selectedP.id);
       await loadActiveServices(selectedP.id);
@@ -1084,6 +1163,99 @@ export const EvolutionPage: React.FC = () => {
                                             "<i>Sem observações detalhadas.</i>",
                                         }}
                                       />
+
+                                      {/* New Fraternal Aspects & Reports Display (Solicitado pelo Usuário) */}
+                                      {(evo.emotionalStatus || evo.physicalHealth || evo.familyRelationship || evo.spirituality || evo.observations) && (
+                                        <div className="mt-6 p-6 bg-slate-50 rounded-[28px] border border-slate-100 space-y-4">
+                                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider pl-1 font-sans">
+                                            Acompanhamento Multidimensional
+                                          </p>
+                                          
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {evo.emotionalStatus && (
+                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                  <Smile size={14} className="text-indigo-500" />
+                                                  <span className="text-[10px] font-bold text-slate-500">Emocional</span>
+                                                </div>
+                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                  {evo.emotionalStatus}
+                                                </span>
+                                                {evo.aspectsReports?.emotionalStatus && (
+                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                    "{evo.aspectsReports.emotionalStatus}"
+                                                  </p>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {evo.physicalHealth && (
+                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                  <Activity size={14} className="text-indigo-500" />
+                                                  <span className="text-[10px] font-bold text-slate-500">Saúde Física</span>
+                                                </div>
+                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                  {evo.physicalHealth}
+                                                </span>
+                                                {evo.aspectsReports?.physicalHealth && (
+                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                    "{evo.aspectsReports.physicalHealth}"
+                                                  </p>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {evo.familyRelationship && (
+                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                  <Home size={14} className="text-indigo-500" />
+                                                  <span className="text-[10px] font-bold text-slate-500">Familiar / Social</span>
+                                                </div>
+                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                  {evo.familyRelationship}
+                                                </span>
+                                                {evo.aspectsReports?.familyRelationship && (
+                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                    "{evo.aspectsReports.familyRelationship}"
+                                                  </p>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {evo.spirituality && (
+                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                  <Brain size={14} className="text-indigo-500" />
+                                                  <span className="text-[10px] font-bold text-slate-500">Espiritual</span>
+                                                </div>
+                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                  {evo.spirituality}
+                                                </span>
+                                                {evo.aspectsReports?.spirituality && (
+                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                    "{evo.aspectsReports.spirituality}"
+                                                  </p>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* General Observations inside History Card */}
+                                          {evo.observations && (
+                                            <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 space-y-1 mt-4">
+                                              <div className="flex items-center gap-1.5 text-amber-800">
+                                                <ScrollText size={14} />
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Anotações do Atendente (Internas)</span>
+                                              </div>
+                                              <p className="text-xs text-amber-950 font-medium leading-relaxed pl-1">
+                                                {evo.observations}
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
                                       {evo.attachments &&
                                         evo.attachments.length > 0 && (
                                           <div className="mt-6 flex flex-wrap gap-4">
@@ -1243,6 +1415,17 @@ export const EvolutionPage: React.FC = () => {
                                   referralSectors: [],
                                   encaminhamento: "",
                                   attachments: [],
+                                  emotionalStatus: "",
+                                  physicalHealth: "",
+                                  familyRelationship: "",
+                                  spirituality: "",
+                                  observations: "",
+                                  aspectsReports: {
+                                    emotionalStatus: "",
+                                    physicalHealth: "",
+                                    familyRelationship: "",
+                                    spirituality: "",
+                                  },
                                 });
                               }}
                               className="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white p-2 rounded-xl transition-all active:scale-90"
@@ -1657,18 +1840,187 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Section: Knowledge */}
-                        <div className="space-y-6">
+                        {/* Section 3: Avaliação Multidimensional & Relatos Escritos dos Aspectos (Solicitado pelo Usuário) */}
+                        <div className="space-y-8 lg:col-span-2 bg-indigo-50/10 p-6 sm:p-8 rounded-[40px] border border-indigo-100/60 shadow-inner">
+                          <div className="flex items-center gap-3 border-b border-indigo-100 pb-4">
+                            <Heart className="text-indigo-500 fill-indigo-500/20" size={22} />
+                            <h3 className="text-sm font-black uppercase tracking-widest text-indigo-950">
+                              3. Avaliação de Aspectos e Relatos Detalhados
+                            </h3>
+                          </div>
+                          
+                          <p className="text-xs text-indigo-900/60 font-medium leading-relaxed max-w-2xl pl-1">
+                            Selecione o estado geral do atendido nos aspectos abaixo. Use o campo de texto para registrar um <strong>relato escrito</strong> sobre as vivências, aflições ou impressões colhidas durante a escuta.
+                          </p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                            {/* Aspect 1: Emotional */}
+                            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-indigo-50/70 shadow-sm space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Smile className="text-indigo-600" size={20} />
+                                <span className="font-bold text-indigo-950 text-sm">Estado Emocional / Psicológico</span>
+                              </div>
+                              <select
+                                value={formData.emotionalStatus}
+                                onChange={(e) => setFormData({ ...formData, emotionalStatus: e.target.value })}
+                                className="w-full bg-gray-50 border border-gray-100 text-indigo-900 text-xs font-bold rounded-xl p-3 outline-none focus:border-indigo-600 focus:bg-white transition-all cursor-pointer"
+                              >
+                                <option value="">Selecione o estado...</option>
+                                <option value="Equilibrado">Equilibrado / Estável</option>
+                                <option value="Ansioso">Ansioso / Inquieto</option>
+                                <option value="Triste">Triste / Desanimado</option>
+                                <option value="Angustiado">Angustiado / Sob Pressão</option>
+                                <option value="Fragilizado">Extremamente Fragilizado</option>
+                              </select>
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] uppercase font-black tracking-wider text-indigo-400">Relato escrito do aspecto</span>
+                                <textarea
+                                  value={formData.aspectsReports.emotionalStatus || ""}
+                                  onChange={(e) => setFormData({
+                                    ...formData,
+                                    aspectsReports: { ...formData.aspectsReports, emotionalStatus: e.target.value }
+                                  })}
+                                  placeholder="Registre aqui um relato livre sobre a situação psicológica ou emocional relatada..."
+                                  className="w-full min-h-[90px] bg-gray-50/50 border border-transparent rounded-2xl p-4 text-xs outline-none focus:bg-white focus:border-indigo-100 transition-all text-gray-800 leading-relaxed"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Aspect 2: Physical */}
+                            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-indigo-50/70 shadow-sm space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Activity className="text-indigo-600" size={20} />
+                                <span className="font-bold text-indigo-950 text-sm">Saúde Física / Orgânica</span>
+                              </div>
+                              <select
+                                value={formData.physicalHealth}
+                                onChange={(e) => setFormData({ ...formData, physicalHealth: e.target.value })}
+                                className="w-full bg-gray-50 border border-gray-100 text-indigo-900 text-xs font-bold rounded-xl p-3 outline-none focus:border-indigo-600 focus:bg-white transition-all cursor-pointer"
+                              >
+                                <option value="">Selecione o estado...</option>
+                                <option value="Sem queixas">Sem Queixas Clínicas Críticas</option>
+                                <option value="Tratamento médico">Sob Tratamento Médico Ativo</option>
+                                <option value="Dores / Insônia">Dores Crônicas / Insônia Recorrente</option>
+                                <option value="Dependência">Dependência Química / Medicamentosa</option>
+                                <option value="Enfermidade grave">Enfermidade Física Grave</option>
+                              </select>
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] uppercase font-black tracking-wider text-indigo-400">Relato escrito do aspecto</span>
+                                <textarea
+                                  value={formData.aspectsReports.physicalHealth || ""}
+                                  onChange={(e) => setFormData({
+                                    ...formData,
+                                    aspectsReports: { ...formData.aspectsReports, physicalHealth: e.target.value }
+                                  })}
+                                  placeholder="Registre aqui informações relatadas sobre as dores, tratamentos ou diagnósticos..."
+                                  className="w-full min-h-[90px] bg-gray-50/50 border border-transparent rounded-2xl p-4 text-xs outline-none focus:bg-white focus:border-indigo-100 transition-all text-gray-800 leading-relaxed"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Aspect 3: Family/Social */}
+                            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-indigo-50/70 shadow-sm space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Home className="text-indigo-600" size={20} />
+                                <span className="font-bold text-indigo-950 text-sm">Relações Familiares / Desafios Sociais</span>
+                              </div>
+                              <select
+                                value={formData.familyRelationship}
+                                onChange={(e) => setFormData({ ...formData, familyRelationship: e.target.value })}
+                                className="w-full bg-gray-50 border border-gray-100 text-indigo-900 text-xs font-bold rounded-xl p-3 outline-none focus:border-indigo-600 focus:bg-white transition-all cursor-pointer"
+                              >
+                                <option value="">Selecione o estado...</option>
+                                <option value="Harmônico">Harmônico / Clima Equilibrado</option>
+                                <option value="Conflitos leves">Conflitos ou Desarticulação Leve</option>
+                                <option value="Conflitos graves">Conflitos Familiares ou Rupturas Graves</option>
+                                <option value="Isolamento">Isolamento Extremo / Solidão</option>
+                                <option value="Socioeconômico">Fragilidade e Vulnerabilidade Financeira</option>
+                              </select>
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] uppercase font-black tracking-wider text-indigo-400">Relato escrito do aspecto</span>
+                                <textarea
+                                  value={formData.aspectsReports.familyRelationship || ""}
+                                  onChange={(e) => setFormData({
+                                    ...formData,
+                                    aspectsReports: { ...formData.aspectsReports, familyRelationship: e.target.value }
+                                  })}
+                                  placeholder="Detalhes ou relato livre sobre convivência no lar e amparo social..."
+                                  className="w-full min-h-[90px] bg-gray-50/50 border border-transparent rounded-2xl p-4 text-xs outline-none focus:bg-white focus:border-indigo-100 transition-all text-gray-800 leading-relaxed"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Aspect 4: Spiritual */}
+                            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-indigo-50/70 shadow-sm space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Brain className="text-indigo-600" size={20} />
+                                <span className="font-bold text-indigo-950 text-sm">Espiritualidade & Sensibilidade</span>
+                              </div>
+                              <select
+                                value={formData.spirituality}
+                                onChange={(e) => setFormData({ ...formData, spirituality: e.target.value })}
+                                className="w-full bg-gray-50 border border-gray-100 text-indigo-900 text-xs font-bold rounded-xl p-3 outline-none focus:border-indigo-600 focus:bg-white transition-all cursor-pointer"
+                              >
+                                <option value="">Selecione o estado...</option>
+                                <option value="Equilibrado">Equilibrado / Intuição Serena</option>
+                                <option value="Busca de consolo">Busca de Consolo Doutrinário</option>
+                                <option value="Influência espiritual">Sensibilidade Mediúnica / Espiritual Latente</option>
+                                <option value="Incompreensão">Dúvidas / Incompreensão Doutrinária</option>
+                                <option value="Perturbação grave">Perturbação ou Processo Obsessivo Severo</option>
+                              </select>
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] uppercase font-black tracking-wider text-indigo-400">Relato escrito do aspecto</span>
+                                <textarea
+                                  value={formData.aspectsReports.spirituality || ""}
+                                  onChange={(e) => setFormData({
+                                    ...formData,
+                                    aspectsReports: { ...formData.aspectsReports, spirituality: e.target.value }
+                                  })}
+                                  placeholder="Relato escrito sobre sonhos, intuições ou manifestações relatadas..."
+                                  className="w-full min-h-[90px] bg-gray-50/50 border border-transparent rounded-2xl p-4 text-xs outline-none focus:bg-white focus:border-indigo-100 transition-all text-gray-800 leading-relaxed"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Section 4: Observações Gerais do Atendente (Solicitado pelo Usuário) */}
+                        <div className="space-y-6 lg:col-span-2">
                           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
-                            <ScrollText className="text-purple-400" size={20} />
+                            <ScrollText className="text-amber-500" size={20} />
                             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">
-                              3. Conhecimento Espírita
+                              4. Observações e Notas Gerais do Atendente
                             </h3>
                           </div>
                           <div className="space-y-4">
                             <p className="text-sm font-bold text-gray-600 leading-tight">
-                              A pessoa já frequenta ou conhece a casa? Possui
-                              conhecimento básico sobre o Espiritismo?
+                              Se houver qualquer detalhe técnico, percepção fraternal ou observação adicional do atendente para registro interno:
+                            </p>
+                            <textarea
+                              value={formData.observations || ""}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  observations: e.target.value,
+                                })
+                              }
+                              placeholder="Fique livre para pontuar percepções extra-oficiais ou lembretes espirituais de acompanhamento do atendido..."
+                              className="w-full min-h-[145px] bg-white border-2 border-gray-100 rounded-3xl p-5 outline-none focus:border-indigo-600 focus:shadow-xl focus:shadow-indigo-500/5 transition-all text-gray-800 font-medium leading-relaxed"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Section 5: Conhecimento Espírita (formerly 3) */}
+                        <div className="space-y-6">
+                          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                            <Users className="text-purple-400" size={20} />
+                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">
+                              5. Conhecimento Espírita
+                            </h3>
+                          </div>
+                          <div className="space-y-4">
+                            <p className="text-sm font-bold text-gray-600 leading-tight">
+                              A pessoa já frequenta ou conhece a casa? Possui conhecimento básico sobre o Espiritismo?
                             </p>
                             <div className="grid grid-cols-1 gap-3">
                               {[
@@ -1701,12 +2053,12 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Section: Confidentiality */}
+                        {/* Section 6: Confidentiality (formerly 4) */}
                         <div className="space-y-6">
                           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
                             <Lock className="text-emerald-400" size={20} />
                             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">
-                              4. Termo de Confidencialidade
+                              6. Termo de Confidencialidade
                             </h3>
                           </div>
                           <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100 space-y-6">
@@ -1716,10 +2068,7 @@ export const EvolutionPage: React.FC = () => {
                                 className="text-emerald-600 shrink-0"
                               />
                               <p className="text-sm font-bold text-emerald-900 leading-relaxed italic">
-                                "Garantimos que toda conversa realizada neste
-                                setor de Atendimento Fraterno é estritamente
-                                privativa, sigilosa e amparada pelo respeito e
-                                fraternidade cristã."
+                                "Garantimos que toda conversa realizada neste setor de Atendimento Fraterno é estritamente privativa, sigilosa e amparada pelo respeito e fraternidade cristã."
                               </p>
                             </div>
                             <label className="flex items-center gap-4 cursor-pointer p-4 bg-white rounded-2xl shadow-sm border border-emerald-100 hover:shadow-md transition-all group">

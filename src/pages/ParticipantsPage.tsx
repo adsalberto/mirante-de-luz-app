@@ -28,6 +28,7 @@ import {
   Contact,
   Upload,
   Sparkles,
+  Check,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { dataService } from "../services/dataService";
@@ -109,6 +110,7 @@ export const ParticipantsPage: React.FC = () => {
   const [photoShiftX, setPhotoShiftX] = useState(0);  // pixels (-80 to 80)
   const [photoShiftY, setPhotoShiftY] = useState(0);  // pixels (-80 to 80)
   const [photoRotate, setPhotoRotate] = useState(0);  // degrees (-180 to 180)
+  const [scanSuccess, setScanSuccess] = useState(false); // scanner visual feedback trigger
 
   const [immediateSectorIds, setImmediateSectorIds] = useState<string[]>([]);
   const [immediatePriority, setImmediatePriority] = useState(false);
@@ -173,20 +175,38 @@ export const ParticipantsPage: React.FC = () => {
               );
 
               if (matched) {
-                // Initialize credentials customizations
-                setCredentialParticipant(matched);
-                setThemeColorPreset(matched.isWorker ? 'emerald' : 'indigo');
-                setCustomRole(matched.isWorker ? 'Trabalhador Voluntário' : 'Frequentador Assistido');
-                setCustomAccessLevel(matched.isWorker ? 'Geral / Multi-Setores' : 'Passe & Atendimento');
-                setCustomPhoto(null);
-                setIsCredentialModalOpen(true);
-                setIsScanningQr(false);
+                // Play simulated or real haptic vibration
+                if (navigator.vibrate) {
+                  try {
+                    navigator.vibrate([100, 50, 100]);
+                  } catch (vErr) {
+                    console.log("Vibration ignored:", vErr);
+                  }
+                }
 
+                setScanSuccess(true);
+
+                // Stop scanner stream immediately to prevent duplicate triggers
                 if (scannerInstance && scannerInstance.isScanning) {
                   scannerInstance.stop().then(() => {
                     setCameraActive(false);
                   }).catch(console.error);
                 }
+
+                setTimeout(() => {
+                  setCredentialParticipant(matched);
+                  setThemeColorPreset(matched.isWorker ? 'emerald' : 'indigo');
+                  setCustomRole(matched.isWorker ? 'Trabalhador Voluntário' : 'Frequentador Assistido');
+                  setCustomAccessLevel(matched.isWorker ? 'Geral / Multi-Setores' : 'Passe & Atendimento');
+                  setCustomPhoto(null);
+                  setPhotoScale(100);
+                  setPhotoShiftX(0);
+                  setPhotoShiftY(0);
+                  setPhotoRotate(0);
+                  setIsCredentialModalOpen(true);
+                  setIsScanningQr(false);
+                  setScanSuccess(false);
+                }, 800);
               } else {
                 alert(`⚠️ Código lido: "${pId}"\nNenhum membro ou participante correspondente foi localizado no sistema.`);
               }
@@ -528,18 +548,19 @@ export const ParticipantsPage: React.FC = () => {
                   key={p.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 hover:border-indigo-100 transition-all group"
+                  className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 hover:border-indigo-100 transition-all group flex flex-col justify-between"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-xl border border-indigo-100">
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-4 gap-2">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-xl border border-indigo-100 shrink-0">
                         {(p.name || "?").charAt(0)}
                       </div>
-                      <div>
-                        <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors truncate">
                           {p.name}
                         </h3>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <span
                             className={cn(
                               "text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider border",
@@ -550,7 +571,7 @@ export const ParticipantsPage: React.FC = () => {
                                   : p.currentStatus === "IN_SERVICE"
                                     ? "bg-indigo-50 text-indigo-600 border-indigo-100"
                                     : p.currentStatus === "COMPLETED"
-                                      ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                      ? "bg-emerald-50 text-emerald-650 border-emerald-100"
                                       : "bg-blue-50 text-blue-600 border-blue-100",
                             )}
                           >
@@ -585,7 +606,52 @@ export const ParticipantsPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                  </div>
+
+                  <div className="space-y-2 text-sm text-gray-500 font-medium">
+                    <div className="flex items-center gap-2">
+                       <Phone size={14} className="text-gray-300 shrink-0" />
+                       <span>{p.phone}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} className="text-gray-300 shrink-0" />
+                      <span>Nascimento: {p.birthDate}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} className="text-gray-300 shrink-0" />
+                      <span className="truncate">{p.address}</span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1 text-[10px]">
+                      <ShieldCheck size={12} className="text-emerald-500 shrink-0" />
+                      <span className="text-emerald-600 font-bold uppercase tracking-tight">
+                        LGPD: Aceito em {format(p.lgpdDate, "dd/MM/yyyy")}
+                      </span>
+                    </div>
+
+                    {/* Active Service Notification Area */}
+                    {activeQueues.filter((q) => q.participantId === p.id)
+                      .length > 0 && (
+                      <div className="pt-2">
+                        <div className="p-2 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2 text-amber-700 text-[10px] font-black uppercase tracking-tighter">
+                          <AlertCircle size={12} className="shrink-0" />
+                          Atendimento:{" "}
+                          {activeQueues
+                            .filter((aq) => aq.participantId === p.id)
+                            .map(
+                              (aq) =>
+                                sectors.find((s) => s.id === aq.sectorId)?.name,
+                            )
+                            .filter(Boolean)
+                            .join(", ")}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions Area - Structured separate footer to avoid margin overflow */}
+                  <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between gap-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Opções</span>
+                    <div className="flex items-center gap-0.5">
                       {currentUser?.role !== "RECEPCIONISTA" && (
                         <button
                           onClick={(e) => {
@@ -593,9 +659,9 @@ export const ParticipantsPage: React.FC = () => {
                             navigate(`/atendimentos?participantId=${p.id}`);
                           }}
                           title="Abrir Prontuário"
-                          className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all"
+                          className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all"
                         >
-                          <History size={18} />
+                          <History size={16} />
                         </button>
                       )}
                       <button
@@ -606,9 +672,9 @@ export const ParticipantsPage: React.FC = () => {
                           setSelectedCheckinSectors([]);
                         }}
                         title="Entrar na Fila"
-                        className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
+                        className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
                       >
-                        <ClipboardCheck size={18} />
+                        <ClipboardCheck size={16} />
                       </button>
                       {currentUser?.role !== "RECEPCIONISTA" &&
                         currentUser?.role !== "ATENDENTE" &&
@@ -630,9 +696,9 @@ export const ParticipantsPage: React.FC = () => {
                                   setIsCredentialModalOpen(true);
                                 }}
                                 title="Gerar Carteirinha / Crachá"
-                                className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all"
+                                className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-all"
                               >
-                                <CreditCard size={18} />
+                                <CreditCard size={16} />
                               </button>
                             )}
                             <button
@@ -641,9 +707,9 @@ export const ParticipantsPage: React.FC = () => {
                                 handleEdit(p);
                               }}
                               title="Editar Trabalhador"
-                              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                             >
-                              <Pencil size={18} />
+                              <Pencil size={16} />
                             </button>
                             <button
                               onClick={(e) => {
@@ -651,61 +717,22 @@ export const ParticipantsPage: React.FC = () => {
                                 handleDelete(p.id);
                               }}
                               className={cn(
-                                "p-2 transition-all rounded-lg flex items-center gap-1",
+                                "p-1.5 transition-all rounded-lg flex items-center gap-1",
                                 deletingId === p.id
-                                  ? "bg-red-500 text-white text-[10px] font-bold px-3 py-1"
+                                  ? "bg-red-500 text-white text-[10px] font-bold px-2 py-0.5"
                                   : "text-gray-400 hover:text-red-500",
                               )}
                             >
                               {deletingId === p.id ? (
                                 "Confirma?"
                               ) : (
-                                <Trash2 size={18} />
+                                <Trash2 size={16} />
                               )}
                             </button>
                           </>
                         )}
                     </div>
                   </div>
-
-                  <div className="space-y-2 text-sm text-gray-500 font-medium">
-                    <div className="flex items-center gap-2">
-                      <Phone size={14} className="text-gray-300" />
-                      <span>{p.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-300" />
-                      <span>Nascimento: {p.birthDate}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin size={14} className="text-gray-300" />
-                      <span className="truncate">{p.address}</span>
-                    </div>
-                    <div className="flex items-center gap-2 pt-2 text-[10px]">
-                      <ShieldCheck size={12} className="text-emerald-500" />
-                      <span className="text-emerald-600 font-bold uppercase tracking-tight">
-                        LGPD: Aceito em {format(p.lgpdDate, "dd/MM/yyyy")}
-                      </span>
-                    </div>
-
-                    {/* Active Service Notification Area */}
-                    {activeQueues.filter((q) => q.participantId === p.id)
-                      .length > 0 && (
-                      <div className="pt-2">
-                        <div className="p-2 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2 text-amber-700 text-[10px] font-black uppercase tracking-tighter">
-                          <AlertCircle size={12} />
-                          Atendimento Ativo:{" "}
-                          {activeQueues
-                            .filter((aq) => aq.participantId === p.id)
-                            .map(
-                              (aq) =>
-                                sectors.find((s) => s.id === aq.sectorId)?.name,
-                            )
-                            .filter(Boolean)
-                            .join(", ")}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {currentUser?.role !== "RECEPCIONISTA" && (
@@ -1496,30 +1523,56 @@ export const ParticipantsPage: React.FC = () => {
               </div>
 
               {/* Viewport de Câmera Real */}
-              <div className="relative">
+              <motion.div 
+                className="relative"
+                animate={scanSuccess ? {
+                  scale: [1, 0.98, 1.02, 0.98, 1.02, 1],
+                  x: [0, -4, 4, -4, 4, -2, 2, 0],
+                  y: [0, 2, -2, 2, -2, 1, -1, 0],
+                  transition: { duration: 0.4 }
+                } : {}}
+              >
                 <div 
                   id="page-qr-reader-viewport" 
-                  className="w-full aspect-square bg-slate-900 rounded-3xl overflow-hidden relative border-2 border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-400 text-xs p-4 text-center"
+                  className={cn(
+                    "w-full aspect-square bg-slate-900 rounded-3xl overflow-hidden relative border-2 flex flex-col items-center justify-center text-slate-400 text-xs p-4 text-center transition-all duration-300",
+                    scanSuccess 
+                      ? "border-emerald-500 ring-4 ring-emerald-500/20" 
+                      : "border-dashed border-slate-700"
+                  )}
                 >
-                  {!cameraActive && !cameraError && (
+                  {!cameraActive && !cameraError && !scanSuccess && (
                     <div className="space-y-2 flex flex-col items-center">
                       <Camera size={36} className="text-indigo-500 animate-bounce" />
                       <p className="font-semibold text-slate-300">Inicializando câmera física...</p>
                     </div>
                   )}
-                  {cameraError && (
+                  {cameraError && !scanSuccess && (
                     <div className="space-y-2 flex flex-col items-center">
                       <AlertCircle size={36} className="text-amber-500" />
                       <p className="font-bold text-slate-300 px-4 leading-relaxed">{cameraError}</p>
                     </div>
                   )}
                 </div>
-                {cameraActive && (
+
+                {/* Feedback Visual Imediato - Moldura Verde e Ícone de Match no Centro */}
+                {scanSuccess && (
+                  <div className="absolute inset-0 bg-emerald-500/10 rounded-3xl border-[6px] border-emerald-500 flex flex-col items-center justify-center z-20 pointer-events-none animate-pulse">
+                    <div className="bg-emerald-600 text-white p-4 rounded-full shadow-xl flex items-center justify-center scale-110 transition-transform duration-300">
+                      <Check size={32} className="stroke-[3]" />
+                    </div>
+                    <span className="mt-3 bg-emerald-600 text-white font-black uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-md">
+                      Leitura Confirmada!
+                    </span>
+                  </div>
+                )}
+
+                {cameraActive && !scanSuccess && (
                   <span className="absolute top-4 right-4 bg-emerald-500 text-white font-black uppercase text-[9px] px-3 py-1 rounded-full animate-pulse shadow-md z-10 flex items-center gap-1">
                     ● Câmera Ativa
                   </span>
                 )}
-              </div>
+              </motion.div>
 
               {/* SIMULADOR MANUAL PARA DESENVOLVIMENTO / TESTES */}
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-3">
@@ -1536,13 +1589,34 @@ export const ParticipantsPage: React.FC = () => {
                       const selectedId = e.target.value;
                       const matched = participants.find(p => String(p.id) === selectedId);
                       if (matched) {
-                        setCredentialParticipant(matched);
-                        setThemeColorPreset(matched.isWorker ? 'emerald' : 'indigo');
-                        setCustomRole(matched.isWorker ? 'Trabalhador Voluntário' : 'Frequentador Assistido');
-                        setCustomAccessLevel(matched.isWorker ? 'Geral / Multi-Setores' : 'Passe & Atendimento');
-                        setCustomPhoto(null);
-                        setIsCredentialModalOpen(true);
-                        setIsScanningQr(false);
+                        // Play simulated or real haptic vibration
+                        if (navigator.vibrate) {
+                          try {
+                            navigator.vibrate([100, 50, 100]);
+                          } catch (vErr) {
+                            console.log("Vibration ignored:", vErr);
+                          }
+                        }
+
+                        setScanSuccess(true);
+
+                        setTimeout(() => {
+                          setCredentialParticipant(matched);
+                          setThemeColorPreset(matched.isWorker ? 'emerald' : 'indigo');
+                          setCustomRole(matched.isWorker ? 'Trabalhador Voluntário' : 'Frequentador Assistido');
+                          setCustomAccessLevel(matched.isWorker ? 'Geral / Multi-Setores' : 'Passe & Atendimento');
+                          setCustomPhoto(null);
+                          setPhotoScale(100);
+                          setPhotoShiftX(0);
+                          setPhotoShiftY(0);
+                          setPhotoRotate(0);
+                          setIsCredentialModalOpen(true);
+                          setIsScanningQr(false);
+                          setScanSuccess(false);
+                          
+                          // Reset simulator dropdown
+                          e.target.value = "";
+                        }, 800);
                       }
                     }}
                     className="flex-1 bg-white border border-slate-200 text-xs text-slate-700 px-3 py-2 rounded-xl focus:ring-1 focus:ring-indigo-500 focus:outline-none font-bold"
