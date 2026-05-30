@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck, Package, ShoppingCart } from 'lucide-react';
+import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck, Package, ShoppingCart, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
@@ -41,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
 
   const navItems = [
     { to: '/', icon: Layout, label: 'Painel', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
+    { to: '/credenciais', icon: CreditCard, label: 'Crachás de Voluntários', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/atendidos', icon: Users, label: 'Atendidos', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/fila', icon: Clock, label: 'Fila de Atendimento', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/atendimentos', icon: ClipboardList, label: 'Atendimentos', roles: ['ADMIN', 'ADM', 'COORDENADOR'] },

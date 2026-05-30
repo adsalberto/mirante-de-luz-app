@@ -24,7 +24,10 @@ import {
   Building,
   ShieldAlert,
   Heart,
-  ArrowLeft
+  ArrowLeft,
+  BookOpen,
+  Music,
+  Home
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -77,6 +80,7 @@ export const ReportsPage: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [complianceView, setComplianceView] = useState<'workers' | 'ledger' | 'evolutions'>('workers');
+  const [selectedDownloadCategory, setSelectedDownloadCategory] = useState<string>('todos');
 
   // Raw data vectors
   const [workers, setWorkers] = useState<any[]>([]);
@@ -158,6 +162,20 @@ export const ReportsPage: React.FC = () => {
   const exportToExcel = async (type: string) => {
     setIsExporting(true);
     try {
+      const getAssistidoName = (id: string) => {
+        const part = participants.find(p => p.id === id);
+        if (part) return part.name;
+        const socialAssStr = localStorage.getItem('social_assistidos');
+        if (socialAssStr) {
+          try {
+            const socialAss = JSON.parse(socialAssStr);
+            const found = socialAss.find((a: any) => a.id === id);
+            if (found) return found.name;
+          } catch {}
+        }
+        return 'Assistido #' + (id ? id.substring(0, 5) : 'N/I');
+      };
+
       let data: any[] = [];
       let sheetName = "Relatorio";
 
@@ -193,6 +211,228 @@ export const ReportsPage: React.FC = () => {
           'Descrição': s.description
         }));
         sheetName = "Setores";
+      } else if (type === 'social_atendimentos') {
+        const raw = localStorage.getItem('social_atendimentos');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((at: any) => ({
+          'ID': at.id?.slice(0, 8) || '',
+          'Data': at.date || '',
+          'Assistido Beneficiário': getAssistidoName(at.assistidoId),
+          'Tipo Atendimento': at.type || 'Padrão',
+          'Necessidade Identificada': at.needIdentified || '',
+          'Encaminhamento': at.forwarding || '',
+          'Observações': at.observations || '',
+          'Próximo Acompanhamento': at.nextFollowUp || '',
+          'Responsável': at.responsible || ''
+        }));
+        sheetName = "Atendimentos Sociais";
+      } else if (type === 'social_doacoes') {
+        const raw = localStorage.getItem('social_doacoes');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((don: any) => ({
+          'Item ID': don.id?.slice(0, 8) || '',
+          'Categoria / Tipo': don.type || '',
+          'Especificação': don.description || '',
+          'Quantidade': don.qty || 1,
+          'Unidade': don.unit || 'un',
+          'Doador / Origem': don.donor || 'Anônimo',
+          'Data Entrada': don.entryDate || '',
+          'Vencimento': don.expiryDate || 'N/A',
+          'Responsável': don.responsible || ''
+        }));
+        sheetName = "Estoque e Doações";
+      } else if (type === 'social_cestas') {
+        const raw = localStorage.getItem('social_cestas');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((sc: any) => ({
+          'ID Recibo': sc.id?.slice(0, 8) || '',
+          'Família / Beneficiário': sc.assistidoName || getAssistidoName(sc.assistidoId),
+          'Tipo Cesta': sc.basketType || 'Padrão',
+          'Data Entrega': sc.date || '',
+          'Validação': sc.qrCodeScanned ? '📱 QR Code Scanner' : '✍️ Assinatura em Terminal',
+          'Responsável Entrega': sc.responsible || ''
+        }));
+        sheetName = "Saídas Cestas Básicas";
+      } else if (type === 'social_visitas') {
+        const raw = localStorage.getItem('social_visitas');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((vis: any) => ({
+          'Ficha ID': vis.id?.slice(0, 8) || '',
+          'Residência Visitada': vis.assistidoName || getAssistidoName(vis.assistidoId),
+          'Data': vis.date || '',
+          'Responsável Parecer': vis.responsible || '',
+          'Situação Encontrada': vis.situationFound || '',
+          'Necessidades Observadas': vis.needsObserved || '',
+          'Encaminhamento Recom.': vis.forwarding || ''
+        }));
+        sheetName = "Visitas Fraternas";
+      } else if (type === 'social_projetos') {
+        const raw = localStorage.getItem('social_projetos');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((proj: any) => ({
+          'Oficina ID': proj.id?.slice(0, 8) || '',
+          'Nome da Oficina/Curso': proj.name || '',
+          'Objetivo Social': proj.objective || '',
+          'Público Alvo': proj.target || '',
+          'Coordenador': proj.coordinator || '',
+          'Cronograma/Agenda': proj.schedule || '',
+          'Status': proj.status || 'Planejado'
+        }));
+        sheetName = "Projetos Cooperativos";
+      } else if (type === 'passe_atendimentos') {
+        const raw = localStorage.getItem('passe_atendimentos');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((pa: any) => ({
+          'ID Ficha': pa.id?.slice(0, 8) || '',
+          'Paciente / Assistido': pa.assistidoName || getAssistidoName(pa.assistidoId),
+          'Data Atendimento': pa.date || '',
+          'Horário': pa.time || '',
+          'Tipo Passe': pa.type || 'Passe Magnético',
+          'Sala': pa.sala || '',
+          'Passista Aplicador': pa.passista || '',
+          'Recomendação Espiritual': pa.encaminhamento || '',
+          'Observações': pa.obs || '',
+          'Status': pa.status || 'Aguardando'
+        }));
+        sheetName = "Conversas e Passes";
+      } else if (type === 'passe_passistas') {
+        const raw = localStorage.getItem('passe_passistas');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((p: any) => ({
+          'Matrícula ID': p.id?.slice(0, 8) || '',
+          'Nome do Trabalhador': p.name || '',
+          'Data Ingresso': p.dateIngresso || '',
+          'Estudo Doutrinário': p.doutrinaria || 'Concluída',
+          'Cursos Realizados': p.cursos || '',
+          'Dias de Trabalho': p.dias || '',
+          'Escala Relacionada': p.escalaId || '',
+          'Situação': p.situacao || 'Ativo',
+          'Tempo de Serviço': p.tempo || ''
+        }));
+        sheetName = "Passistas Escalados";
+      } else if (type === 'passe_salas') {
+        const raw = localStorage.getItem('passe_salas');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((s: any) => ({
+          'ID Sala': s.id?.slice(0, 8) || '',
+          'Nome do Apoio': s.name || '',
+          'Capacidade Cabines': s.cap || 1,
+          'Status Operacional': s.status || 'Disponível',
+          'Responsável': s.resp || ''
+        }));
+        sheetName = "Cabines de Passe";
+      } else if (type === 'study_courses') {
+        const raw = localStorage.getItem('study_courses');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((c: any) => ({
+          'ID Curso': c.id?.slice(0, 8) || '',
+          'Nome do Curso': c.name || '',
+          'Área de Estudo': c.category || '',
+          'Duração Estimada': c.duration || '',
+          'Alunos Matriculados': c.studentsCount || 0,
+          'Professor / Preceptor': c.teacherInCharge || '',
+          'Horários': c.schedule || '',
+          'Status': c.status || 'Ativo'
+        }));
+        sheetName = "Cursos ESDE";
+      } else if (type === 'study_students') {
+        const raw = localStorage.getItem('study_students');
+        const list = raw ? JSON.parse(raw) : [];
+        const coursesRaw = localStorage.getItem('study_courses');
+        const courses = coursesRaw ? JSON.parse(coursesRaw) : [];
+        data = list.map((st: any) => {
+          const courseName = courses.find((c: any) => c.id === st.courseId)?.name || 'Estudo Geral';
+          return {
+            'Matrícula ID': st.id?.slice(0, 8) || '',
+            'Nome Estudante': st.name || '',
+            'E-mail': st.email || '',
+            'Contato': st.phone || '',
+            'Curso Matriculado': courseName,
+            'Turma': st.classId || '',
+            'Ingresso em': st.entryDate || '',
+            'Frequência Assiduidade': `${st.attendancePercentage ?? 100}%`
+          };
+        });
+        sheetName = "Alunos Doutrinários";
+      } else if (type === 'eva_kids') {
+        const raw = localStorage.getItem('eva_kids');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((k: any) => ({
+          'ID Criança': k.id?.slice(0, 8) || '',
+          'Nome Aluno': k.name || '',
+          'Idade': k.age || '',
+          'Responsável Legal': k.responsible || '',
+          'Parentesco': k.relationship || 'Pai',
+          'Alergias / Restrições': k.allergies || 'Nenhuma',
+          'Telefone Responsável': k.phone || '',
+          'Sala / Oficinas': k.roomId || 'Sala 1',
+          'Frequência': k.presence ? 'Frequência de Acompanhamento' : 'Geral'
+        }));
+        sheetName = "Crianças Evangelização";
+      } else if (type === 'medi_members') {
+        const raw = localStorage.getItem('medi_members');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((m: any) => ({
+          'ID Integrante': m.id?.slice(0, 8) || '',
+          'Nome do Médium': m.name || '',
+          'Função / Papel': m.role || '',
+          'Reunião ID': m.groupId || '',
+          'Histórico Sensitivo': m.notes || ''
+        }));
+        sheetName = "Quadro de Médiuns";
+      } else if (type === 'arte_pecas') {
+        const musRaw = localStorage.getItem('arte_musicas');
+        const pecRaw = localStorage.getItem('arte_pecas');
+        const mus = musRaw ? JSON.parse(musRaw) : [];
+        const pec = pecRaw ? JSON.parse(pecRaw) : [];
+        data = [
+          ...mus.map((m: any) => ({ 'Expressão Artística': 'Coral / Música', 'Título/Nome': m.name || '', 'Especificação Técnica': `Tom: ${m.tom || ''} | Cifra: ${m.link || ''}` })),
+          ...pec.map((p: any) => ({ 'Expressão Artística': 'Teatro / Poesia', 'Título/Nome': p.name || '', 'Especificação Técnica': `Peça espírita - Autores: ${p.escritor || ''}` }))
+        ];
+        if (data.length === 0) {
+          data = [{ 'Expressão Artística': 'Nenhum', 'Título/Nome': 'Nenhuma peça/grupo cadastrado.', 'Especificação Técnica': '' }];
+        }
+        sheetName = "Repertório Arte Espírita";
+      } else if (type === 'com_campanhas') {
+        const raw = localStorage.getItem('com_campanhas');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((c: any) => ({
+          'ID Campanha': c.id?.slice(0, 8) || '',
+          'Título da Ação': c.title || '',
+          'Meio / Canal': c.channel || '',
+          'Público Alvo': c.social || '',
+          'Data Disparo': c.date || '',
+          'Status': c.status || 'Ativo'
+        }));
+        sheetName = "Campanhas de Divulgação";
+      } else if (type === 'admin_transactions') {
+        const raw = localStorage.getItem('admin_transactions');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((t: any) => ({
+          'ID Transação': t.id,
+          'Data': t.date,
+          'Fluxo': t.type,
+          'Categoria': t.category,
+          'Descrição': t.description,
+          'Valor Realizado (R$)': t.amountRealized || t.amount,
+          'Valor Orçado (R$)': t.amountEstimated || t.amount,
+          'Status': t.status || 'Finalizado'
+        }));
+        sheetName = "Créditos e Débitos";
+      } else if (type === 'admin_patrimonio_items') {
+        const raw = localStorage.getItem('admin_patrimonio_items');
+        const list = raw ? JSON.parse(raw) : [];
+        data = list.map((item: any) => ({
+          'Código': item.id?.slice(0, 8) || '',
+          'Descrição do Ativo': item.name || '',
+          'Detalhes / Notas': item.obs || '',
+          'Qtd': item.qty || 1,
+          'Unidade': item.unit || 'un',
+          'Local': item.location || '',
+          'Filiado Responsável': item.responsible || '',
+          'Estado Conservação': item.state || 'BOM'
+        }));
+        sheetName = "Controle Patrimonial";
       } else {
         data = participants.map(p => ({
           'Nome': p.name || 'N/I',
@@ -226,6 +466,20 @@ export const ReportsPage: React.FC = () => {
   const exportToPDF = async (type: string) => {
     setIsExporting(true);
     try {
+      const getAssistidoName = (id: string) => {
+        const part = participants.find(p => p.id === id);
+        if (part) return part.name;
+        const socialAssStr = localStorage.getItem('social_assistidos');
+        if (socialAssStr) {
+          try {
+            const socialAss = JSON.parse(socialAssStr);
+            const found = socialAss.find((a: any) => a.id === id);
+            if (found) return found.name;
+          } catch {}
+        }
+        return 'Assistido #' + (id ? id.substring(0, 5) : 'N/I');
+      };
+
       const doc = new jsPDF();
       let title = "Relatório Geral";
       let head: string[][] = [];
@@ -244,6 +498,208 @@ export const ReportsPage: React.FC = () => {
         title = "Quadro de Setores";
         head = [['Nome', 'Tipo', 'Descrição']];
         body = sectors.map(s => [s.name, s.type, s.description]);
+      } else if (type === 'logs') {
+        const logs = await dataService.getLogs();
+        title = "Histórico de Auditoria";
+        head = [['Data/Hora', 'Ação Realizada', 'Trabalhador']];
+        body = (logs || []).map(l => [new Date(l.timestamp).toLocaleString('pt-BR'), l.action, l.userName]);
+      } else if (type === 'social_atendimentos') {
+        const raw = localStorage.getItem('social_atendimentos');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Conversas e Acolhimentos Sociais (DPAS)";
+        head = [['Data', 'Assistido', 'Tipo', 'Necessidade', 'Responsável']];
+        body = list.map((at: any) => [
+          at.date || '',
+          getAssistidoName(at.assistidoId),
+          at.type || 'Padrão',
+          at.needIdentified || '',
+          at.responsible || ''
+        ]);
+      } else if (type === 'social_doacoes') {
+        const raw = localStorage.getItem('social_doacoes');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Donativos e Estoque em Abrigo (DPAS)";
+        head = [['Categoria', 'Especificação', 'Qtd / Unid', 'Origem/Doador', 'Validade']];
+        body = list.map((don: any) => [
+          don.type || '',
+          don.description || '',
+          `${don.qty || 1} ${don.unit || 'un'}`,
+          don.donor || 'Anônimo',
+          don.expiryDate || 'N/A'
+        ]);
+      } else if (type === 'social_cestas') {
+        const raw = localStorage.getItem('social_cestas');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Entregas de Cesta Básica (DPAS)";
+        head = [['Recibo ID', 'Família Beneficiário', 'Fardo', 'Entregue em', 'Assinatura']];
+        body = list.map((sc: any) => [
+          sc.id?.slice(0, 8) || '',
+          sc.assistidoName || getAssistidoName(sc.assistidoId),
+          sc.basketType || 'Padrão',
+          sc.date || '',
+          sc.qrCodeScanned ? 'Via QR Code' : 'Assinatura Ficha'
+        ]);
+      } else if (type === 'social_visitas') {
+        const raw = localStorage.getItem('social_visitas');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Laudos de Visitas Fraternas (DPAS)";
+        head = [['Visita ID', 'Assistido Visitado', 'Data', 'Situação Local', 'Parecerista']];
+        body = list.map((vis: any) => [
+          vis.id?.slice(0, 8) || '',
+          vis.assistidoName || getAssistidoName(vis.assistidoId),
+          vis.date || '',
+          vis.situationFound || '',
+          vis.responsible || ''
+        ]);
+      } else if (type === 'social_projetos') {
+        const raw = localStorage.getItem('social_projetos');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Oficinas Socializadoras Geradas";
+        head = [['Oficina', 'Objetivo do Projeto', 'Publico', 'Coordenador', 'Status']];
+        body = list.map((p: any) => [
+          p.name || '',
+          p.objective || '',
+          p.target || '',
+          p.coordinator || '',
+          p.status || 'Planejado'
+        ]);
+      } else if (type === 'passe_atendimentos') {
+        const raw = localStorage.getItem('passe_atendimentos');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Fluidoterapia e Passes Magnéticos";
+        head = [['Data/Hora', 'Paciente', 'Tipo', 'Cabine/Sala', 'Recomendação']];
+        body = list.map((pa: any) => [
+          `${pa.date || ''} ${pa.time || ''}`,
+          pa.assistidoName || getAssistidoName(pa.assistidoId),
+          pa.type || 'Passe Magnético',
+          pa.sala || '',
+          pa.encaminhamento || ''
+        ]);
+      } else if (type === 'passe_passistas') {
+        const raw = localStorage.getItem('passe_passistas');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Quadro de Trabalhadores do Passe";
+        head = [['Nome Trabalhador', 'Data Ingresso', 'Cursos Fluidos', 'Escala Ativa', 'Situação']];
+        body = list.map((p: any) => [
+          p.name || '',
+          p.dateIngresso || '',
+          p.cursos || 'Básico de Fluidos',
+          p.escalaId || 'Geral',
+          p.situacao || 'Ativo'
+        ]);
+      } else if (type === 'passe_salas') {
+        const raw = localStorage.getItem('passe_salas');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Cabines de Passe Disponíveis";
+        head = [['ID', 'Nome Sala', 'Capacidade Cabines', 'Coordenador', 'Status']];
+        body = list.map((s: any) => [
+          s.id?.slice(0, 8) || '',
+          s.name || '',
+          String(s.cap || 1),
+          s.resp || 'N/A',
+          s.status || 'Disponível'
+        ]);
+      } else if (type === 'study_courses') {
+        const raw = localStorage.getItem('study_courses');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Cursos e Estudos Doutrinários (ESDE)";
+        head = [['Curso', 'Área de Estudo', 'Duração', 'Alunos', 'Preceptor']];
+        body = list.map((c: any) => [
+          c.name || '',
+          c.category || '',
+          c.duration || '',
+          String(c.studentsCount || 0),
+          c.teacherInCharge || ''
+        ]);
+      } else if (type === 'study_students') {
+        const raw = localStorage.getItem('study_students');
+        const list = raw ? JSON.parse(raw) : [];
+        const coursesRaw = localStorage.getItem('study_courses');
+        const courses = coursesRaw ? JSON.parse(coursesRaw) : [];
+        title = "Estudantes Matriculados nos Cursos";
+        head = [['Nome Estudante', 'Contato / Email', 'Curso Matriculado', 'Assiduidade']];
+        body = list.map((st: any) => {
+          const courseName = courses.find((c: any) => c.id === st.courseId)?.name || 'Estudo Geral';
+          return [
+            st.name || '',
+            `${st.phone || ''} / ${st.email || ''}`,
+            courseName,
+            `${st.attendancePercentage ?? 100}%`
+          ];
+        });
+      } else if (type === 'eva_kids') {
+        const raw = localStorage.getItem('eva_kids');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Crianças Cadastradas na Evangelização";
+        head = [['Nome Criança', 'Idade', 'Pai/Responsável', 'Contato Fone', 'Alergias']];
+        body = list.map((k: any) => [
+          k.name || '',
+          String(k.age || ''),
+          k.responsible || '',
+          k.phone || '',
+          k.allergies || 'Nenhuma'
+        ]);
+      } else if (type === 'medi_members') {
+        const raw = localStorage.getItem('medi_members');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Equipe Mediúnica Registrada";
+        head = [['Médium', 'Papel Sensitivo', 'Grupo ID', 'Notas Integridade']];
+        body = list.map((m: any) => [
+          m.name || '',
+          m.role || '',
+          m.groupId || '',
+          m.notes || ''
+        ]);
+      } else if (type === 'arte_pecas') {
+        const musRaw = localStorage.getItem('arte_musicas');
+        const pecRaw = localStorage.getItem('arte_pecas');
+        const mus = musRaw ? JSON.parse(musRaw) : [];
+        const pec = pecRaw ? JSON.parse(pecRaw) : [];
+        title = "Repertório Musical e Peças de Teatro";
+        head = [['Expressão', 'Nome da Obra', 'Apreciação / Ficha Técnica']];
+        body = [
+          ...mus.map((m: any) => ['Coral / Música', m.name || '', `Tom: ${m.tom || ''} | Cifra: ${m.link || ''}`]),
+          ...pec.map((p: any) => ['Teatro', p.name || '', `Escritores: ${p.escritor || ''}`])
+        ];
+        if (body.length === 0) {
+          body = [['Nenhum', 'Nenhuma peça cadastrada', '']];
+        }
+      } else if (type === 'com_campanhas') {
+        const raw = localStorage.getItem('com_campanhas');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Ações e Campanhas de Divulgação";
+        head = [['Ação', 'Mecanismo / Canal', 'Público Alvo', 'Data Inicial', 'Status']];
+        body = list.map((c: any) => [
+          c.title || '',
+          c.channel || '',
+          c.social || '',
+          c.date || '',
+          c.status || 'Ativo'
+        ]);
+      } else if (type === 'admin_transactions') {
+        const raw = localStorage.getItem('admin_transactions');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Livro Diário de Caixa - Movimentações";
+        head = [['Data Lanc.', 'Categoria', 'Fluxo', 'Descrição', 'Valor']];
+        body = list.map((t: any) => [
+          t.date || '',
+          t.category || '',
+          t.type || '',
+          t.description || '',
+          `R$ ${t.amountRealized || t.amount || 0}`
+        ]);
+      } else if (type === 'admin_patrimonio_items') {
+        const raw = localStorage.getItem('admin_patrimonio_items');
+        const list = raw ? JSON.parse(raw) : [];
+        title = "Controle Patrimonial de Bens";
+        head = [['Ativo', 'Localização', 'Quantidade', 'Responsável', 'Estado']];
+        body = list.map((item: any) => [
+          item.name || '',
+          item.location || '',
+          `${item.qty || 1} ${item.unit || 'un'}`,
+          item.responsible || '',
+          item.state || 'BOM'
+        ]);
       } else {
         title = "Relatório de Atendimentos";
         head = [['Nome', 'Telefone', 'Sexo', 'Nascimento', 'Endereço']];
@@ -786,11 +1242,44 @@ export const ReportsPage: React.FC = () => {
 
   // Static options for PDF exporting menu
   const reportTypes = [
-    { id: 'all', title: 'Prontuário Geral', desc: 'Dados consolidados de todos os atendidos e setores.', icon: FileText, color: 'indigo' },
-    { id: 'workers', title: 'Quadro de Voluntários', desc: 'Listagem completa de trabalhadores ativos por setor.', icon: Users, color: 'emerald' },
-    { id: 'agenda', title: 'Calendário de Atividades', desc: 'Programação de palestras, cursos e eventos.', icon: Calendar, color: 'blue' },
-    { id: 'logs', title: 'Logs de Auditoria', desc: 'Histórico de acessos e modificações no sistema.', icon: ClipboardList, color: 'rose' },
-    { id: 'sectors', title: 'Acreção de Setores', desc: 'Estatísticas e descrição de finalidade de cada setor.', icon: Building, color: 'orange' },
+    // 1. RELATÓRIOS GERAIS
+    { id: 'all', category: 'geral', title: 'Prontuário Geral', desc: 'Dados consolidados de todos os atendidos e setores cadastrados.', icon: FileText, color: 'indigo' },
+    { id: 'workers', category: 'geral', title: 'Quadro de Voluntários', desc: 'Listagem completa de trabalhadores ativos por setor.', icon: Users, color: 'emerald' },
+    { id: 'agenda', category: 'geral', title: 'Calendário de Atividades', desc: 'Programação de palestras, estudos, festas e eventos com palestrantes.', icon: Calendar, color: 'blue' },
+    { id: 'logs', category: 'geral', title: 'Logs de Auditoria', desc: 'Histórico detalhado de acessos e modificações de segurança do sistema.', icon: ClipboardList, color: 'rose' },
+    { id: 'sectors', category: 'geral', title: 'Quadro de Setores', desc: 'Finalidade estatística e atribuições de cada um dos setores vigentes.', icon: Building, color: 'orange' },
+
+    // 2. ASSISTÊNCIA SOCIAL (DPAS)
+    { id: 'social_atendimentos', category: 'social', title: 'Atendimentos Sociais', desc: 'Diários de acolhimentos fraternos e necessidades sociais identificadas.', icon: FileText, color: 'rose' },
+    { id: 'social_doacoes', category: 'social', title: 'Estoques & Donativos', desc: 'Controle físico de estoque alimentício, vestuários e em abrigo do DPAS.', icon: Table, color: 'rose' },
+    { id: 'social_cestas', category: 'social', title: 'Entregas de Cestas Básicas', desc: 'Protocolo de saída de fardos, validados via QR ou assinatura digital.', icon: CheckCircle2, color: 'rose' },
+    { id: 'social_visitas', category: 'social', title: 'Pareceres de Visitas Fraternas', desc: 'Laudos das condições físico-sociais constatadas nos lares visitados.', icon: Home, color: 'orange' },
+    { id: 'social_projetos', category: 'social', title: 'Oficinas & Projetos Sociais', desc: 'Lista de oficinas cooperativas de capacitação geridas pelo centro.', icon: Layers, color: 'rose' },
+
+    // 3. PASSE & FLUIDOTERAPIA
+    { id: 'passe_atendimentos', category: 'passe', title: 'Fichas de Fluidoterapia', desc: 'Controle de sintomas, passistas escalados e tratamento por fluidos.', icon: Activity, color: 'sky' },
+    { id: 'passe_passistas', category: 'passe', title: 'Quadro de Passistas e Escala', desc: 'Lançamento de trabalhadores na escala magnética e frequência.', icon: Users, color: 'sky' },
+    { id: 'passe_salas', category: 'passe', title: 'Instalações & Cabines', desc: 'Capacidades operacionais das salas de transmissão de passes.', icon: Building, color: 'sky' },
+
+    // 4. ESTUDO DOUTRINÁRIO (ESDE)
+    { id: 'study_courses', category: 'escola', title: 'Cursos & Oficinas Teológicas', desc: 'Lista de turmas ativas de estudos sistematizados da doutrina espírita.', icon: BookOpen, color: 'purple' },
+    { id: 'study_students', category: 'escola', title: 'Quadro Geral de Estudantes', desc: 'Estudantes matriculados, aproveitamento e assiduidade semestrais.', icon: Users, color: 'purple' },
+
+    // 5. EVANGELIZAÇÃO INFANTIL
+    { id: 'eva_kids', category: 'eva', title: 'Inscrições Infantil', desc: 'Termos de responsabilidade de pais, alergias e frequências de crianças.', icon: Heart, color: 'amber' },
+
+    // 6. TRABALHO MEDIÚNICO
+    { id: 'medi_members', category: 'medi', title: 'Equipe de Médiuns', desc: 'Lista de trabalhadores em tarefas de edificação e desobsessão de passes.', icon: ShieldCheck, color: 'indigo' },
+
+    // 7. ARTE ESPÍRITA
+    { id: 'arte_pecas', category: 'arte', title: 'Músicas e Peças de Teatro', desc: 'Repertório coral, agendas de ensaios e apresentações do grupo.', icon: Music, color: 'indigo' },
+
+    // 8. COMUNICAÇÃO SOCIAL
+    { id: 'com_campanhas', category: 'com', title: 'Campanhas de Divulgação', desc: 'Ações de marketing fraterno, mídia e campanhas sociais do ano.', icon: Activity, color: 'emerald' },
+
+    // 9. TESOURARIA & CONTABILIDADE
+    { id: 'admin_transactions', category: 'admin', title: 'Livro Diário de Caixa', desc: 'Todas as movimentações ativas de entrada e saída financeira do CEMIL.', icon: Coins, color: 'teal' },
+    { id: 'admin_patrimonio_items', category: 'admin', title: 'Inventário Geral Patrimonial', desc: 'Todos os bens corpóreos computados, localização e conservação.', icon: Table, color: 'teal' }
   ];
 
   return (
@@ -1382,9 +1871,40 @@ export const ReportsPage: React.FC = () => {
       ) : (
         <div className="space-y-8 animate-in fade-in-50 duration-300">
           
+          {/* Categorias Tabs Selection Bar for Downloads */}
+          <div className="flex flex-wrap items-center gap-2 pb-2">
+            {[
+              { id: 'todos', label: '📁 Mostrar Todos' },
+              { id: 'geral', label: '⚖️ Geral & Auditoria' },
+              { id: 'social', label: '🤝 Ação Social (DPAS)' },
+              { id: 'passe', label: '🪷 Fluidoterapia & Passe' },
+              { id: 'escola', label: '📚 Estudos (ESDE/EADE)' },
+              { id: 'eva', label: '🧒 Infância & Juventude' },
+              { id: 'medi', label: '🛡️ Trabalho Mediúnico' },
+              { id: 'arte', label: '🎭 Arte Espírita' },
+              { id: 'com', label: '📢 Comunicação Social' },
+              { id: 'admin', label: '🪙 Tesouraria & Patrimônio' }
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedDownloadCategory(cat.id)}
+                className={cn(
+                  "px-4 py-2 text-xs rounded-xl font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap active:scale-95 border",
+                  selectedDownloadCategory === cat.id
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-gray-600 hover:bg-gray-50 border-gray-150"
+                )}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
           {/* Section 4: Grid with old reports download files list */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {reportTypes.map((report) => (
+            {reportTypes
+              .filter(report => selectedDownloadCategory === 'todos' || report.category === selectedDownloadCategory)
+              .map((report) => (
               <motion.div
                 key={report.id}
                 whileHover={{ y: -5 }}
@@ -1400,6 +1920,7 @@ export const ReportsPage: React.FC = () => {
                     report.color === 'sky' ? "bg-sky-50 text-sky-600" :
                     report.color === 'purple' ? "bg-purple-50 text-purple-600" :
                     report.color === 'orange' ? "bg-orange-50 text-orange-600" :
+                    report.color === 'teal' ? "bg-teal-50 text-teal-600" :
                     "bg-amber-50 text-amber-600"
                   )}>
                     <report.icon size={32} />

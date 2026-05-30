@@ -207,6 +207,23 @@ export const Dashboard: React.FC = () => {
     fetchData();
   }, []);
 
+  // Deep-link check for assistido check-in
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hasAssistidoLink = params.get('assistidoId') || params.get('scan');
+    if (hasAssistidoLink && sectors.length > 0) {
+      // Find the social action sector
+      const socialSector = sectors.find(s => s.name.toLowerCase().includes('social'));
+      if (socialSector) {
+        const normalizedName = formatSectorName(socialSector.name);
+        setActiveView(`SECTOR:${socialSector.id}:${normalizedName}`);
+      } else {
+        // Fallback default
+        setActiveView('SECTOR:soc:Ação Social Espírita');
+      }
+    }
+  }, [sectors]);
+
   // Render content based on active view
   const renderActiveViewContent = () => {
     if (activeView === 'MASTER') {

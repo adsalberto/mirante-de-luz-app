@@ -24,6 +24,7 @@ import { LogsPage } from './pages/LogsPage';
 import { InventoryPage } from './pages/InventoryPage';
 import DonationLandingPage from './pages/DonationLandingPage';
 import { VendasPage } from './pages/VendasPage';
+import CredentialsPage from './pages/CredentialsPage';
 
 function AppRoutes() {
   const { currentUser, fbUser, loading, logout } = useAuth();
@@ -77,6 +78,7 @@ function AppRoutes() {
                 <Route path="/atendimentos" element={<EvolutionPage />} />
                 <Route path="/relatorios" element={<ReportsPage />} />
                 <Route path="/vendas" element={<VendasPage />} />
+                <Route path="/credenciais" element={<CredentialsPage />} />
                 
                 {/* Admin & Secretary/Coordinator routes */}
                 <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'ADM', 'SECRETARIO', 'COORDENADOR']} />}>
