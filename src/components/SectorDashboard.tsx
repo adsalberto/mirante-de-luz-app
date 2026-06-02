@@ -63,12 +63,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { dataService } from '../services/dataService';
-import { ServiceQueueEntry, Sector, SectorDocument, formatSectorName, TechTicket, ConstructionProject, VisitorLog, CleaningChecklist, InventoryItem, TicketStatus, TicketPriority } from '../types';
+import { ServiceQueueEntry, Sector, SectorDocument, formatSectorName, TechTicket, ConstructionProject, VisitorLog, CleaningChecklist, InventoryItem, TicketStatus, TicketPriority, Speaker, AgendaEvent, DoutrinarioMaterial, DoutrinarioReuniao, DoutrinarioTrabalhador, DoutrinarioApoio, DoutrinarioDiretriz } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { GoogleGenAI } from "@google/genai";
+import { DoutrinarioDashboard } from './DoutrinarioDashboard';
 
 interface SectorDashboardProps {
   sectorId: string;
@@ -253,7 +254,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const isTecnologia = subSectorKey.includes("Tecnologia") || subSectorKey.includes("Informática");
   const isObras = subSectorKey.includes("Obras") || subSectorKey.includes("Reformas") || subSectorKey.includes("Construção");
   const isLimpeza = subSectorKey.includes("Recepção") || subSectorKey.includes("Limpeza") || subSectorKey.includes("Zelo");
-  const isEstudos = subSectorKey.toLowerCase().includes("estudo") || subSectorKey.toLowerCase().includes("doutrin");
+  const isEstudos = subSectorKey.toLowerCase().includes("estudo") && !subSectorKey.toLowerCase().includes("doutrin");
+  const isDoutrinario = subSectorKey.toLowerCase().includes("doutrin");
   const isEvangelizacao = subSectorKey.toLowerCase().includes("evangelização") || subSectorKey.toLowerCase().includes("infantil") || subSectorKey.toLowerCase().includes("juventude") || subSectorKey.toLowerCase().includes("mocidade");
   const isMediunica = subSectorKey.toLowerCase().includes("mediúnica") || subSectorKey.toLowerCase().includes("mediunidade");
   const isArte = subSectorKey.toLowerCase().includes("arte") || subSectorKey.toLowerCase().includes("música") || subSectorKey.toLowerCase().includes("coral") || subSectorKey.toLowerCase().includes("teatro") || subSectorKey.toLowerCase().includes("artesa");
@@ -261,8 +263,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const isPasse = subSectorKey.toLowerCase().includes("passe") || subSectorKey.toLowerCase().includes("fluidotera") || subSectorKey.toLowerCase().includes("harmonização") || subSectorKey.toLowerCase().includes("irradiação");
   const isSocial = subSectorKey.toLowerCase().includes("social") || subSectorKey.toLowerCase().includes("assistênc") || subSectorKey.toLowerCase().includes("cesta");
 
-  const isAdvancedSubSector = (isAdministrativo && adminTab.startsWith('sub-') && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial)) ||
-                              (!isAdministrativo && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial));
+  const isAdvancedSubSector = (isAdministrativo && adminTab.startsWith('sub-') && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isDoutrinario || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial)) ||
+                              (!isAdministrativo && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isDoutrinario || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial));
 
   // --- ADMIN FINANCE STATES ---
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
@@ -493,6 +495,79 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [newChecklistStatus, setNewChecklistStatus] = useState<'LIMPO' | 'ATENCAO' | 'PENDENTE'>('LIMPO');
   const [newChecklistResponsibleName, setNewChecklistResponsibleName] = useState('');
   const [newChecklistObservations, setNewChecklistObservations] = useState('');
+
+  // --- SETOR DOUTRINÁRIO STATE VARIABLES ---
+  const [doutrinarioExpositores, setDoutrinarioExpositores] = useState<Speaker[]>([]);
+  const [doutrinarioPalestras, setDoutrinarioPalestras] = useState<AgendaEvent[]>([]);
+  const [doutrinarioMateriais, setDoutrinarioMateriais] = useState<DoutrinarioMaterial[]>([]);
+  const [doutrinarioReunioes, setDoutrinarioReunioes] = useState<DoutrinarioReuniao[]>([]);
+  const [doutrinarioTrabalhadores, setDoutrinarioTrabalhadores] = useState<DoutrinarioTrabalhador[]>([]);
+  const [doutrinarioApoios, setDoutrinarioApoios] = useState<DoutrinarioApoio[]>([]);
+  const [doutrinarioDiretrizes, setDoutrinarioDiretrizes] = useState<DoutrinarioDiretriz[]>([]);
+
+  // Form hooks/trackers for Expositores
+  const [newExpName, setNewExpName] = useState('');
+  const [newExpPhone, setNewExpPhone] = useState('');
+  const [newExpEmail, setNewExpEmail] = useState('');
+  const [newExpCenter, setNewExpCenter] = useState('');
+  const [newExpCity, setNewExpCity] = useState('');
+  const [newExpThemes, setNewExpThemes] = useState('');
+  const [newExpAvailability, setNewExpAvailability] = useState('');
+  const [newExpObservations, setNewExpObservations] = useState('');
+  const [editingExpId, setEditingExpId] = useState<string | null>(null);
+
+  // Form hooks/trackers for Palestras (AgendaEvent)
+  const [newPalTitle, setNewPalTitle] = useState('');
+  const [newPalDesc, setNewPalDesc] = useState('');
+  const [newPalDate, setNewPalDate] = useState('');
+  const [newPalTime, setNewPalTime] = useState('');
+  const [newPalSpeakerId, setNewPalSpeakerId] = useState('');
+  const [newPalLocation, setNewPalLocation] = useState('');
+  const [newPalResponsible, setNewPalResponsible] = useState('');
+  const [newPalExpectedPublic, setNewPalExpectedPublic] = useState('');
+  const [editingPalId, setEditingPalId] = useState<string | null>(null);
+
+  // Form hooks/trackers for Biblioteca Materiais
+  const [newMatName, setNewMatName] = useState('');
+  const [newMatType, setNewMatType] = useState<'LIVRO' | 'APOSTILA' | 'PDF' | 'AUDIO' | 'VIDEO'>('LIVRO');
+  const [newMatAuthor, setNewMatAuthor] = useState('');
+  const [newMatCategory, setNewMatCategory] = useState<'OBRAS_BASICAS' | 'MEDIUNIDADE' | 'EVANGELIZACAO' | 'ESTUDOS' | 'REFORMA_INTIMA' | 'ATENDIMENTO_FRATERNO'>('OBRAS_BASICAS');
+  const [newMatObservations, setNewMatObservations] = useState('');
+  const [editingMatId, setEditingMatId] = useState<string | null>(null);
+
+  // Form hooks/trackers for Reuniões
+  const [newReuDate, setNewReuDate] = useState('');
+  const [newReuParticipants, setNewReuParticipants] = useState('');
+  const [newReuSubjects, setNewReuSubjects] = useState('');
+  const [newReuDecisions, setNewReuDecisions] = useState('');
+  const [newReuForwardings, setNewReuForwardings] = useState('');
+  const [editingReuId, setEditingReuId] = useState<string | null>(null);
+
+  // Form hooks/trackers for Trabalhadores Doutrinários
+  const [newTrabName, setNewTrabName] = useState('');
+  const [newTrabRole, setNewTrabRole] = useState<'EXPOSITOR' | 'REVISOR' | 'COORDENADOR' | 'APOIO_DOUTRINARIO'>('EXPOSITOR');
+  const [newTrabArea, setNewTrabArea] = useState('');
+  const [newTrabHouseTime, setNewTrabHouseTime] = useState('');
+  const [newTrabAvailability, setNewTrabAvailability] = useState('');
+  const [newTrabContact, setNewTrabContact] = useState('');
+  const [editingTrabId, setEditingTrabId] = useState<string | null>(null);
+
+  // Form hooks/trackers for Apoio Doutrinário (Solicitações)
+  const [newApoFromSector, setNewApoFromSector] = useState('');
+  const [newApoTitle, setNewApoTitle] = useState('');
+  const [newApoDesc, setNewApoDesc] = useState('');
+  const [newApoResponse, setNewApoResponse] = useState('');
+  const [editingApoId, setEditingApoId] = useState<string | null>(null);
+
+  // Form hooks/trackers for Diretrizes Internas
+  const [newDirTitle, setNewDirTitle] = useState('');
+  const [newDirCategory, setNewDirCategory] = useState('');
+  const [newDirResponsible, setNewDirResponsible] = useState('');
+  const [newDirObservations, setNewDirObservations] = useState('');
+  const [editingDirId, setEditingDirId] = useState<string | null>(null);
+
+  // Active inner tab for Doutrinário section
+  const [doutrinarioSubTab, setDoutrinarioSubTab] = useState<'EXPOSITORES' | 'PALESTRAS' | 'BIBLIOTECA' | 'REUNIOES' | 'TRABALHADORES' | 'APOIO' | 'DIRETRIZES'>('EXPOSITORES');
 
   // --- ESTUDOS ESPÍRITAS STATE VARIABLES ---
   const [studyCourses, setStudyCourses] = useState<any[]>([]);
@@ -1038,6 +1113,212 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [newSoVisitaSituation, setNewSoVisitaSituation] = useState('');
   const [newSoVisitaNeeds, setNewSoVisitaNeeds] = useState('');
   const [newSoVisitaForward, setNewSoVisitaForward] = useState('');
+
+  // --- INICIALIZADOR DE DADOS SETOR DOUTRINÁRIO ---
+  const loadDoutrinarioData = async () => {
+    try {
+      // 1. Load Speakers/Expositores
+      let speakers = await dataService.getSpeakers();
+      if (!speakers || speakers.length === 0) {
+        const defaultSpeakers: Speaker[] = [
+          {
+            id: 'sp-1',
+            name: 'Haroldo Dutra Dias',
+            phone: '(31) 99888-7766',
+            email: 'haroldo@doutrina.org',
+            spiritistCenter: 'União Espírita Mineira',
+            city: 'Belo Horizonte - MG',
+            themes: 'O Novo Testamento, Espiritismo e Ciência',
+            availability: 'Finais de semana e noites',
+            observations: 'Expositor convidado de renome nacional.'
+          },
+          {
+            id: 'sp-2',
+            name: 'Suely Caldas Schubert',
+            phone: '(21) 97766-5544',
+            email: 'suely@mediunidade.com.br',
+            spiritistCenter: 'Federação Espírita Brasileira',
+            city: 'Juiz de Fora - MG',
+            themes: 'Mediunidade, Obsessão e Desobsessão',
+            availability: 'Sábados das 14h às 18h',
+            observations: 'Voltado para reuniões mediúnicas e diretrizes.'
+          },
+          {
+            id: 'sp-3',
+            name: 'Divaldo Pereira Franco',
+            phone: '(71) 99111-2233',
+            email: 'divaldo@mansaodocaminho.org',
+            spiritistCenter: 'Centro Espírita Caminho da Redenção',
+            city: 'Salvador - BA',
+            themes: 'Transição Planetária, Amor e Autocura',
+            availability: 'Apenas sob agendamento prévio especial',
+            observations: 'Fundador da Mansão do Caminho.'
+          }
+        ];
+        speakers = defaultSpeakers;
+      }
+      setDoutrinarioExpositores(speakers);
+
+      // 2. Load Public Lectures/Agenda Events
+      let events = await dataService.getAgendaEvents();
+      if (events) {
+        events = events.filter(e => e.type === 'DOUTRINARIA');
+      }
+      if (!events || events.length === 0) {
+        const defaultEvents: AgendaEvent[] = [
+          {
+            id: 'ev-1',
+            title: 'Palestra: A Imortalidade da Alma',
+            description: 'Estudo aprofundado sobre o destino e dor segundo O Livro dos Espíritos.',
+            date: Date.now() + 86400 * 2 * 1000,
+            time: '20:00',
+            type: 'DOUTRINARIA',
+            speakerId: 'sp-1',
+            speakerName: 'Haroldo Dutra Dias',
+            location: 'Salão de Conferências Principal',
+            responsible: 'Gabriel Chaves',
+            expectedPublic: 250
+          },
+          {
+            id: 'ev-2',
+            title: 'Palestra: Mediunidade e Jesus',
+            description: 'Como o Cristo orientava o uso das faculdades no bem.',
+            date: Date.now() + 86400 * 5 * 1000,
+            time: '19:30',
+            type: 'DOUTRINARIA',
+            speakerId: 'sp-2',
+            speakerName: 'Suely Caldas Schubert',
+            location: 'Salão Auxiliar',
+            responsible: 'Gabriel Chaves',
+            expectedPublic: 120
+          }
+        ];
+        events = defaultEvents;
+      }
+      setDoutrinarioPalestras(events);
+
+      // 3. Load Library Books / Materials
+      let materials = await dataService.getDoutrinarioMateriais();
+      if (!materials || materials.length === 0) {
+        const defaultMaterials: DoutrinarioMaterial[] = [
+          {
+            id: 'mat-1',
+            name: 'O Livro dos Espíritos',
+            type: 'LIVRO',
+            author: 'Allan Kardec',
+            category: 'OBRAS_BASICAS',
+            observations: 'Edição comentada FEB. Disponível para consulta local e empréstimo.'
+          },
+          {
+            id: 'mat-2',
+            name: 'O Livro dos Médiuns',
+            type: 'LIVRO',
+            author: 'Allan Kardec',
+            category: 'MEDIUNIDADE',
+            observations: 'Controle de estudo prático de reuniões experimentais.'
+          },
+          {
+            id: 'mat-3',
+            name: 'Apostila Completa do ESDE (Tomo I)',
+            type: 'APOSTILA',
+            author: 'FEB',
+            category: 'ESTUDOS',
+            observations: 'Utilizado no ciclo de estudos básicos iniciante.'
+          },
+          {
+            id: 'mat-4',
+            name: 'Audiobook: Nosso Lar',
+            type: 'AUDIO',
+            author: 'Chico Xavier por André Luiz',
+            category: 'ESTUDOS',
+            observations: 'Excelente material de áudio para auxílio visual.'
+          }
+        ];
+        materials = defaultMaterials;
+      }
+      setDoutrinarioMateriais(materials);
+
+      // 4. Load Reuniões / Atas
+      let meetings = await dataService.getDoutrinarioReunioes();
+      if (!meetings || meetings.length === 0) {
+        const defaultMeetings: DoutrinarioReuniao[] = [
+          {
+            id: 'mt-1',
+            date: new Date().toISOString().split('T')[0],
+            participants: ['Gabriel Chaves', 'Clarice Lisbôa', 'Haroldo Dutra'],
+            subjects: 'Acolhimento de novos palestrantes de fora do centro / definição de calendário',
+            decisions: 'Ampliar a rampa de divulgação em mídias digitais e definir rodízio quinzenal.',
+            forwardings: 'Gabriel enviará e-mail com as diretrizes e calendário para os expositores.'
+          }
+        ];
+        meetings = defaultMeetings;
+      }
+      setDoutrinarioReunioes(meetings);
+
+      // 5. Load Workers
+      let trabs = await dataService.getDoutrinarioTrabalhadores();
+      if (!trabs || trabs.length === 0) {
+        const defaultTrabs: DoutrinarioTrabalhador[] = [
+          {
+            id: 'dt-1',
+            name: 'Roberto Shinyashiki',
+            role: 'EXPOSITOR',
+            area: 'Palestras Públicas de Segunda-Feira',
+            houseTime: '5 anos',
+            availability: 'Segundas-feiras, 19:00',
+            contact: '(31) 98888-2222'
+          },
+          {
+            id: 'dt-2',
+            name: 'Ana Maria Braga',
+            role: 'COORDENADOR',
+            area: 'Livraria / Biblioteca Doutrinária',
+            houseTime: '10 anos',
+            availability: 'Quartas e Sábados',
+            contact: '(31) 97777-1111'
+          }
+        ];
+        trabs = defaultTrabs;
+      }
+      setDoutrinarioTrabalhadores(trabs);
+
+      // 6. Load Apoios (Cross-sector requests)
+      let apoios = await dataService.getDoutrinarioApoios();
+      if (!apoios || apoios.length === 0) {
+        const defaultApoios: DoutrinarioApoio[] = [
+          {
+            id: 'ap-1',
+            fromSector: 'Comunicação e Mídias',
+            title: 'Subsídio de material para série de posts de Kardec',
+            description: 'Precisamos de indicação de trechos de O Livro dos Espíritos sobre a lei de progresso.',
+            status: 'PENDENTE',
+            date: new Date().toISOString().split('T')[0]
+          }
+        ];
+        apoios = defaultApoios;
+      }
+      setDoutrinarioApoios(apoios);
+
+      // 7. Load Diretrizes Internas
+      let dirs = await dataService.getDoutrinarioDiretrizes();
+      if (!dirs || dirs.length === 0) {
+        const defaultDirs: DoutrinarioDiretriz[] = [
+          {
+            id: 'dir-1',
+            title: 'Regulamento e Manual do Expositor de Mirante de Luz',
+            category: 'Manuais',
+            date: '2026-05-10',
+            responsible: 'Gabriel Chaves',
+            observations: 'Contém todas as diretrizes de postura, temas a evitar e acolhimento dos assistidos.'
+          }
+        ];
+        dirs = defaultDirs;
+      }
+      setDoutrinarioDiretrizes(dirs);
+    } catch (err) {
+      console.error("Erro ao carregar dados do setor doutrinário:", err);
+    }
+  };
 
   // --- INICIALIZADOR DE DADOS AÇÃO SOCIAL ESPÍRITA ---
   const loadSocialData = () => {
@@ -1795,7 +2076,10 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     if (isSocial) {
       loadSocialData();
     }
-  }, [currentViewSectorId, isAdministrativo, isAdvancedSubSector, isSocial]);
+    if (isDoutrinario) {
+      loadDoutrinarioData();
+    }
+  }, [currentViewSectorId, isAdministrativo, isAdvancedSubSector, isSocial, isDoutrinario]);
 
   const loadData = async () => {
     setLoading(true);
@@ -5029,13 +5313,13 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
             </div>
 
             {/* Visual Material vs Patrimonio Selector */}
-            <div className="flex border-b border-gray-150 justify-start gap-4 pb-1">
+            <div className="flex border-b border-gray-150 justify-start gap-4 pb-1 overflow-x-auto whitespace-nowrap scrollbar-none w-full">
               <button
                 type="button"
                 id="tab-pat-todos"
                 onClick={() => setPatrimonioTypeTab('TODOS')}
                 className={cn(
-                  "px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer",
+                  "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer",
                   patrimonioTypeTab === 'TODOS'
                     ? "border-indigo-600 text-indigo-600 font-black"
                     : "border-transparent text-gray-400 hover:text-gray-650"
@@ -5048,7 +5332,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 id="tab-pat-material"
                 onClick={() => setPatrimonioTypeTab('MATERIAL')}
                 className={cn(
-                  "px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
+                  "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
                   patrimonioTypeTab === 'MATERIAL'
                     ? "border-indigo-600 text-indigo-600 font-black"
                     : "border-transparent text-gray-400 hover:text-gray-650"
@@ -5062,7 +5346,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 id="tab-pat-patrimonio"
                 onClick={() => setPatrimonioTypeTab('PATRIMONIO')}
                 className={cn(
-                  "px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
+                  "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
                   patrimonioTypeTab === 'PATRIMONIO'
                     ? "border-indigo-600 text-indigo-600 font-black"
                     : "border-transparent text-gray-400 hover:text-gray-650"
@@ -5837,6 +6121,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
         </div>
       </div>
     );
+  };
+
+  const renderDoutrinarioDashboard = () => {
+    return <DoutrinarioDashboard />;
   };
 
   const renderEstudosDashboard = () => {
@@ -11762,7 +12050,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
         {/* PRINT TICKET MODAL OVERLAY */}
         {showTicketModal && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
-            <div className="bg-white text-slate-900 rounded-[32px] p-8 max-w-sm w-full font-mono text-xs border border-slate-200 text-center shadow-2xl relative">
+            <div className="bg-white text-slate-900 rounded-3xl sm:rounded-[32px] p-4 sm:p-8 max-w-sm w-full font-mono text-xs border border-slate-200 text-center shadow-2xl relative">
               <button 
                 onClick={() => setShowTicketModal(null)}
                 className="absolute right-4 top-4 p-1 hover:bg-gray-100 rounded-full text-gray-500"
@@ -13797,6 +14085,37 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                     />
                   </>
                 )}
+                {isDoutrinario && (
+                  <>
+                    <StatCard 
+                      title="Expositores Cadastrados" 
+                      value={doutrinarioExpositores.length} 
+                      icon={Users} 
+                      color="text-indigo-600" 
+                      bg="bg-indigo-50" 
+                      shadow="shadow-indigo-500/10"
+                      delay={0}
+                    />
+                    <StatCard 
+                      title="Palestras Agendadas" 
+                      value={doutrinarioPalestras.length} 
+                      icon={Calendar} 
+                      color="text-purple-600" 
+                      bg="bg-purple-50" 
+                      shadow="shadow-purple-500/10"
+                      delay={0.1}
+                    />
+                    <StatCard 
+                      title="Diretrizes Ativas" 
+                      value={doutrinarioDiretrizes.length} 
+                      icon={Search} 
+                      color="text-rose-600" 
+                      bg="bg-rose-50" 
+                      shadow="shadow-rose-500/10"
+                      delay={0.2}
+                    />
+                  </>
+                )}
                 {isEvangelizacao && (
                   <>
                     <StatCard 
@@ -13961,6 +14280,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 {isObras && renderObrasDashboard()}
                 {isLimpeza && renderLimpezaDashboard()}
                 {isEstudos && renderEstudosDashboard()}
+                {isDoutrinario && renderDoutrinarioDashboard()}
                 {isEvangelizacao && renderEvangelizacaoDashboard()}
                 {isMediunica && renderMediunicaDashboard()}
                 {isArte && renderArteDashboard()}
@@ -16200,7 +16520,8 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
             </div>
 
             {/* Simulated Official Boleto Form */}
-            <div className="border border-black text-[9px] font-mono leading-none bg-white font-sans text-gray-850 p-2 space-y-1.5">
+            <div className="overflow-x-auto w-full max-w-full rounded-2xl">
+              <div className="border border-black text-[9px] font-mono leading-none bg-white font-sans text-gray-850 p-2 space-y-1.5 min-w-[650px]">
               
               {/* Slip Row 1: Bank Logo and Code */}
               <div className="flex items-center border-b-2 border-black pb-1">
@@ -16354,8 +16675,8 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                   Código de Barras Febraban para Leitura Óptica
                 </div>
               </div>
-
             </div>
+          </div>
 
             {/* Note to operator */}
             <div className="bg-amber-50 p-4 rounded-2xl flex gap-3 text-[11px] leading-relaxed text-amber-800">

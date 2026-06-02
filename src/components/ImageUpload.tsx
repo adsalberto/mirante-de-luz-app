@@ -184,25 +184,25 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
 
       {/* Cropping Modal */}
       {isCropping && tempImage && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-lg rounded-[32px] overflow-hidden flex flex-col shadow-2xl">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-[24px] overflow-hidden flex flex-col shadow-2xl max-h-[95vh]">
+            <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2 italic">
-                  <Scissors size={20} className="text-indigo-600" />
+                <h3 className="text-base sm:text-lg font-black text-gray-900 tracking-tight flex items-center gap-2 italic">
+                  <Scissors size={18} className="text-indigo-600" />
                   Ajustar Foto
                 </h3>
-                <p className="text-[10px] uppercase font-black tracking-widest text-gray-400 mt-1">Posicione e recorte sua imagem</p>
+                <p className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-gray-400 mt-0.5">Posicione e recorte sua imagem</p>
               </div>
               <button 
                 onClick={() => { setIsCropping(false); setTempImage(null); }}
-                className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors"
+                className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors"
               >
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="relative h-[300px] sm:h-[400px] bg-gray-900">
+            <div className="relative h-[180px] sm:h-[240px] bg-gray-900 shrink-0">
               <Cropper
                 image={tempImage}
                 crop={crop}
@@ -216,9 +216,9 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
               />
             </div>
 
-            <div className="p-6 space-y-6 bg-white">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-2">
+            <div className="p-4 sm:p-5 space-y-4 bg-white overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Zoom</span>
                     <span className="text-[10px] font-bold text-indigo-600">{zoom.toFixed(1)}x</span>
@@ -231,15 +231,15 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
                     step={0.1}
                     aria-labelledby="Zoom"
                     onChange={(e) => setZoom(Number(e.target.value))}
-                    className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    className="w-full h-1 bg-gray-150 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Rotação</span>
                     <span className="text-[10px] font-bold text-indigo-600">{rotation}°</span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <input
                       type="range"
                       value={rotation}
@@ -248,30 +248,32 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
                       step={1}
                       aria-labelledby="Rotation"
                       onChange={(e) => setRotation(Number(e.target.value))}
-                      className="flex-1 h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                      className="flex-1 h-1 bg-gray-150 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                     />
                     <button 
                       onClick={() => setRotation(prev => (prev + 90) % 360)}
-                      className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
+                      className="p-1 px-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-xs flex items-center justify-center"
                     >
-                      <RotateCw size={14} />
+                      <RotateCw size={12} />
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center gap-2.5 pt-2 border-t border-gray-50">
                 <button
+                  type="button"
                   onClick={() => { setIsCropping(false); setTempImage(null); }}
-                  className="flex-1 py-4 px-6 bg-gray-100 text-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95"
+                  className="flex-1 py-3 px-4 bg-gray-100 text-gray-950 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-wider hover:bg-gray-200 transition-all active:scale-95"
                 >
                   Cancelar
                 </button>
                 <button
+                  type="button"
                   onClick={handleDone}
-                  className="flex-[2] py-4 px-6 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  className="flex-[2] py-3 px-4 bg-indigo-600 text-white rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-wider hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-1.5 active:scale-95"
                 >
-                  <Check size={18} />
+                  <Check size={16} />
                   Confirmar Ajuste
                 </button>
               </div>

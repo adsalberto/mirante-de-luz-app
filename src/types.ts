@@ -30,6 +30,9 @@ export interface Worker {
   tempRoleExpiry?: number;
   originalRole?: UserRole;
   loginCount?: number;
+  bloodType?: string;
+  allergies?: string;
+  emergencyContact?: string;
 }
 
 export interface Speaker {
@@ -39,6 +42,9 @@ export interface Speaker {
   email: string;
   spiritistCenter: string;
   observations: string;
+  city?: string;
+  themes?: string;
+  availability?: string;
 }
 
 export interface AgendaEvent {
@@ -50,6 +56,9 @@ export interface AgendaEvent {
   type: 'DOUTRINARIA' | 'ESTUDO' | 'FESTA' | 'OUTRO';
   speakerId?: string; // Link to Speaker if it's a Doutrinaria
   speakerName?: string; 
+  location?: string;
+  responsible?: string;
+  expectedPublic?: number;
 }
 
 export const AGENDA_EVENT_TYPE_LABELS: Record<'DOUTRINARIA' | 'ESTUDO' | 'FESTA' | 'OUTRO', string> = {
@@ -126,6 +135,9 @@ export interface Participant {
   currentStatus: 'IDLE' | 'WAITING' | 'IN_SERVICE' | 'COMPLETED' | 'REFERRERED';
   photoUrl?: string;
   isWorker?: boolean;
+  bloodType?: string;
+  allergies?: string;
+  emergencyContact?: string;
 }
 
 export interface ServiceQueueEntry {
@@ -308,6 +320,55 @@ export interface CleaningChecklist {
   status: 'LIMPO' | 'ATENCAO' | 'PENDENTE';
   responsibleName: string;
   lastCleanedAt: number;
+  observations?: string;
+}
+
+export interface DoutrinarioMaterial {
+  id: string;
+  name: string;
+  type: 'LIVRO' | 'APOSTILA' | 'PDF' | 'AUDIO' | 'VIDEO';
+  author: string;
+  category: 'OBRAS_BASICAS' | 'MEDIUNIDADE' | 'EVANGELIZACAO' | 'ESTUDOS' | 'REFORMA_INTIMA' | 'ATENDIMENTO_FRATERNO';
+  fileUrl?: string;
+  observations?: string;
+}
+
+export interface DoutrinarioReuniao {
+  id: string;
+  date: string;
+  participants: string[];
+  subjects: string;
+  decisions: string;
+  forwardings: string;
+}
+
+export interface DoutrinarioTrabalhador {
+  id: string;
+  name: string;
+  role: 'EXPOSITOR' | 'REVISOR' | 'COORDENADOR' | 'APOIO_DOUTRINARIO';
+  area: string;
+  houseTime?: string;
+  availability: string;
+  contact: string;
+}
+
+export interface DoutrinarioApoio {
+  id: string;
+  fromSector: string;
+  title: string;
+  description: string;
+  status: 'PENDENTE' | 'ATENDIDO';
+  response?: string;
+  date: string;
+}
+
+export interface DoutrinarioDiretriz {
+  id: string;
+  title: string;
+  category: string;
+  documentUrl?: string;
+  date: string;
+  responsible: string;
   observations?: string;
 }
 

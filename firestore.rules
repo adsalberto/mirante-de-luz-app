@@ -162,5 +162,27 @@ service cloud.firestore {
       allow read: if hasBasicAccess();
       allow write: if isAdmin() || isCoordinator() || isSecretary();
     }
+
+    // Doutrinário specific security rules
+    match /doutrinario_materiais/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_reunioes/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_trabalhadores/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_apoio/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_diretrizes/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
   }
 }

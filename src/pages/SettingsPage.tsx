@@ -15,6 +15,7 @@ import {
   Lock,
   Search,
   ArrowLeft,
+  Heart,
 } from "lucide-react";
 import { dataService } from "../services/dataService";
 import {
@@ -80,6 +81,9 @@ export const SettingsPage: React.FC = () => {
     sectorId: "",
     photoUrl: "",
     acceptedTerm: false,
+    bloodType: "",
+    allergies: "",
+    emergencyContact: "",
   });
   const [newSector, setNewSector] = useState({
     name: "",
@@ -151,6 +155,9 @@ export const SettingsPage: React.FC = () => {
       sectorId: "",
       photoUrl: "",
       acceptedTerm: false,
+      bloodType: "",
+      allergies: "",
+      emergencyContact: "",
     });
     setWorkerPassword("");
     setHasTempPermission(false);
@@ -193,6 +200,9 @@ export const SettingsPage: React.FC = () => {
       sectorId: w.sectorId || "",
       photoUrl: w.photoUrl || "",
       acceptedTerm: w.acceptedTerm || false,
+      bloodType: w.bloodType || "",
+      allergies: w.allergies || "",
+      emergencyContact: w.emergencyContact || "",
     });
 
     const active = !!(w.tempRole && w.tempRoleExpiry && Date.now() < w.tempRoleExpiry);
@@ -990,6 +1000,69 @@ export const SettingsPage: React.FC = () => {
                   setNewWorker({ ...newWorker, photoUrl: val })
                 }
               />
+
+              {/* Emergency Medical Information Group */}
+              <div className="p-5 bg-amber-50/50 rounded-[24px] border border-amber-100/50 space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 bg-amber-500 rounded-lg text-white shrink-0">
+                    <Heart size={14} className="fill-white" />
+                  </span>
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase text-amber-950 tracking-wider">Ficha Médica de Emergência (Para Carteirinha)</h4>
+                    <p className="text-[9px] text-amber-800/80 font-bold leading-relaxed">Essas informações serão gravadas no cadastro e aparecerão no verso da carteirinha oficial de voluntário (CR80) em caso de emergências.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-amber-900/60 tracking-wider ml-1 block">
+                      Tipo Sanguíneo
+                    </label>
+                    <select
+                      value={newWorker.bloodType}
+                      onChange={(e) =>
+                        setNewWorker({ ...newWorker, bloodType: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-amber-200 transition-all border border-amber-150 font-bold text-gray-700 text-xs"
+                    >
+                      <option value="">Não Informado</option>
+                      {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(bt => (
+                        <option key={bt} value={bt}>{bt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-amber-900/60 tracking-wider ml-1 block">
+                      Alérgico a:
+                    </label>
+                    <input
+                      type="text"
+                      value={newWorker.allergies}
+                      onChange={(e) =>
+                        setNewWorker({ ...newWorker, allergies: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-amber-200 transition-all border border-amber-150 font-bold text-gray-700 text-xs text-left"
+                      placeholder="Ex: Dipirona, Pó..."
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-amber-900/60 tracking-wider ml-1 block">
+                      Contato de Emergência
+                    </label>
+                    <input
+                      type="text"
+                      value={newWorker.emergencyContact}
+                      onChange={(e) =>
+                        setNewWorker({ ...newWorker, emergencyContact: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-amber-200 transition-all border border-amber-150 font-bold text-gray-700 text-xs text-left"
+                      placeholder="Ex: Maria (42) 9999-9999"
+                    />
+                  </div>
+                </div>
+              </div>
 
               {!editingWorker && (
                 <div className="space-y-1.5">

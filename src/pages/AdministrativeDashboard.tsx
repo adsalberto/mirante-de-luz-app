@@ -121,11 +121,11 @@ export default function AdministrativeDashboard() {
         </div>
 
         {/* Dynamic Tab Selector */}
-        <div className="flex bg-gray-100 p-1.5 rounded-[22px] gap-1 shrink-0 self-start md:self-center">
+        <div className="flex bg-gray-100 p-1.5 rounded-[22px] gap-1 shrink-0 self-start md:self-center overflow-x-auto whitespace-nowrap scrollbar-none w-full max-w-full">
           <button
             onClick={() => setAdminViewTab('geral')}
             className={cn(
-              "flex items-center gap-2 px-5 py-2.5 rounded-[16px] font-black text-[10px] uppercase tracking-wider transition-all",
+              "flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-[16px] font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer",
               adminViewTab === 'geral'
                 ? "bg-white text-indigo-600 shadow-sm"
                 : "text-gray-400 hover:text-gray-900"
@@ -139,7 +139,7 @@ export default function AdministrativeDashboard() {
             <button
               onClick={() => setAdminViewTab('finance')}
               className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-[16px] font-black text-[10px] uppercase tracking-wider transition-all",
+                "flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-[16px] font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer",
                 adminViewTab === 'finance'
                   ? "bg-white text-indigo-600 shadow-sm"
                   : "text-gray-400 hover:text-gray-900"
@@ -153,7 +153,7 @@ export default function AdministrativeDashboard() {
           <button
             onClick={() => setAdminViewTab('pos_bazar')}
             className={cn(
-              "flex items-center gap-2 px-5 py-2.5 rounded-[16px] font-black text-[10px] uppercase tracking-wider transition-all",
+              "flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-[16px] font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer",
               adminViewTab === 'pos_bazar'
                 ? "bg-white text-indigo-600 shadow-sm"
                 : "text-gray-400 hover:text-gray-900"

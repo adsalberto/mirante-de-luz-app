@@ -5,6 +5,10 @@ interface CemilLogoProps {
   size?: number | string;
   showBackground?: boolean;
   variant?: 'full' | 'symbol-only' | 'sun-only';
+  sunColor?: string;
+  pyramidColor?: string;
+  textColorPrimary?: string;
+  textColorSecondary?: string;
 }
 
 export const CemilLogo: React.FC<CemilLogoProps> = ({
@@ -12,6 +16,10 @@ export const CemilLogo: React.FC<CemilLogoProps> = ({
   size = '100%',
   showBackground = true,
   variant = 'full',
+  sunColor,
+  pyramidColor,
+  textColorPrimary,
+  textColorSecondary,
 }) => {
   // Official Brand Colors:
   // Golden yellow / Orange-gold: #E59A18 (warm gold like the image)
@@ -20,10 +28,10 @@ export const CemilLogo: React.FC<CemilLogoProps> = ({
   const blueColor = '#063994';
 
   // Adaptive values based on theme / background
-  const activeSunColor = goldColor;
-  const activePyramidColor = showBackground && variant === 'full' ? '#FFFFFF' : blueColor;
-  const activeTextColorPrimary = showBackground && variant === 'full' ? '#FFFFFF' : blueColor;
-  const activeTextColorSecondary = showBackground && variant === 'full' ? goldColor : blueColor;
+  const activeSunColor = sunColor || goldColor;
+  const activePyramidColor = pyramidColor || (showBackground && variant === 'full' ? '#FFFFFF' : blueColor);
+  const activeTextColorPrimary = textColorPrimary || (showBackground && variant === 'full' ? '#FFFFFF' : blueColor);
+  const activeTextColorSecondary = textColorSecondary || (showBackground && variant === 'full' ? goldColor : blueColor);
 
   if (variant === 'sun-only') {
     return (
@@ -138,10 +146,10 @@ export const CemilLogo: React.FC<CemilLogoProps> = ({
             y="298"
             textAnchor="middle"
             fill={activeTextColorPrimary}
-            fontSize="14"
+            fontSize="15"
             fontWeight="700"
-            letterSpacing="4px"
-            fontFamily="'Inter', 'Plus Jakarta Sans', sans-serif"
+            letterSpacing="5px"
+            fontFamily="'Playfair Display', 'Georgia', serif"
           >
             CENTRO ESPÍRITA
           </text>
@@ -152,10 +160,10 @@ export const CemilLogo: React.FC<CemilLogoProps> = ({
             y="336"
             textAnchor="middle"
             fill={activeTextColorSecondary}
-            fontSize="26"
+            fontSize="25"
             fontWeight="900"
             letterSpacing="1px"
-            fontFamily="'Inter', 'Plus Jakarta Sans', sans-serif"
+            fontFamily="'Playfair Display', 'Georgia', serif"
             style={{ textShadow: showBackground ? 'none' : '0 1px 2px rgba(0,0,0,0.05)' }}
           >
             MIRANTE DE LUZ

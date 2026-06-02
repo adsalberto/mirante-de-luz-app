@@ -27,7 +27,12 @@ import {
   AgendaEvent,
   AuditLog,
   SectorSchedule,
-  InventoryItem
+  InventoryItem,
+  DoutrinarioMaterial,
+  DoutrinarioReuniao,
+  DoutrinarioTrabalhador,
+  DoutrinarioApoio,
+  DoutrinarioDiretriz
 } from '../types';
 
 enum OperationType {
@@ -780,6 +785,214 @@ class DataService {
       console.error("Error populating defaults:", error);
     }
     return false;
+  }
+
+  // --- DOUTRINÁRIO - BIBLIOTECA MATERIAIS ---
+  async getDoutrinarioMateriais() {
+    const path = 'doutrinario_materiais';
+    try {
+      const snap = await getDocs(collection(db, path));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as DoutrinarioMaterial));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  }
+
+  async addDoutrinarioMaterial(material: Omit<DoutrinarioMaterial, 'id'>) {
+    const path = 'doutrinario_materiais';
+    try {
+      const docRef = await addDoc(collection(db, path), material);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Cadastro de Material Doutrinário', `Nome: ${material.name}`);
+      return { id: docRef.id, ...material } as DoutrinarioMaterial;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateDoutrinarioMaterial(material: DoutrinarioMaterial) {
+    try {
+      await setDoc(doc(db, 'doutrinario_materiais', material.id), material);
+      this.createLog('Atualização de Material Doutrinário', `Nome: ${material.name}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'doutrinario_materiais');
+    }
+  }
+
+  async deleteDoutrinarioMaterial(id: string) {
+    try {
+      await deleteDoc(doc(db, 'doutrinario_materiais', id));
+      this.createLog('Exclusão de Material Doutrinário', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'doutrinario_materiais');
+    }
+  }
+
+  // --- DOUTRINÁRIO - REUNIÕES ---
+  async getDoutrinarioReunioes() {
+    const path = 'doutrinario_reunioes';
+    try {
+      const snap = await getDocs(collection(db, path));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as DoutrinarioReuniao));
+      return list.sort((a, b) => b.date.localeCompare(a.date));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  }
+
+  async addDoutrinarioReuniao(reuniao: Omit<DoutrinarioReuniao, 'id'>) {
+    const path = 'doutrinario_reunioes';
+    try {
+      const docRef = await addDoc(collection(db, path), reuniao);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Ata de Reunião Doutrinária', `Data: ${reuniao.date}`);
+      return { id: docRef.id, ...reuniao } as DoutrinarioReuniao;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateDoutrinarioReuniao(reuniao: DoutrinarioReuniao) {
+    try {
+      await setDoc(doc(db, 'doutrinario_reunioes', reuniao.id), reuniao);
+      this.createLog('Atualização de Ata de Reunião Doutrinária', `Data: ${reuniao.date}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'doutrinario_reunioes');
+    }
+  }
+
+  async deleteDoutrinarioReuniao(id: string) {
+    try {
+      await deleteDoc(doc(db, 'doutrinario_reunioes', id));
+      this.createLog('Exclusão de Reunião Doutrinária', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'doutrinario_reunioes');
+    }
+  }
+
+  // --- DOUTRINÁRIO - TRABALHADORES ---
+  async getDoutrinarioTrabalhadores() {
+    const path = 'doutrinario_trabalhadores';
+    try {
+      const snap = await getDocs(collection(db, path));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as DoutrinarioTrabalhador));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  }
+
+  async addDoutrinarioTrabalhador(trabalhador: Omit<DoutrinarioTrabalhador, 'id'>) {
+    const path = 'doutrinario_trabalhadores';
+    try {
+      const docRef = await addDoc(collection(db, path), trabalhador);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Cadastro de Trabalhador Doutrinário', `Nome: ${trabalhador.name}`);
+      return { id: docRef.id, ...trabalhador } as DoutrinarioTrabalhador;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateDoutrinarioTrabalhador(trabalhador: DoutrinarioTrabalhador) {
+    try {
+      await setDoc(doc(db, 'doutrinario_trabalhadores', trabalhador.id), trabalhador);
+      this.createLog('Atualização de Trabalhador Doutrinário', `Nome: ${trabalhador.name}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'doutrinario_trabalhadores');
+    }
+  }
+
+  async deleteDoutrinarioTrabalhador(id: string) {
+    try {
+      await deleteDoc(doc(db, 'doutrinario_trabalhadores', id));
+      this.createLog('Exclusão de Trabalhador Doutrinário', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'doutrinario_trabalhadores');
+    }
+  }
+
+  // --- DOUTRINÁRIO - APOIO/SOLICITAÇÕES ---
+  async getDoutrinarioApoios() {
+    const path = 'doutrinario_apoio';
+    try {
+      const snap = await getDocs(collection(db, path));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as DoutrinarioApoio));
+      return list.sort((a, b) => b.date.localeCompare(a.date));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  }
+
+  async addDoutrinarioApoio(apoio: Omit<DoutrinarioApoio, 'id'>) {
+    const path = 'doutrinario_apoio';
+    try {
+      const docRef = await addDoc(collection(db, path), apoio);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Nova Solicitação de Apoio Doutrinário', `De: ${apoio.fromSector}`);
+      return { id: docRef.id, ...apoio } as DoutrinarioApoio;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateDoutrinarioApoio(apoio: DoutrinarioApoio) {
+    try {
+      await setDoc(doc(db, 'doutrinario_apoio', apoio.id), apoio);
+      this.createLog('Atualização de Apoio Doutrinário', `Setor: ${apoio.fromSector}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'doutrinario_apoio');
+    }
+  }
+
+  async deleteDoutrinarioApoio(id: string) {
+    try {
+      await deleteDoc(doc(db, 'doutrinario_apoio', id));
+      this.createLog('Exclusão de Solicitação de Apoio', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'doutrinario_apoio');
+    }
+  }
+
+  // --- DOUTRINÁRIO - DIRETRIZES INTERNAS ---
+  async getDoutrinarioDiretrizes() {
+    const path = 'doutrinario_diretrizes';
+    try {
+      const snap = await getDocs(collection(db, path));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as DoutrinarioDiretriz));
+      return list.sort((a, b) => b.date.localeCompare(a.date));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  }
+
+  async addDoutrinarioDiretriz(diretriz: Omit<DoutrinarioDiretriz, 'id'>) {
+    const path = 'doutrinario_diretrizes';
+    try {
+      const docRef = await addDoc(collection(db, path), diretriz);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Nova Diretriz Doutrinária', `Título: ${diretriz.title}`);
+      return { id: docRef.id, ...diretriz } as DoutrinarioDiretriz;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateDoutrinarioDiretriz(diretriz: DoutrinarioDiretriz) {
+    try {
+      await setDoc(doc(db, 'doutrinario_diretrizes', diretriz.id), diretriz);
+      this.createLog('Atualização de Diretriz Doutrinária', `Título: ${diretriz.title}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'doutrinario_diretrizes');
+    }
+  }
+
+  async deleteDoutrinarioDiretriz(id: string) {
+    try {
+      await deleteDoc(doc(db, 'doutrinario_diretrizes', id));
+      this.createLog('Exclusão de Diretriz', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'doutrinario_diretrizes');
+    }
   }
 }
 

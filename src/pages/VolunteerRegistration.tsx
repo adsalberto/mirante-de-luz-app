@@ -36,7 +36,10 @@ export default function VolunteerRegistration() {
     activityType: 'OUTROS' as SectorType,
     acceptedTerm: false,
     lgpdConsent: false,
-    observation: ''
+    observation: '',
+    bloodType: '',
+    allergies: '',
+    emergencyContact: ''
   });
 
   useEffect(() => {
@@ -117,7 +120,10 @@ export default function VolunteerRegistration() {
         lgpdConsent: true,
         lgpdDate: Date.now(),
         active: false,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        bloodType: formData.bloodType || '',
+        allergies: formData.allergies || '',
+        emergencyContact: formData.emergencyContact || '',
       });
       
       setIsSuccess(true);
@@ -304,6 +310,69 @@ export default function VolunteerRegistration() {
                     <option key={s.id} value={s.id}>{formatSectorName(s.name)}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Ficha Médica de Emergência */}
+              <div className="md:col-span-2 p-5 bg-amber-50/50 rounded-2xl border border-amber-100 space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 bg-amber-500 rounded-lg text-white">
+                    <Heart size={14} className="fill-white" />
+                  </span>
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase text-amber-950 tracking-wider">Ficha Médica de Emergência (Opcional)</h4>
+                    <p className="text-[9px] text-amber-700/80 font-bold">Para impressão no verso da sua carteirinha de voluntário (CR80) em caso de necessidade.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-amber-900/60 tracking-wider ml-1 block">
+                      Tipo Sanguíneo
+                    </label>
+                    <select
+                      value={formData.bloodType}
+                      onChange={(e) =>
+                        setFormData({ ...formData, bloodType: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-amber-200 transition-all border border-amber-150 font-bold text-gray-700 text-xs"
+                    >
+                      <option value="">Não Informado</option>
+                      {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(bt => (
+                        <option key={bt} value={bt}>{bt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-amber-900/60 tracking-wider ml-1 block">
+                      Alérgico a:
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.allergies}
+                      onChange={(e) =>
+                        setFormData({ ...formData, allergies: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-amber-200 transition-all border border-amber-150 font-bold text-gray-700 text-xs text-left"
+                      placeholder="Ex: Antiinflamatório..."
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-amber-900/60 tracking-wider ml-1 block">
+                      Contato de Emergência
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.emergencyContact}
+                      onChange={(e) =>
+                        setFormData({ ...formData, emergencyContact: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-amber-200 transition-all border border-amber-150 font-bold text-gray-700 text-xs text-left"
+                      placeholder="Ex: Nome - (42) 9999-9999"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-1 md:col-span-2">

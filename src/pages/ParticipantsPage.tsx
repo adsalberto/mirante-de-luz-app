@@ -39,7 +39,7 @@ import {
   Evolution,
   formatSectorName,
 } from "../types";
-import { cn } from "../lib/utils";
+import { cn, formatRegistrationCode } from "../lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -240,6 +240,9 @@ export const ParticipantsPage: React.FC = () => {
     gender: "Masculino",
     address: "",
     lgpdConsent: false,
+    bloodType: "",
+    allergies: "",
+    emergencyContact: "",
   });
 
   useEffect(() => {
@@ -302,6 +305,9 @@ export const ParticipantsPage: React.FC = () => {
       gender: p.gender || "Masculino",
       address: p.address || "",
       lgpdConsent: !!p.lgpdConsent,
+      bloodType: p.bloodType || "",
+      allergies: p.allergies || "",
+      emergencyContact: p.emergencyContact || "",
     });
     setIsModalOpen(true);
   };
@@ -388,6 +394,9 @@ export const ParticipantsPage: React.FC = () => {
         gender: "Masculino",
         address: "",
         lgpdConsent: false,
+        bloodType: "",
+        allergies: "",
+        emergencyContact: "",
       });
       setImmediateSectorIds([]);
       setImmediatePriority(false);
@@ -406,9 +415,12 @@ export const ParticipantsPage: React.FC = () => {
   };
 
   const filtered = participants.filter((p) => {
+    const formattedId = p.id ? formatRegistrationCode(p.id, p.registrationDate).toLowerCase() : '';
     const matchesSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.phone.includes(searchTerm);
+      p.phone.includes(searchTerm) ||
+      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      formattedId.includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
 
     if (activeTab === "workers") {
@@ -1321,6 +1333,57 @@ export const ParticipantsPage: React.FC = () => {
                       placeholder="Rua, Número, Bairro e CEP"
                     />
                   </div>
+
+                  <div className="space-y-1.5 col-span-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Tipo Sanguíneo
+                    </label>
+                    <select
+                      value={formData.bloodType}
+                      onChange={(e) =>
+                        setFormData({ ...formData, bloodType: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    >
+                      <option value="">Não informado</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5 col-span-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Contato de Emergência
+                    </label>
+                    <input
+                      value={formData.emergencyContact}
+                      onChange={(e) =>
+                        setFormData({ ...formData, emergencyContact: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      placeholder="Nome e Telefone"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Alergias / Restrições Médicas
+                    </label>
+                    <input
+                      value={formData.allergies}
+                      onChange={(e) =>
+                        setFormData({ ...formData, allergies: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      placeholder="Ex: Alergia a Dipirona, Penicilina, rinite, etc."
+                    />
+                  </div>
                 </div>
 
                 {!editingParticipant && activeTab === "participants" && (
@@ -1975,13 +2038,27 @@ export const ParticipantsPage: React.FC = () => {
                             onChange={(e) => setCustomEventName(e.target.value)}
                             className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold"
                           />
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {['Seminário CEMIL', 'Mocidade Espírita 2026', 'Congresso Espiritualidade', 'Oficinas de Passe'].map(ev => (
+                           <div className="flex flex-wrap gap-1 pt-1.5">
+                            {['Seminário CEMIL', 'Mocidade Espírita 2026', 'Congresso Espiritualidade', 'Oficinas de Passe', 'Palestra Doutrinária', 'Evangelização Infantil'].map(ev => (
                               <button
                                 type="button"
                                 key={ev}
-                                onClick={() => setCustomEventName(ev)}
-                                className="text-[9px] font-black uppercase px-2 py-0.5 roundedbg-slate-200 text-slate-600 hover:bg-slate-300 transition-all cursor-pointer"
+                                onClick={() => {
+                                  setCustomEventName(ev);
+                                  if (ev === 'Seminário CEMIL') {
+                                    setCustomEventDate('Julho / 2026');
+                                  } else if (ev === 'Mocidade Espírita 2026') {
+                                    setCustomEventDate('Outubro / 2026');
+                                  } else {
+                                    setCustomEventDate('Mensal / Geral');
+                                  }
+                                }}
+                                className={cn(
+                                  "text-[9px] font-black uppercase px-2 py-0.5 rounded transition-all cursor-pointer border",
+                                  customEventName === ev 
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200" 
+                                    : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-800"
+                                )}
                               >
                                 {ev}
                               </button>
@@ -2075,7 +2152,7 @@ export const ParticipantsPage: React.FC = () => {
                               </span>
                               
                               <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 pt-1 text-[7px] text-slate-500 font-medium">
-                                <p><strong className="text-slate-800">REG:</strong> {credentialParticipant.id}</p>
+                                <p><strong className="text-slate-800">REG:</strong> {formatRegistrationCode(credentialParticipant.id, credentialParticipant.registrationDate)}</p>
                                 <p><strong className="text-slate-800">ADM:</strong> {new Date(credentialParticipant.registrationDate || Date.now()).toLocaleDateString('pt-BR')}</p>
                                 <p className="col-span-2"><strong className="text-slate-800">NASC:</strong> {credentialParticipant.birthDate || '-'}</p>
                               </div>
@@ -2207,7 +2284,7 @@ export const ParticipantsPage: React.FC = () => {
                         <div className="space-y-1 text-left">
                           <span className="text-[7px] font-black uppercase text-slate-400 leading-none block">Período / Data</span>
                           <span className="text-xs font-black text-slate-700">{customEventDate}</span>
-                          <span className="text-[8px] font-bold text-slate-500 block">ID: {credentialParticipant.id}</span>
+                          <span className="text-[8px] font-bold text-slate-500 block">REGISTRO: {formatRegistrationCode(credentialParticipant.id, credentialParticipant.registrationDate)}</span>
                         </div>
                         
                         <div className="bg-white p-1.5 rounded-xl border border-slate-200">
@@ -2234,8 +2311,8 @@ export const ParticipantsPage: React.FC = () => {
                           return;
                         }
 
-                        const themeColor = themeColorPreset === 'emerald' ? '#059669' : themeColorPreset === 'amber' ? '#f59e0b' : themeColorPreset === 'rose' ? '#e11d48' : '#4f46e5';
-                        const themeBg = themeColorPreset === 'emerald' ? '#ecfdf5' : themeColorPreset === 'amber' ? '#fffbeb' : themeColorPreset === 'rose' ? '#fff1f2' : '#f5f3ff';
+                        const themeColor = '#0A2E5C';
+                        const goldColor = '#CF9E22';
                         
                         const rDate = credentialParticipant.registrationDate ? new Date(credentialParticipant.registrationDate).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
                         const bDate = credentialParticipant.birthDate || '-';
@@ -2245,118 +2322,172 @@ export const ParticipantsPage: React.FC = () => {
                         const transformStyle = `transform: scale(${photoScale / 100}) translate(${photoShiftX}px, ${photoShiftY}px) rotate(${photoRotate}deg); transform-origin: center center;`;
                         const photoHtml = customPhoto 
                           ? `<img src="${customPhoto}" style="width: 100%; height: 100%; object-fit: cover; ${transformStyle}" />`
-                          : `<div style="width: 100%; height: 100%; background: ${themeBg}; color: ${themeColor}; font-size: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-family: 'Space Grotesk', sans-serif;">${(credentialParticipant.name || "U").charAt(0)}</div>`;
+                          : `<div style="width: 100%; height: 100%; background: #0A2E5C20; color: #0A2E5C; font-size: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-family: 'Space Grotesk', sans-serif;">${(credentialParticipant.name || "U").charAt(0)}</div>`;
 
                         let elementHtml = '';
 
                         if (type === 'carteira') {
                           elementHtml = `
-                            <div class="print-cards-container">
-                              <!-- CARD FRENTE (CR80) -->
-                              <div class="card CR80">
-                                <div class="card-inner" style="border-top: 6px solid ${themeColor};">
-                                  <div class="card-header">
-                                    <div class="logo">🕊️</div>
-                                    <div class="header-text">
-                                      <div class="title">CEMIL</div>
-                                      <div class="subtitle">Centro Espírita Maria Imaculada de Luz</div>
+                            <!-- CARD FRENTE (CR80) -->
+                            <div class="card CR80">
+                              <div class="card-inner-split">
+                                <!-- LEFT BLUE SIDEBAR -->
+                                <div class="sidebar">
+                                  <div class="logo-box">
+                                    <svg width="44" height="48" viewBox="0 0 340 370" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <g transform="translate(0, -10)">
+                                        <circle cx="170" cy="115" r="32" fill="none" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <circle cx="170" cy="115" r="16" fill="none" stroke="#E59A18" stroke-width="3" stroke-linecap="round" />
+                                        <circle cx="170" cy="115" r="7" fill="#E59A18" />
+                                        <line x1="152" y1="67" x2="134" y2="20" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <line x1="188" y1="67" x2="206" y2="20" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <line x1="128" y1="93" x2="78" y2="67" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <line x1="212" y1="93" x2="262" y2="67" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <line x1="118" y1="115" x2="58" y2="115" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <line x1="222" y1="115" x2="282" y2="115" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <line x1="128" y1="137" x2="78" y2="163" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                        <line x1="212" y1="137" x2="262" y2="163" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      </g>
+                                      <g transform="translate(0, -12)">
+                                        <polygon points="80,165 215,165 235,193 60,193" fill="#FFFFFF" />
+                                        <polygon points="40,197 240,197 260,225 20,225" fill="#FFFFFF" />
+                                        <polygon points="25,229 265,229 285,257 5,257" fill="#FFFFFF" />
+                                      </g>
+                                      <g>
+                                        <text x="170" y="298" text-anchor="middle" fill="#FFFFFF" font-size="15" font-weight="700" letter-spacing="5px" font-family="'Playfair Display', 'Georgia', serif">CENTRO ESPÍRITA</text>
+                                        <text x="170" y="336" text-anchor="middle" fill="#E59A18" font-size="25" font-weight="900" letter-spacing="1px" font-family="'Playfair Display', 'Georgia', serif">MIRANTE DE LUZ</text>
+                                      </g>
+                                    </svg>
+                                  </div>
+                                  <div class="sidebar-text">
+                                    <div class="card-title">CARTEIRA DE VOLUNTÁRIO</div>
+                                    <div class="card-subtitle">Centro Espírita Mirante de Luz</div>
+                                  </div>
+                                </div>
+                                
+                                <!-- RIGHT CREAM PANEL -->
+                                <div class="main-panel">
+                                  <div class="photo-container-dual">
+                                    <div class="photo-outer">
+                                      <div class="photo-inner">
+                                        ${photoHtml}
+                                      </div>
                                     </div>
                                   </div>
                                   
-                                  <div class="card-body">
-                                    <div class="photo-frame" style="border: 1px solid ${themeColor}; background: ${themeBg};">
-                                      ${photoHtml}
+                                  <div class="name-display">${credentialParticipant.name}</div>
+                                  
+                                  <div class="role-pill">${customRole.toUpperCase()}</div>
+                                  
+                                  <div class="meta-bottom">
+                                    <div class="meta-cell">
+                                      <span class="meta-label">REGISTRO</span>
+                                      <span class="meta-val">${formatRegistrationCode(credentialParticipant.id, credentialParticipant.registrationDate)}</span>
                                     </div>
-                                    <div class="details">
-                                      <div class="name">${credentialParticipant.name}</div>
-                                      <div class="badge-role" style="background: ${themeBg}; color: ${themeColor}; border: 0.5px solid ${themeColor}60;">
-                                        ${customRole.toUpperCase()}
-                                      </div>
-                                      <table class="data-table">
-                                        <tr>
-                                          <td><strong>REGISTRO:</strong> ${credentialParticipant.id}</td>
-                                          <td><strong>ADMISSÃO:</strong> ${rDate}</td>
-                                        </tr>
-                                        <tr>
-                                          <td colspan="2"><strong>NASCIMENTO:</strong> ${bDate}</td>
-                                        </tr>
-                                      </table>
+                                    <div class="meta-cell">
+                                      <span class="meta-label">NASCIMENTO</span>
+                                      <span class="meta-val">${bDate}</span>
                                     </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <!-- CARD VERSO (CR80) -->
-                              <div class="card CR80 back">
-                                <div class="card-inner" style="border-bottom: 6px solid ${themeColor};">
-                                  <div class="back-body">
-                                    <div class="back-left">
-                                      <img src="${qrImg}" class="qr" />
-                                      <div class="qr-sub">Leitura Digital</div>
-                                    </div>
-                                    
-                                    <div class="back-right">
-                                      <div class="section-title">CARTEIRA DE SÓCIO</div>
-                                      <div class="rules">
-                                        Este documento identifica o portador como membro/colaborador voluntário do CEMIL - Centro Espírita Maria Imaculada de Luz. O uso é estritamente pessoal e intransferível.
-                                      </div>
-                                      
-                                      <div class="signature-line" style="border-top: 0.5px solid ${themeColor}aa;">
-                                        <div class="sig-title">ASSINATURA DA PRESIDÊNCIA</div>
-                                      </div>
-                                      
-                                      <div class="meta-info">
-                                        Validade: ${customExpiryDate} | Estudo, Amor e Luz
-                                      </div>
+                                    <div class="meta-cell">
+                                      <span class="meta-label">ADMISSÃO</span>
+                                      <span class="meta-val">${rDate}</span>
                                     </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
+
+                            <!-- CARD VERSO (CR80) -->
+                            <div class="card CR80 back border-sandwich">
+                              <div class="top-stripe" style="background: #0A2E5C; height: 1.5mm; width: 100%;"></div>
+                              <div class="back-body">
+                                <div class="back-left-qr">
+                                  <img src="${qrImg}" class="qr-print" />
+                                  <div class="qr-sub-text">Check-in Portaria</div>
+                                </div>
+                                <div class="back-right-rules">
+                                  <div class="rules-header" style="color: #0A2E5C; font-family: 'Space Grotesk', sans-serif; font-weight: 950; font-size: 8px; margin-bottom: 0.5mm;">Instruções Administrativas</div>
+                                  <p class="rules-p" style="font-size: 4.5px; color: #4b5563; line-height: 1.2; margin: 0 0 1.5mm 0;">
+                                    Esta credencial oficial identifica de forma unívoca o membro ou portador voluntário do CEMIL/Mirante de Luz, sendo de uso pessoal e intransferível. 
+                                  </p>
+                                  <div class="access-sectors" style="font-size: 4.5px; font-weight: bold; color: #CF9E22; margin-bottom: 2mm;">Autorização de Setor: ${customAccessLevel}</div>
+                                  
+                                  <div class="footer-meta" style="display: flex; justify-content: space-between; align-items: center; border-top: 0.2mm solid #e5e7eb; padding-top: 1mm; font-size: 4.8px; font-weight: bold; color: #9ca3af;">
+                                    <div class="validity">VALIDADE: ${customExpiryDate}</div>
+                                    <div class="cred-brand" style="color: #0A2E5C;">CEMIL CRED</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="bottom-stripe" style="background: #CF9E22; height: 1.5mm; width: 100%;"></div>
+                            </div>
                           `;
                         } else {
                           elementHtml = `
-                            <div class="print-cards-container">
-                              <!-- BADGE EVENTO (3x4) -->
-                              <div class="badge-card">
-                                <div class="badge-inner" style="border: 2px solid ${themeColor}; border-top: 10px solid ${themeColor};">
-                                  <div class="lanyard-hole"></div>
-                                  
-                                  <div class="badge-header">
-                                    <div style="font-size: 16px; font-weight: 900; letter-spacing: -0.5px; color: ${themeColor}; font-family: 'Space Grotesk', sans-serif;">
-                                      ${customEventName.toUpperCase()}
-                                    </div>
-                                    <div style="font-size: 8px; font-weight: bold; color: #6b7280; text-transform: uppercase; letter-spacing: 2px; margin-top: 2px;">
-                                      C E M I L
-                                    </div>
+                            <!-- BADGE EVENTO (3x4) -->
+                            <div class="badge-card">
+                              <div class="badge-inner-custom">
+                                <!-- Top Header Block -->
+                                <div class="badge-header-block" style="background: #0A2E5C; width: 100%; text-align: center; padding: 3mm 0; border-bottom: 1.2mm solid #CF9E22; box-sizing: border-box;">
+                                  <div style="width: 26px; height: 26px; margin: 0 auto 0.5mm auto;">
+                                    <svg width="26" height="26" viewBox="0 0 340 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <circle cx="170" cy="115" r="32" fill="none" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <circle cx="170" cy="115" r="16" fill="none" stroke="#E59A18" stroke-width="3" stroke-linecap="round" />
+                                      <circle cx="170" cy="115" r="7" fill="#E59A18" />
+                                      <line x1="152" y1="67" x2="134" y2="20" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <line x1="188" y1="67" x2="206" y2="20" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <line x1="128" y1="93" x2="78" y2="67" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <line x1="212" y1="93" x2="262" y2="67" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <line x1="118" y1="115" x2="58" y2="115" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <line x1="222" y1="115" x2="282" y2="115" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <line x1="128" y1="137" x2="78" y2="163" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <line x1="212" y1="137" x2="262" y2="163" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                                      <polygon points="80,165 215,165 235,193 60,193" fill="#FFFFFF" />
+                                      <polygon points="40,197 240,197 260,225 20,225" fill="#FFFFFF" />
+                                      <polygon points="25,229 265,229 285,257 5,257" fill="#FFFFFF" />
+                                    </svg>
                                   </div>
-                                  
-                                  <div class="badge-avatar-container">
-                                    <div class="badge-photo" style="border: 2px solid ${themeColor}; background: ${themeBg};">
-                                      ${photoHtml}
-                                    </div>
+                                  <div style="font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 900; color: #E59A18; letter-spacing: 0.5px; text-transform: uppercase;">
+                                    ${customEventName}
                                   </div>
-                                  
-                                  <div class="badge-desc">
-                                    <div class="badge-pname">${credentialParticipant.name}</div>
-                                    
-                                    <div class="badge-prole" style="background: ${themeColor}; color: #ffffff;">
-                                      ${customRole.toUpperCase()}
-                                    </div>
-                                    
-                                    <div class="badge-org" style="color: ${themeColor};">
-                                      ÁREA: ${customAccessLevel}
-                                    </div>
+                                  <div style="font-size: 5px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.9;">
+                                    CREDENCIAÇÃO DE EVENTO
                                   </div>
+                                </div>
+                                
+                                <div class="lanyard-hole-print"></div>
 
-                                  <div class="badge-footer">
-                                    <div class="badge-footer-left">
-                                      <div class="footer-label">DATA EVENTO</div>
-                                      <div class="footer-val">${customEventDate}</div>
+                                <!-- Main Body -->
+                                <div class="badge-body" style="padding: 3mm 4mm; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-grow: 1; width: 100%; box-sizing: border-box;">
+                                  <!-- Dual bordered photo frame -->
+                                  <div class="photo-container-dual" style="margin-bottom: 2mm;">
+                                    <div class="photo-outer">
+                                      <div class="photo-inner" style="width: 17mm; height: 21mm;">
+                                        ${photoHtml}
+                                      </div>
                                     </div>
-                                    <div class="badge-footer-right">
-                                      <img src="${qrImg}" class="badge-qr" />
+                                  </div>
+                                  
+                                  <div class="badge-desc-custom" style="text-align: center; width: 100%;">
+                                    <div class="name-display" style="font-size: 13px; margin-bottom: 1.2mm;">${credentialParticipant.name}</div>
+                                    
+                                    <div class="role-pill" style="margin-bottom: 1.2mm;">${customRole.toUpperCase()}</div>
+                                    
+                                    <div class="badge-org-custom" style="font-size: 6.5px; font-weight: bold; color: #4b5563; text-transform: uppercase;">
+                                      Setor de Acesso: <span style="color: #0A2E5C;">${customAccessLevel}</span>
                                     </div>
+                                  </div>
+                                </div>
+
+                                <!-- Footer Section -->
+                                <div class="badge-footer-custom" style="width: 100%; background: #ffffff; border-top: 0.2mm solid #e5e7eb; padding: 2.2mm 4mm; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box;">
+                                  <div style="text-align: left; display: flex; flex-direction: column; gap: 0.3mm;">
+                                    <div style="font-size: 4px; color: #9ca3af; font-weight: 900; text-transform: uppercase;">DATA / PERÍODO</div>
+                                    <div style="font-size: 6.8px; font-weight: 900; color: #1f2937;">${customEventDate}</div>
+                                    <div style="font-size: 5px; font-weight: bold; color: #0A2E5C;">REGISTRO: ${formatRegistrationCode(credentialParticipant.id, credentialParticipant.registrationDate)}</div>
+                                  </div>
+                                  
+                                  <div style="background: #ffffff; padding: 0.3mm; border: 0.2mm solid #e5e7eb; border-radius: 1mm; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                                    <img src="${qrImg}" style="width: 10mm; height: 10mm; display: block;" />
                                   </div>
                                 </div>
                               </div>
@@ -2369,7 +2500,7 @@ export const ParticipantsPage: React.FC = () => {
                           <html>
                           <head>
                             <title>IMPRESSÃO - ${credentialParticipant.name}</title>
-                            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Space+Grotesk:wght@500;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+                            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Space+Grotesk:wght@500;700;900&family=JetBrains+Mono:wght@700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
                             <style>
                               body {
                                 font-family: "Inter", -apple-system, sans-serif;
@@ -2429,314 +2560,275 @@ export const ParticipantsPage: React.FC = () => {
                                 height: 53.98mm;
                                 min-width: 85.6mm;
                                 min-height: 53.98mm;
-                                background: #ffffff;
+                                background: #FBFBFA;
                                 border-radius: 3.2mm; 
-                                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+                                box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08);
                                 box-sizing: border-box;
                                 overflow: hidden;
                                 position: relative;
-                                border: 1px solid #e5e7eb;
+                                border: 0.3mm solid #e5e7eb;
                               }
-                              
-                              .card-inner {
-                                padding: 3mm 4mm;
-                                height: 100%;
+
+                              .card-inner-split {
                                 display: flex;
-                                flex-direction: column;
-                                justify-content: space-between;
+                                width: 100%;
+                                height: 100%;
                                 box-sizing: border-box;
                               }
 
-                              .card-header {
-                                display: flex;
-                                align-items: center;
-                                gap: 2mm;
-                                border-bottom: 0.5px solid #e5e7eb;
-                                padding-bottom: 1px;
-                              }
-                              .card-header .logo {
-                                font-size: 14px;
-                              }
-                              .card-header .header-text {
+                              /* Left Sidebar (Navy Blue) */
+                              .sidebar {
+                                width: 32%;
+                                background: #0A2E5C;
+                                padding: 3mm 1.5mm;
                                 display: flex;
                                 flex-direction: column;
-                                text-align: left;
+                                align-items: center;
+                                justify-content: space-between;
+                                text-align: center;
+                                box-sizing: border-box;
+                                height: 100%;
+                                border-right: 0.15mm solid rgba(10, 46, 92, 0.1);
                               }
-                              .card-header .title {
+
+                              .logo-box {
+                                width: 10mm;
+                                height: 10mm;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                margin-bottom: 0px;
+                              }
+
+                              .sidebar-text {
+                                width: 100%;
+                              }
+                              
+                              .card-title {
                                 font-family: "Space Grotesk", sans-serif;
                                 font-weight: 900;
-                                font-size: 12px;
-                                letter-spacing: -0.3px;
-                                color: #111827;
+                                font-size: 5.2px;
+                                color: #E59A18;
+                                line-height: 1.2;
+                                word-wrap: break-word;
+                                letter-spacing: 0.3px;
+                                text-transform: uppercase;
+                                margin-bottom: 0.3mm;
+                              }
+                              
+                              .card-subtitle {
+                                font-size: 3.8px;
+                                font-weight: 800;
+                                color: #cbd5e1;
+                                text-transform: uppercase;
+                                letter-spacing: 0.1px;
                                 line-height: 1.1;
                               }
-                              .card-header .subtitle {
-                                font-size: 5px;
-                                font-weight: 800;
-                                color: #6b7280;
-                                text-transform: uppercase;
-                                letter-spacing: 0.4px;
-                              }
 
-                              .card-body {
-                                display: flex;
-                                gap: 3mm;
-                                align-items: center;
-                                margin-top: 2.5mm;
+                              /* Right Main Panel */
+                              .main-panel {
                                 flex-grow: 1;
-                              }
-
-                              .photo-frame {
-                                width: 13mm;
-                                height: 16.5mm;
-                                border-radius: 1.5mm;
-                                overflow: hidden;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                flex-shrink: 0;
-                              }
-
-                              .details {
-                                flex-grow: 1;
+                                padding: 2.5mm 3.5mm;
                                 display: flex;
                                 flex-direction: column;
-                                justify-content: center;
-                                overflow: hidden;
-                                text-align: left;
+                                align-items: center;
+                                justify-content: space-between;
+                                box-sizing: border-box;
+                                height: 100%;
+                                background-color: #FBFBFA;
+                                position: relative;
                               }
-                              .details .name {
+
+                              /* Dual-border golden-navy photoframe */
+                              .photo-container-dual {
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                              }
+                              
+                              .photo-outer {
+                                padding: 0.4mm;
+                                background-color: #CF9E22;
+                                border-radius: 1.5mm;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                              }
+
+                              .photo-inner {
+                                padding: 0.3mm;
+                                background-color: #0A2E5C;
+                                border-radius: 1.1mm;
+                                width: 12.2mm;
+                                height: 15.6mm;
+                                overflow: hidden;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                box-shadow: 0 1.5px 3px rgba(0,0,0,0.05);
+                              }
+
+                              .name-display {
                                 font-family: "Space Grotesk", sans-serif;
-                                font-weight: 800;
-                                font-size: 10px;
-                                color: #1f2937;
-                                margin-bottom: 1px;
+                                font-weight: 900;
+                                font-size: 11px;
+                                color: #0A2E5C;
                                 white-space: nowrap;
                                 overflow: hidden;
                                 text-overflow: ellipsis;
-                              }
-                              .details .badge-role {
-                                align-self: flex-start;
-                                font-size: 5px;
-                                font-weight: 900;
-                                padding: 0.5px 3px;
-                                border-radius: 3px;
-                                letter-spacing: 0.5px;
-                                margin-bottom: 1.5mm;
-                              }
-                              
-                              .data-table {
                                 width: 100%;
-                                border-collapse: collapse;
-                              }
-                              .data-table td {
-                                font-size: 5.2px;
-                                color: #4b5563;
-                                padding: 0.2mm 0;
-                                line-height: 1;
-                              }
-                              .data-table td strong {
-                                color: #374151;
-                                font-weight: 900;
+                                text-align: center;
+                                line-height: 1.1;
+                                margin-top: 0.2mm;
+                                letter-spacing: -0.2px;
                               }
 
-                              /* BACK CARD */
-                              .card.CR80.back {
-                                background-color: #ffffff;
+                              .role-pill {
+                                display: inline-block;
+                                background-color: #CF9E22;
+                                color: #ffffff;
+                                font-size: 6.2px;
+                                font-weight: 900;
+                                padding: 0.6px 3.5mm;
+                                border-radius: 0.6mm;
+                                text-transform: uppercase;
+                                letter-spacing: 1px;
+                                line-height: 1;
+                                box-shadow: 0 1px 2px rgba(207, 158, 34, 0.15);
                               }
+
+                              /* Grid lower table metadata */
+                              .meta-bottom {
+                                width: 100%;
+                                display: flex;
+                                border: 0.15mm solid rgba(10, 46, 92, 0.18);
+                                border-radius: 0.8mm;
+                                overflow: hidden;
+                                background-color: #ffffff;
+                                box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+                              }
+
+                              .meta-cell {
+                                flex: 1;
+                                text-align: center;
+                                padding: 0.8mm 0.2mm;
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: center;
+                                box-sizing: border-box;
+                              }
+
+                              .meta-cell:not(:last-child) {
+                                border-right: 0.15mm solid rgba(10, 46, 92, 0.18);
+                              }
+
+                              .meta-label {
+                                font-size: 3.5px;
+                                color: #9ca3af;
+                                font-weight: 900;
+                                margin-bottom: 0.3mm;
+                                line-height: 1;
+                                letter-spacing: 0.2px;
+                              }
+
+                              .meta-val {
+                                font-size: 5.2px;
+                                color: #1f2937;
+                                font-weight: 900;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                line-height: 1;
+                              }
+
+                              /* BACK CARD STYLE */
+                              .card.CR80.back {
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: space-between;
+                              }
+                              
                               .back-body {
                                 display: flex;
-                                height: 100%;
+                                flex-grow: 1;
                                 align-items: center;
-                                padding: 2mm 1mm;
+                                padding: 3mm 4mm;
                                 box-sizing: border-box;
-                                gap: 2.5mm;
+                                gap: 3.5mm;
                               }
-                              .back-left {
+
+                              .back-left-qr {
                                 display: flex;
                                 flex-direction: column;
                                 align-items: center;
                                 justify-content: center;
-                                gap: 1mm;
+                                background-color: #ffffff;
+                                border: 0.2mm solid #e5e7eb;
+                                padding: 1.5mm;
+                                border-radius: 2mm;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.02);
                               }
-                              .back-left .qr {
-                                width: 16mm;
-                                height: 16mm;
+                              
+                              .qr-print {
+                                width: 13mm;
+                                height: 13mm;
                                 display: block;
                               }
-                              .back-left .qr-sub {
+                              
+                              .qr-sub-text {
                                 font-family: "JetBrains Mono", monospace;
-                                font-size: 3.5px;
+                                font-size: 3.2px;
                                 color: #9ca3af;
                                 text-transform: uppercase;
                                 font-weight: 700;
+                                margin-top: 0.8mm;
                               }
 
-                              .back-right {
+                              .back-right-rules {
                                 flex-grow: 1;
-                                height: 100%;
                                 display: flex;
                                 flex-direction: column;
                                 justify-content: space-between;
-                                border-left: 0.5px dashed #d1d5db;
-                                padding-left: 2.5mm;
+                                height: 100%;
                                 text-align: left;
                               }
-                              .back-right .section-title {
-                                font-family: "Space Grotesk", sans-serif;
-                                font-weight: 900;
-                                font-size: 8px;
-                                color: #111827;
-                              }
-                              .back-right .rules {
-                                font-size: 4.5px;
-                                color: #4b5563;
-                                line-height: 1.2;
-                                font-weight: 500;
-                              }
-                              
-                              .signature-line {
-                                align-self: flex-start;
-                                border-top: 0.5px solid #9ca3af;
-                                width: 65%;
-                                margin-top: 2mm;
-                                padding-top: 0.3mm;
-                              }
-                              .sig-title {
-                                font-size: 3.5px;
-                                color: #6b7280;
-                                font-weight: bold;
-                                text-transform: uppercase;
-                              }
 
-                              .meta-info {
-                                font-size: 4.2px;
-                                color: #9ca3af;
-                                font-weight: bold;
-                              }
-
-                              /* Event Badge: 3in x 4in -> 76.2mm x 101.6mm */
+                              /* Event Badge 3"x4" (76.2mm x 101.6mm) */
                               .badge-card {
                                 width: 76.2mm;
                                 height: 101.6mm;
                                 min-width: 76.2mm;
                                 min-height: 101.6mm;
-                                background: #ffffff;
+                                background: #FBFBFA;
                                 border-radius: 4mm;
                                 box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
                                 box-sizing: border-box;
                                 overflow: hidden;
-                                border: 1px solid #e5e7eb;
+                                border: 0.3mm solid #e5e7eb;
                                 position: relative;
                               }
-                              .badge-inner {
-                                padding: 4.5mm;
+
+                              .badge-inner-custom {
                                 height: 100%;
                                 display: flex;
                                 flex-direction: column;
-                                align-items: center;
                                 justify-content: space-between;
+                                align-items: center;
                                 box-sizing: border-box;
                                 position: relative;
                               }
-                              
-                              .lanyard-hole {
+
+                              .lanyard-hole-print {
                                 width: 12mm;
-                                height: 2.5mm;
-                                border-radius: 1.2mm;
-                                border: 1px solid #e5e7eb;
+                                height: 2.8mm;
+                                border-radius: 1.4mm;
+                                border: 0.2mm solid #e5e7eb;
                                 background-color: #f3f4f6;
                                 position: absolute;
-                                top: 1.5mm;
+                                top: 11.5mm;
                                 left: 50%;
                                 transform: translateX(-50%);
-                              }
-
-                              .badge-header {
-                                text-align: center;
-                                margin-top: 3.5mm;
-                              }
-                              
-                              .badge-avatar-container {
-                                margin-top: 1mm;
-                              }
-                              
-                              .badge-photo {
-                                width: 20mm;
-                                height: 23mm;
-                                border-radius: 2mm;
-                                overflow: hidden;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                              }
-                              
-                              .badge-desc {
-                                text-align: center;
-                                width: 100%;
-                                flex-grow: 1;
-                                display: flex;
-                                flex-direction: column;
-                                align-items: center;
-                                justify-content: center;
-                              }
-                              
-                              .badge-pname {
-                                font-family: "Space Grotesk", sans-serif;
-                                font-weight: 900;
-                                font-size: 13px;
-                                color: #111827;
-                                line-height: 1.1;
-                                margin-bottom: 1mm;
-                              }
-                              
-                              .badge-prole {
-                                font-family: "Space Grotesk", sans-serif;
-                                font-weight: 900;
-                                font-size: 7.5px;
-                                padding: 1px 5mm;
-                                border-radius: 4px;
-                                letter-spacing: 0.5px;
-                                margin-bottom: 1mm;
-                                display: inline-block;
-                              }
-                              
-                              .badge-org {
-                                font-size: 7px;
-                                font-weight: 800;
-                                text-transform: uppercase;
-                              }
-
-                              .badge-footer {
-                                display: flex;
-                                width: 100%;
-                                justify-content: space-between;
-                                align-items: center;
-                                border-top: 0.5px solid #f3f4f6;
-                                padding-top: 2mm;
-                              }
-                              
-                              .badge-footer-left {
-                                display: flex;
-                                flex-direction: column;
-                                text-align: left;
-                              }
-                              .footer-label {
-                                font-size: 5px;
-                                color: #9ca3af;
-                                font-weight: bold;
-                                text-transform: uppercase;
-                              }
-                              .footer-val {
-                                font-size: 7px;
-                                font-weight: 900;
-                                color: #374151;
-                              }
-                              
-                              .badge-qr {
-                                width: 13mm;
-                                height: 13mm;
-                                display: block;
+                                z-index: 10;
                               }
 
                               @media print {
