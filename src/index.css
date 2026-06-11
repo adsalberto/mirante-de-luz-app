@@ -5,6 +5,7 @@
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  --font-signature: "Dancing Script", cursive;
   
   --color-indigo-50: #f5f7ff;
   --color-indigo-100: #ebf0fe;

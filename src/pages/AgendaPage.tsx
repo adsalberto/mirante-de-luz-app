@@ -261,29 +261,29 @@ export const AgendaPage: React.FC = () => {
     speakers.find((s) => s.id === id)?.name || "Nenhum palestrante cadastrado";
 
   return (
-    <div className="p-8 space-y-8">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto">
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button 
             onClick={() => navigate('/')}
-            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            className="p-2.5 sm:p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer animate-none"
             title="Voltar ao Painel"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Agenda da Casa</h1>
-            <p className="text-gray-500 font-medium font-serif italic">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Agenda da Casa</h1>
+            <p className="text-xs sm:text-sm text-gray-500 font-medium font-serif italic">
               Controle de doutrinárias, estudo e atividades especiais.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+          <div className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex w-full sm:w-auto">
             <button
               onClick={() => setActiveTab("events")}
               className={cn(
-                "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+                "flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all",
                 activeTab === "events"
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100"
                   : "text-gray-400 hover:bg-gray-50",
@@ -294,7 +294,7 @@ export const AgendaPage: React.FC = () => {
             <button
               onClick={() => setActiveTab("speakers")}
               className={cn(
-                "px-6 py-2.5 rounded-xl text-sm font-bold transition-all",
+                "flex-1 sm:flex-none px-4 sm:px-6 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all",
                 activeTab === "speakers"
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100"
                   : "text-gray-400 hover:bg-gray-50",
@@ -310,9 +310,9 @@ export const AgendaPage: React.FC = () => {
                   ? setIsModalOpen(true)
                   : setIsSpeakerModalOpen(true)
               }
-              className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
+              className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 sm:px-6 py-3 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all w-full sm:w-auto text-xs sm:text-sm cursor-pointer"
             >
-              <Plus size={20} />
+              <Plus size={18} />
               <span>
                 {activeTab === "events"
                   ? "Marcar Atividade"
@@ -546,8 +546,8 @@ export const AgendaPage: React.FC = () => {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <h2 className="text-2xl font-bold text-gray-900">
+              <div className="p-5 sm:p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                   {editingEvent ? "Editar Atividade" : "Agendar Atividade"}
                 </h2>
                 <button
@@ -570,7 +570,7 @@ export const AgendaPage: React.FC = () => {
               </div>
               <form
                 onSubmit={handleSubmit}
-                className="p-8 space-y-5 overflow-y-auto custom-scrollbar"
+                className="p-5 sm:p-8 space-y-4 sm:space-y-5 overflow-y-auto custom-scrollbar"
               >
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
@@ -582,10 +582,10 @@ export const AgendaPage: React.FC = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, title: e.target.value })
                     }
-                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all text-sm"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                       Data
@@ -597,7 +597,7 @@ export const AgendaPage: React.FC = () => {
                       onChange={(e) =>
                         setFormData({ ...formData, date: e.target.value })
                       }
-                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all text-sm"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -611,11 +611,11 @@ export const AgendaPage: React.FC = () => {
                       onChange={(e) =>
                         setFormData({ ...formData, time: e.target.value })
                       }
-                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all text-sm"
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                       Tipo
@@ -628,7 +628,7 @@ export const AgendaPage: React.FC = () => {
                           type: e.target.value as AgendaEvent["type"],
                         })
                       }
-                      className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none text-sm"
                     >
                       <option value="DOUTRINARIA">Doutrinária</option>
                       <option value="ESTUDO">Estudos</option>
@@ -645,12 +645,12 @@ export const AgendaPage: React.FC = () => {
                       onChange={(e) =>
                         setFormData({ ...formData, speakerId: e.target.value })
                       }
-                      className="w-full px-5 py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none font-bold text-gray-700 rounded-2xl outline-none text-sm"
                     >
                       <option value="">Nenhum/Interno</option>
                       {speakers.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.name}
+                           {s.name}
                         </option>
                       ))}
                     </select>
@@ -666,20 +666,20 @@ export const AgendaPage: React.FC = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
-                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all resize-none"
+                    className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all resize-none text-sm"
                   />
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl"
+                    className="flex-1 py-3 sm:py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl text-sm"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                    className="flex-1 py-3 sm:py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all text-sm cursor-pointer"
                   >
                     Salvar
                   </button>
@@ -704,8 +704,8 @@ export const AgendaPage: React.FC = () => {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <h2 className="text-2xl font-bold text-gray-900">
+              <div className="p-5 sm:p-8 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                   {editingSpeaker ? "Editar Palestrante" : "Novo Palestrante"}
                 </h2>
                 <button
@@ -727,7 +727,7 @@ export const AgendaPage: React.FC = () => {
               </div>
               <form
                 onSubmit={handleSpeakerSubmit}
-                className="p-8 space-y-5 overflow-y-auto custom-scrollbar"
+                className="p-5 sm:p-8 space-y-4 sm:space-y-5 overflow-y-auto custom-scrollbar"
               >
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
@@ -742,10 +742,10 @@ export const AgendaPage: React.FC = () => {
                         name: e.target.value,
                       })
                     }
-                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all text-sm"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                       Telefone
@@ -759,7 +759,7 @@ export const AgendaPage: React.FC = () => {
                           phone: e.target.value,
                         })
                       }
-                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all text-sm"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -776,7 +776,7 @@ export const AgendaPage: React.FC = () => {
                           email: e.target.value,
                         })
                       }
-                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all text-sm"
                     />
                   </div>
                 </div>
@@ -793,20 +793,20 @@ export const AgendaPage: React.FC = () => {
                         spiritistCenter: e.target.value,
                       })
                     }
-                    className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all text-sm"
                   />
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button
                     type="button"
                     onClick={() => setIsSpeakerModalOpen(false)}
-                    className="flex-1 py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl"
+                    className="flex-1 py-3 sm:py-4 text-gray-400 font-bold hover:bg-gray-50 rounded-2xl text-sm"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                    className="flex-1 py-3 sm:py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all text-sm cursor-pointer"
                   >
                     Salvar
                   </button>

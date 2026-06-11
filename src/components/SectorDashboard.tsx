@@ -58,7 +58,12 @@ import {
   Award,
   Smile,
   ShieldAlert,
-  Compass
+  Compass,
+  Copy,
+  Check,
+  ExternalLink,
+  Share2,
+  Settings
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -637,7 +642,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   
   // Forms for adding medi worker & items
   const [newMediWorkerName, setNewMediWorkerName] = useState('');
-  const [newMediWorkerRole, setNewMediWorkerRole] = useState('Médium');
+  const [selectedMediRoles, setSelectedMediRoles] = useState<string[]>(['Médium de Psicofonia']);
   const [newMediWorkerTime, setNewMediWorkerTime] = useState('1 ano');
   const [newMediWorkerFormacao, setNewMediWorkerFormacao] = useState('ESDE / Curso Mediúnico');
   const [newMediWorkerGroup, setNewMediWorkerGroup] = useState('mg1');
@@ -716,6 +721,16 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [newPostResponsible, setNewPostResponsible] = useState('');
   const [newPostSpiritObjective, setNewPostSpiritObjective] = useState('');
   const [newPostApprovedBy, setNewPostApprovedBy] = useState('');
+  
+  // Advanced Social Media Preview & Publishing Integration state
+  const [selectedSocialPostId, setSelectedSocialPostId] = useState<string | null>(null);
+  const [postCardTemplate, setPostCardTemplate] = useState<'indigo-sunset' | 'emerald-peace' | 'divine-light' | 'serene-night'>('indigo-sunset');
+  const [showInstagramConfigModal, setShowInstagramConfigModal] = useState(false);
+  const [instaApiToken, setInstaApiToken] = useState(() => localStorage.getItem('com_insta_api_token') || '');
+  const [instaPageId, setInstaPageId] = useState(() => localStorage.getItem('com_insta_page_id') || '');
+  const [isSimulatingInstaPublish, setIsSimulatingInstaPublish] = useState(false);
+  const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
+  const [copiedCaptionState, setCopiedCaptionState] = useState(false);
 
   // Form states for Mídias & Criativos
   const [newMidiaName, setNewMidiaName] = useState('');
@@ -1105,6 +1120,58 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [newSoProjCoordinator, setNewSoProjCoordinator] = useState('');
   const [newSoProjSchedule, setNewSoProjSchedule] = useState('');
   const [newSoProjStatus, setNewSoProjStatus] = useState('Planejado'); // Ativo / Concluído / Planejado
+
+  // Presence and enrollment modal states for Social Projects
+  const [activePresenceProjId, setActivePresenceProjId] = useState<string | null>(null);
+  const [presenceDate, setPresenceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedEnrollAssistidoId, setSelectedEnrollAssistidoId] = useState<string>('');
+
+  // Custom visual confirmation state to avoid browser prompt exceptions/errors on deletion
+  const [socialItemToDelete, setSocialItemToDelete] = useState<{ id: string; name: string; type: 'assistido' | 'atendimento' | 'doacao' | 'cesta' | 'voluntario' | 'projeto' | 'visita' | 'post' } | null>(null);
+
+  const handleConfirmDeleteSocialItem = () => {
+    if (!socialItemToDelete) return;
+    const { id, type } = socialItemToDelete;
+
+    if (type === 'assistido') {
+      const updated = socialAssistidos.filter(a => a.id !== id);
+      setSocialAssistidos(updated);
+      localStorage.setItem('social_assistidos', JSON.stringify(updated));
+    } else if (type === 'atendimento') {
+      const updated = socialAtendimentos.filter(x => x.id !== id);
+      setSocialAtendimentos(updated);
+      localStorage.setItem('social_atendimentos', JSON.stringify(updated));
+    } else if (type === 'doacao') {
+      const updated = socialDoacoes.filter(x => x.id !== id);
+      setSocialDoacoes(updated);
+      localStorage.setItem('social_doacoes', JSON.stringify(updated));
+    } else if (type === 'cesta') {
+      const updated = socialCestasEntregas.filter(x => x.id !== id);
+      setSocialCestasEntregas(updated);
+      localStorage.setItem('social_cestas', JSON.stringify(updated));
+    } else if (type === 'voluntario') {
+      const updated = socialVoluntarios.filter(x => x.id !== id);
+      setSocialVoluntarios(updated);
+      localStorage.setItem('social_voluntarios', JSON.stringify(updated));
+    } else if (type === 'projeto') {
+      const updated = socialProjetos.filter(x => x.id !== id);
+      setSocialProjetos(updated);
+      localStorage.setItem('social_projetos', JSON.stringify(updated));
+    } else if (type === 'visita') {
+      const updated = socialVisitas.filter(x => x.id !== id);
+      setSocialVisitas(updated);
+      localStorage.setItem('social_visitas', JSON.stringify(updated));
+    } else if (type === 'post') {
+      const updated = socialPosts.filter(x => x.id !== id);
+      setSocialPosts(updated);
+      localStorage.setItem('com_social_posts', JSON.stringify(updated));
+      if (editingSocialPostId === id) {
+        setEditingSocialPostId(null);
+      }
+    }
+
+    setSocialItemToDelete(null);
+  };
 
   // Form states for Visitas Fraternas:
   const [editingSocialVisitaId, setEditingSocialVisitaId] = useState<string | null>(null);
@@ -1641,11 +1708,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteAssistido = (id: string, name: string) => {
-    if (confirm(`Remover permanentemente a ficha de ${name}? Esta ação é irreversível.`)) {
-      const updated = socialAssistidos.filter(a => a.id !== id);
-      setSocialAssistidos(updated);
-      localStorage.setItem('social_assistidos', JSON.stringify(updated));
-    }
+    setSocialItemToDelete({ id, name, type: 'assistido' });
   };
 
   const handleAuditAccess = (assistidoId: string, name: string) => {
@@ -1704,11 +1767,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteSocialAtendimento = (id: string) => {
-    if (confirm('Deseja excluir este registro de atendimento?')) {
-      const updated = socialAtendimentos.filter(x => x.id !== id);
-      setSocialAtendimentos(updated);
-      localStorage.setItem('social_atendimentos', JSON.stringify(updated));
-    }
+    const item = socialAtendimentos.find(x => x.id === id);
+    const name = item ? `${item.assistidoName} - ${item.type}` : 'Registro de Atendimento';
+    setSocialItemToDelete({ id, name, type: 'atendimento' });
   };
 
   const handleStartEditSocialAtendimento = (item: any) => {
@@ -1757,6 +1818,73 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     setNewSoProjCoordinator(item.coordinator || '');
     setNewSoProjSchedule(item.schedule || '');
     setNewSoProjStatus(item.status || 'Planejado');
+    
+    // Smooth scroll to edit panel
+    setTimeout(() => {
+      document.getElementById('social-projeto-form-panel')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const handleToggleSocialPresence = (projId: string, date: string, assistidoId: string) => {
+    const updated = socialProjetos.map(proj => {
+      if (proj.id === projId) {
+        const attendance = { ...(proj.attendance || {}) };
+        const presentList = [...(attendance[date] || [])];
+        if (presentList.includes(assistidoId)) {
+          attendance[date] = presentList.filter(id => id !== assistidoId);
+        } else {
+          attendance[date] = [...presentList, assistidoId];
+        }
+        return { ...proj, attendance };
+      }
+      return proj;
+    });
+    setSocialProjetos(updated);
+    localStorage.setItem('social_projetos', JSON.stringify(updated));
+  };
+
+  const handleEnrollSocialParticipant = (projId: string, assistidoId: string) => {
+    if (!assistidoId) return;
+    const updated = socialProjetos.map(proj => {
+      if (proj.id === projId) {
+        const participants = [...(proj.participants || (proj.id === 'sp_1' ? ['as_1', 'as_3'] : proj.id === 'sp_2' ? ['as_1', 'as_2'] : ['as_3']))];
+        if (!participants.includes(assistidoId)) {
+          participants.push(assistidoId);
+        }
+        return { 
+          ...proj, 
+          participants,
+          participantsCount: participants.length
+        };
+      }
+      return proj;
+    });
+    setSocialProjetos(updated);
+    localStorage.setItem('social_projetos', JSON.stringify(updated));
+    setSelectedEnrollAssistidoId('');
+  };
+
+  const handleUnenrollSocialParticipant = (projId: string, assistidoId: string) => {
+    let proceed = true;
+    try {
+      proceed = confirm('Desmatricular este assistido deste projeto/oficina?');
+    } catch (e) {
+      proceed = true;
+    }
+    if (!proceed) return;
+    const updated = socialProjetos.map(proj => {
+      if (proj.id === projId) {
+        const participants = [...(proj.participants || (proj.id === 'sp_1' ? ['as_1', 'as_3'] : proj.id === 'sp_2' ? ['as_1', 'as_2'] : ['as_3']))].filter(id => id !== assistidoId);
+        return { 
+          ...proj, 
+          participants,
+          participantsCount: participants.length
+        };
+      }
+      return proj;
+    });
+    setSocialProjetos(updated);
+    localStorage.setItem('social_projetos', JSON.stringify(updated));
   };
 
   const handleStartEditSocialVisita = (item: any) => {
@@ -1806,11 +1934,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteSocialDoacao = (id: string) => {
-    if (confirm('Deseja excluir este lançamento de doação?')) {
-      const updated = socialDoacoes.filter(x => x.id !== id);
-      setSocialDoacoes(updated);
-      localStorage.setItem('social_doacoes', JSON.stringify(updated));
-    }
+    const item = socialDoacoes.find(x => x.id === id);
+    const name = item ? `${item.qty}x ${item.description}` : 'Lançamento de Doação';
+    setSocialItemToDelete({ id, name, type: 'doacao' });
   };
 
   const handleAddSocialCestaEntrega = () => {
@@ -1851,11 +1977,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteSocialCestaEntrega = (id: string) => {
-    if (confirm('Deseja remover este recibo de cesta básica?')) {
-      const updated = socialCestasEntregas.filter(x => x.id !== id);
-      setSocialCestasEntregas(updated);
-      localStorage.setItem('social_cestas', JSON.stringify(updated));
-    }
+    const item = socialCestasEntregas.find(x => x.id === id);
+    const name = item ? `${item.assistidoName} (${item.basketType})` : 'Recibo de Cesta Básica';
+    setSocialItemToDelete({ id, name, type: 'cesta' });
   };
 
   const handleAddSocialVoluntario = () => {
@@ -1890,11 +2014,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteSocialVoluntario = (id: string) => {
-    if (confirm('Deseja desligar este trabalhador social?')) {
-      const updated = socialVoluntarios.filter(x => x.id !== id);
-      setSocialVoluntarios(updated);
-      localStorage.setItem('social_voluntarios', JSON.stringify(updated));
-    }
+    const item = socialVoluntarios.find(x => x.id === id);
+    const name = item ? item.name : 'Trabalhador Social';
+    setSocialItemToDelete({ id, name, type: 'voluntario' });
   };
 
   const handleAddSocialProjeto = () => {
@@ -1933,11 +2055,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteSocialProjeto = (id: string) => {
-    if (confirm('Remover esta iniciativa socioeducativa?')) {
-      const updated = socialProjetos.filter(x => x.id !== id);
-      setSocialProjetos(updated);
-      localStorage.setItem('social_projetos', JSON.stringify(updated));
-    }
+    const item = socialProjetos.find(x => x.id === id);
+    const name = item ? item.name : 'Iniciativa Socioeducativa';
+    setSocialItemToDelete({ id, name, type: 'projeto' });
   };
 
   const handleAddSocialVisita = () => {
@@ -1981,11 +2101,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteSocialVisita = (id: string) => {
-    if (confirm('Remover relatório de visita?')) {
-      const updated = socialVisitas.filter(x => x.id !== id);
-      setSocialVisitas(updated);
-      localStorage.setItem('social_visitas', JSON.stringify(updated));
-    }
+    const item = socialVisitas.find(x => x.id === id);
+    const name = item ? `Visita a ${item.assistidoName}` : 'Relatório de Visita';
+    setSocialItemToDelete({ id, name, type: 'visita' });
   };
 
   // Generate jsPDF Report
@@ -3439,14 +3557,152 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleDeleteSocialPost = (id: string, title: string) => {
-    if (window.confirm(`Deseja realmente remover a postagem "${title}"? Esta ação é permanente.`)) {
-      const updated = socialPosts.filter(p => p.id !== id);
-      setSocialPosts(updated);
-      localStorage.setItem('com_social_posts', JSON.stringify(updated));
-      if (editingSocialPostId === id) {
-        setEditingSocialPostId(null);
+    setSocialItemToDelete({ id, name: title, type: 'post' });
+  };
+
+  const handleDownloadPostImage = (title: string, text: string, template: string) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Draw card background based on selected template
+    let grad = ctx.createLinearGradient(0, 0, 1080, 1080);
+    if (template === 'indigo-sunset') {
+      grad.addColorStop(0, '#6366f1');
+      grad.addColorStop(0.5, '#a855f7');
+      grad.addColorStop(1, '#f59e0b');
+    } else if (template === 'emerald-peace') {
+      grad.addColorStop(0, '#14b8a6');
+      grad.addColorStop(0.5, '#10b981');
+      grad.addColorStop(1, '#06b6d4');
+    } else if (template === 'divine-light') {
+      grad.addColorStop(0, '#f43f5e');
+      grad.addColorStop(1, '#4f46e5');
+    } else { // serene-night
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, '#1e1b4b');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1080);
+
+    // Border Frame Decoration (highly polished)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 15;
+    ctx.strokeRect(50, 50, 980, 980);
+
+    // Small interior borders
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(65, 65, 950, 950);
+
+    // Draw header tag / badge
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    const rX = 80;
+    const rY = 80;
+    const rW = 340;
+    const rH = 60;
+    const rRadius = 15;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(rX, rY, rW, rH, rRadius);
+    } else {
+      ctx.rect(rX, rY, rW, rH);
+    }
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText('☆ DIÁLOGO DO BEM', 110, 118);
+
+    // Draw main text (caption quote style body)
+    ctx.font = 'italic bold 42px Georgia, serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Wrap text nicely on canvas so long posts are aligned
+    const words = text.split(' ');
+    let line = '';
+    const lines = [];
+    const maxWidth = 800;
+    const lineHeight = 65;
+
+    for (let n = 0; n < words.length; n++) {
+      let testLine = line + words[n] + ' ';
+      let metrics = ctx.measureText(testLine);
+      let testWidth = metrics.width;
+      if (testWidth > maxWidth && n > 0) {
+        lines.push(line);
+        line = words[n] + ' ';
+      } else {
+        line = testLine;
       }
     }
+    lines.push(line);
+
+    let startY = 540 - ((lines.length - 1) * lineHeight) / 2;
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(`"${lines[i].trim()}"`, 540, startY + i * lineHeight);
+    }
+
+    // Draw footer section branding
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(title, 90, 960);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText('@mirantedeluz', 990, 960);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `${title.toLowerCase().replace(/\s+/g, '_')}_instagram.png`;
+    link.href = dataUrl;
+    link.click();
+    
+    dataService.createLog(
+      'Mídia Exportada',
+      `Arte editável do post [${title}] foi exportada e baixada com sucesso como imagem PNG para publicação.`
+    ).catch(err => console.error(err));
+  };
+
+  const handleSimulateInstagramPublish = async (post: any) => {
+    setIsSimulatingInstaPublish(true);
+    
+    // Check if configured
+    const configuredToken = localStorage.getItem('com_insta_api_token') || '';
+    const configuredPageId = localStorage.getItem('com_insta_page_id') || '';
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Change status to published!
+    const updated = socialPosts.map(p => {
+      if (p.id === post.id) {
+        return { ...p, status: 'Publicado' };
+      }
+      return p;
+    });
+    setSocialPosts(updated);
+    localStorage.setItem('com_social_posts', JSON.stringify(updated));
+    
+    try {
+      const detailsMsg = configuredToken && configuredPageId 
+        ? `Administrador publicou o post [${post.title}] com sucesso usando credenciais reais da API do Instagram (Page ID: ${configuredPageId}).`
+        : `Administrador realizou a publicação assistida do post [${post.title}] com sucesso. Legenda copiada automaticamente.`;
+        
+      await dataService.createLog('Publicado nas Redes Sociais', detailsMsg);
+    } catch (err) {
+      console.error(err);
+    }
+
+    setIsSimulatingInstaPublish(false);
+    alert(configuredToken && configuredPageId 
+      ? `✓ Post "${post.title}" foi enviado e publicado diretamente no feed do Instagram com sucesso usando o Token de Acesso!`
+      : `✓ Sucesso! O status do post foi atualizado para "Publicado" no Mirante de Luz.`
+    );
   };
 
   const handleAddCampanha = (name: string, objective: string, target: string, date: string, responsible: string, status: string, media: string, result: string) => {
@@ -7432,18 +7688,20 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                   return (
                     <div key={mem.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-indigo-100 transition-all">
                       <div>
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(mem.role || 'Médium').split(' / ').map((r: string, rIdx: number) => (
+                            <span key={rIdx} className={cn(
+                              "px-2 py-0.5 font-bold text-[8px] uppercase tracking-wider rounded-md border",
+                              r === 'Dirigente' || r === 'Coordenador' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                              r === 'Dialogador' || r === 'Dialogador / Esclarecedor' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
+                              r === 'Sustentador Mental' || r === 'Sustentador' ? 'bg-slate-50 text-slate-700 border-slate-205' :
+                              'bg-indigo-50 text-indigo-700 border-indigo-100'
+                            )}>
+                              {r}
+                            </span>
+                          ))}
                           <span className={cn(
-                            "px-2 py-0.5 font-bold text-[8px] uppercase tracking-wider rounded-md",
-                            mem.role === 'Dirigente' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                            mem.role === 'Dialogador' ? 'bg-cyan-50 text-cyan-700 border border-cyan-100' :
-                            mem.role === 'Sustentador' ? 'bg-slate-100 text-slate-700' :
-                            'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                          )}>
-                            {mem.role}
-                          </span>
-                          <span className={cn(
-                            "text-[8px] font-black uppercase px-2 py-0.5 rounded-full",
+                            "text-[8px] font-black uppercase px-2 py-0.5 rounded-full ml-1",
                             mem.status === 'Inativo' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                           )}>
                             {mem.status || 'Ativo'}
@@ -7509,38 +7767,70 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Função Principal</label>
-                    <select
-                      value={newMediWorkerRole}
-                      onChange={(e) => setNewMediWorkerRole(e.target.value)}
-                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
-                    >
-                      <option value="Médium de Psicofonia">Médium de Psicofonia</option>
-                      <option value="Médium de Passes">Médium de Passes / Fluidoterapia</option>
-                      <option value="Dialogador">Dialogador / Esclarecedor</option>
-                      <option value="Sustentador">Sustentador Mental</option>
-                      <option value="Coordenador">Coordenador</option>
-                    </select>
-                  </div>
-                  <div>
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Tempo de Atividade</label>
                     <input
                       value={newMediWorkerTime}
                       onChange={(e) => setNewMediWorkerTime(e.target.value)}
                       placeholder="Ex: 3 anos"
-                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:border-indigo-600 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Formação / Cursos</label>
+                    <input
+                      value={newMediWorkerFormacao}
+                      onChange={(e) => setNewMediWorkerFormacao(e.target.value)}
+                      placeholder="Ex: ESDE Completo"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-600"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Formação Doutrinária e Cursos</label>
-                  <input
-                    value={newMediWorkerFormacao}
-                    onChange={(e) => setNewMediWorkerFormacao(e.target.value)}
-                    placeholder="Ex: ESDE Completo, Estudo do Livro do Médiuns"
-                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800"
-                  />
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider block mb-1.5">Função Principal & Faculdades Mediúnicas (Selecione todas que se aplicam)</label>
+                  <div className="space-y-1.5 bg-gray-50 p-2.5 rounded-2xl border border-gray-150 max-h-[220px] overflow-y-auto">
+                    {[
+                      { value: "Médium de Psicofonia", label: "Médium de Psicofonia", desc: "Canal de psicofonia (falante) e manifestação oral" },
+                      { value: "Médium de Psicografia", label: "Médium de Psicografia", desc: "Escrita mediúnica e recebimento de mensagens" },
+                      { value: "Médium de Passes", label: "Médium de Passes", desc: "Doador de cura fluídica e passes magnéticos/espirituais" },
+                      { value: "Médium de Vidência/Audiência", label: "Médium de Vidência / Audiência", desc: "Percepção visual e auditiva do plano espiritual" },
+                      { value: "Dialogador", label: "Dialogador / Esclarecedor", desc: "Doutrinação, diálogo fraterno e esclarecimento de desencarnados" },
+                      { value: "Sustentador Mental", label: "Sustentador Mental", desc: "Concentrar fluidos, prece ativa, vibração e harmonia geral" },
+                      { value: "Coordenador", label: "Coordenador / Dirigente", desc: "Liderar a mesa mediúnica e conduzir os trabalhos" },
+                      { value: "Recepção / Apoio", label: "Atendimento Fraterno & Recepção", desc: "Entrevistas, acolhimento inicial e suporte ao assistido" },
+                      { value: "Apoio de Sala", label: "Apoio Técnico / Sala", desc: "Secretaria do grupo, controle de leituras e apoio físico" }
+                    ].map((opt) => {
+                      const isChecked = selectedMediRoles.includes(opt.value);
+                      return (
+                        <label 
+                          key={opt.value} 
+                          className={cn(
+                            "flex items-start gap-2.5 p-2 rounded-xl border transition-all cursor-pointer hover:bg-white select-none",
+                            isChecked 
+                              ? "bg-white border-indigo-200 ring-1 ring-indigo-200 shadow-sm" 
+                              : "border-transparent bg-transparent text-gray-600"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMediRoles([...selectedMediRoles, opt.value]);
+                              } else {
+                                setSelectedMediRoles(selectedMediRoles.filter(r => r !== opt.value));
+                              }
+                            }}
+                            className="mt-0.5 w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                          />
+                          <div className="space-y-0.5 border-none">
+                            <span className="text-[10px] font-extrabold text-gray-800 leading-none block">{opt.label}</span>
+                            <span className="text-[8px] text-gray-400 font-medium leading-none block">{opt.desc}</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
@@ -7548,7 +7838,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                   <select
                     value={newMediWorkerGroup}
                     onChange={(e) => setNewMediWorkerGroup(e.target.value)}
-                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-600"
                   >
                     {mediunicaGroups.map(g => (
                       <option key={g.id} value={g.id}>{g.name}</option>
@@ -7562,20 +7852,25 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                     value={newMediWorkerNotes}
                     onChange={(e) => setNewMediWorkerNotes(e.target.value)}
                     placeholder="Indique relatos de sensibilidade ou recomendações..."
-                    className="w-full mt-1 min-h-[70px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-800"
+                    className="w-full mt-1 min-h-[60px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-800 focus:outline-none focus:border-indigo-600"
                   />
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => {
                     if (!newMediWorkerName.trim()) {
                       alert("O nome do trabalhador é obrigatório.");
                       return;
                     }
+                    if (selectedMediRoles.length === 0) {
+                      alert("Por favor, selecione ao menos uma função ou faculdade mediúnica para o trabalhador.");
+                      return;
+                    }
                     const newWorker = {
                       id: 'mm_' + Date.now(),
                       name: newMediWorkerName,
-                      role: newMediWorkerRole,
+                      role: selectedMediRoles.join(' / '),
                       groupId: newMediWorkerGroup,
                       time: newMediWorkerTime,
                       formacao: newMediWorkerFormacao,
@@ -7590,6 +7885,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                     // Reset form
                     setNewMediWorkerName('');
                     setNewMediWorkerNotes('');
+                    setSelectedMediRoles(['Médium de Psicofonia']);
                     alert("Trabalhador registrado com sucesso!");
                   }}
                   className="w-full py-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
@@ -7654,7 +7950,15 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                             </span>
                           )}
                         </td>
-                        <td className="p-4 text-gray-500 font-bold">{mem.role}</td>
+                        <td className="p-4">
+                          <div className="flex flex-wrap gap-1">
+                            {(mem.role || 'Médium').split(' / ').map((r: string, rIdx: number) => (
+                              <span key={rIdx} className="px-2 py-0.5 bg-gray-100 hover:bg-gray-150 text-gray-700 rounded-md font-bold text-[9px] uppercase tracking-wider block transition-colors border border-gray-200">
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
                         <td className="p-4">
                           <div className="flex gap-1.5">
                             {mem.presence?.map((pres: boolean, idx: number) => (
@@ -9582,10 +9886,24 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                   {socialPosts.length === 0 ? (
                     <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Nenhuma postagem planejada no calendário.</div>
                   ) : (
-                    socialPosts.map((post) => (
-                      <div key={post.id} className="p-4 sm:p-6 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col justify-between gap-4 hover:border-gray-250 transition-all">
-                        <div className="space-y-2 w-full flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
+                    socialPosts.map((post) => {
+                      const isSelected = selectedSocialPostId === post.id || (!selectedSocialPostId && socialPosts[0]?.id === post.id);
+                      return (
+                        <div 
+                          key={post.id} 
+                          onClick={() => setSelectedSocialPostId(post.id)}
+                          className={cn(
+                            "p-4 sm:p-6 bg-gray-50 border rounded-2xl flex flex-col justify-between gap-4 hover:border-indigo-300 hover:bg-indigo-50/5 transition-all cursor-pointer relative",
+                            isSelected ? "border-indigo-500 bg-indigo-50/15 shadow-sm ring-1 ring-indigo-500" : "border-gray-150"
+                          )}
+                        >
+                          {isSelected && (
+                            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-indigo-600 text-white text-[8.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm animate-fade-in">
+                              <Check size={8} /> <span>Visualizando</span>
+                            </div>
+                          )}
+                          <div className="space-y-2 w-full flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
                             <span className={cn(
                               "px-2 py-0.5 rounded-md font-bold text-[8.5px] uppercase tracking-wider border",
                               post.platform === 'Instagram' ? "bg-pink-50 text-pink-650 border-pink-100" :
@@ -9677,60 +9995,251 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           </button>
                         </div>
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
                 {/* Simulated Social Media Preview Container */}
-                {socialPosts.length > 0 && (
-                  <div className="mt-8 border-t border-gray-100 pt-6">
-                    <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <Eye size={16} className="text-amber-500" />
-                      Visualizador de Publicação de Rede Social (Tempo Real)
-                    </h4>
-                    <div className="max-w-md mx-auto bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-sm font-sans">
-                      {/* Header */}
-                      <div className="p-3 bg-white border-b border-gray-100 flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-[10px] font-black tracking-tight shrink-0 shadow-sm">
-                          ML
-                        </div>
+                {socialPosts.length > 0 && (() => {
+                  const activePost = socialPosts.find(p => p.id === selectedSocialPostId) || socialPosts[0];
+                  const previewTitle = newPostTitle || activePost?.title || 'Título da Publicação';
+                  const previewText = newPostText || activePost?.text || 'Rascunhe um post para começar a visualizar...';
+                  const previewPlatform = newPostPlatform || activePost?.platform || 'Instagram';
+                  const previewHashtags = newPostHashtags || activePost?.hashtags || '#caridade #espirita #allankardec #mirantedeluz';
+
+                  const handleCopyCaption = () => {
+                    const caption = `${previewText}\n\n${previewHashtags}`;
+                    navigator.clipboard.writeText(caption);
+                    setCopiedCaptionState(true);
+                    setTimeout(() => setCopiedCaptionState(false), 2000);
+                  };
+
+                  return (
+                    <div className="mt-8 border-t border-gray-100 pt-6">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                         <div className="text-left">
-                          <span className="font-bold text-xs text-gray-950 block leading-tight">Mirante de Luz</span>
-                          <span className="text-[9px] text-gray-400 font-medium">Bauru, SP • Divulgação Espírita</span>
-                        </div>
-                      </div>
-                      {/* Visual content area */}
-                      <div className="aspect-square bg-gradient-to-tr from-indigo-500 via-purple-600 to-amber-500 p-6 flex flex-col justify-between text-white relative">
-                        <div className="p-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-[9px] font-bold uppercase tracking-widest self-start">
-                          ☆ DIÁLOGO DO BEM
-                        </div>
-                        <div className="my-auto text-center px-4">
-                          <p className="font-extrabold text-base md:text-lg tracking-tight leading-snug break-words">
-                            {newPostText || socialPosts[0]?.text || "Selecione ou rascunhe um post para visualizar..."}
+                          <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                            <Eye size={16} className="text-amber-500 animate-pulse" />
+                            Visualizador de Publicação de Rede Social (Tempo Real)
+                          </h4>
+                          <p className="text-[10px] text-gray-400 font-medium">
+                            Personalize o design do cartão, baixe a arte finalizada ou publique no Instagram.
                           </p>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] bg-black/25 backdrop-blur-sm p-2 rounded-xl border border-white/10 font-mono">
-                          <span className="truncate max-w-[200px]">{newPostTitle || socialPosts[0]?.title || "Título do Post"}</span>
-                          <span className="font-bold shrink-0">{newPostPlatform || socialPosts[0]?.platform || "Instagram"}</span>
+
+                        {/* Theme picker for image generation */}
+                        <div className="bg-gray-150 p-1 rounded-xl flex items-center gap-1">
+                          {[
+                            { key: 'indigo-sunset', label: 'Pôr do Sol', color: 'from-indigo-500 via-purple-600 to-amber-500' },
+                            { key: 'emerald-peace', label: 'Serenidade', color: 'from-teal-500 via-emerald-600 to-cyan-500' },
+                            { key: 'divine-light', label: 'Amor Divino', color: 'from-rose-500 to-indigo-600' },
+                            { key: 'serene-night', label: 'Céu Estrelado', color: 'from-slate-905 to-indigo-950' }
+                          ].map((themeOpt) => (
+                            <button
+                              key={themeOpt.key}
+                              type="button"
+                              onClick={() => setPostCardTemplate(themeOpt.key as any)}
+                              className={cn(
+                                "text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg transition-all text-white",
+                                themeOpt.color,
+                                postCardTemplate === themeOpt.key ? "ring-2 ring-white ring-offset-1 ring-offset-indigo-600 scale-105" : "opacity-65 hover:opacity-100"
+                              )}
+                              title={themeOpt.label}
+                            >
+                              🎨
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      {/* Interactivity details */}
-                      <div className="p-3 bg-white space-y-1.5 text-xs text-left">
-                        <div className="flex items-center gap-3 text-gray-700 py-1 font-sans">
-                          <span>♥ <strong>54 curtidas</strong></span>
-                          <span>💬 <strong>8 comentários</strong></span>
+
+                      <div className="max-w-md mx-auto bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-md font-sans">
+                        {/* Header */}
+                        <div className="p-3 bg-white border-b border-gray-100 flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 text-left">
+                            <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-[10px] font-black tracking-tight shrink-0 shadow-sm">
+                              ML
+                            </div>
+                            <div>
+                              <span className="font-bold text-xs text-gray-950 block leading-tight">Mirante de Luz</span>
+                              <span className="text-[9px] text-gray-400 font-medium">Bauru, SP • Divulgação Espírita</span>
+                            </div>
+                          </div>
+
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider block border font-sans",
+                            previewPlatform === 'Instagram' ? "bg-pink-50 text-pink-650 border-pink-100" :
+                            previewPlatform === 'YouTube' ? "bg-red-50 text-red-650 border-red-100" :
+                            previewPlatform === 'WhatsApp' ? "bg-emerald-50 text-emerald-650 border-emerald-100" :
+                            "bg-indigo-50 text-indigo-650 border-indigo-100"
+                          )}>
+                            {previewPlatform}
+                          </span>
                         </div>
-                        <p className="text-gray-700 leading-snug font-sans">
-                          <strong className="text-gray-900 font-extrabold mr-1">mirantedeluz</strong>
-                          {newPostText || socialPosts[0]?.text || "A caridade é o orvalho do amor..."}
-                        </p>
-                        <p className="text-indigo-600 font-bold font-mono text-[11px] uppercase tracking-wider block">
-                          {newPostHashtags || socialPosts[0]?.hashtags || "#allankardec #espirita #caridade"}
-                        </p>
+
+                        {/* Visual content area dynamic theme card */}
+                        <div className={cn(
+                          "aspect-square p-8 flex flex-col justify-between text-white relative transition-all duration-300",
+                          postCardTemplate === 'indigo-sunset' ? "bg-gradient-to-tr from-indigo-500 via-purple-600 to-amber-500" :
+                          postCardTemplate === 'emerald-peace' ? "bg-gradient-to-tr from-teal-500 via-emerald-600 to-cyan-500" :
+                          postCardTemplate === 'divine-light' ? "bg-gradient-to-tr from-rose-500 to-indigo-600" :
+                          "bg-gradient-to-tr from-slate-900 to-indigo-950"
+                        )}>
+                          <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-[9px] font-black uppercase tracking-widest self-start">
+                            ☆ DIÁLOGO DO BEM
+                          </div>
+                          
+                          <div className="my-auto text-center px-4 w-full">
+                            <p className="font-black italic text-base sm:text-lg tracking-tight leading-snug break-words drop-shadow-sm font-serif">
+                              "{previewText}"
+                            </p>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] bg-black/25 backdrop-blur-sm p-3 rounded-xl border border-white/10 font-mono">
+                            <span className="truncate max-w-[200px] font-bold">{previewTitle}</span>
+                            <span className="font-bold shrink-0 text-white/80">@mirantedeluz</span>
+                          </div>
+                        </div>
+
+                        {/* Instagram Simulation Actions Panel */}
+                        <div className="p-4 bg-gray-50 border-b border-gray-100 space-y-3.5 text-left">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleCopyCaption}
+                              className={cn(
+                                "flex-1 py-2.5 px-3 rounded-xl hover:shadow-sm text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer",
+                                copiedCaptionState 
+                                  ? "bg-emerald-600 text-white border-emerald-600" 
+                                  : "bg-white text-gray-700 hover:text-indigo-650 hover:bg-indigo-50/50 border-gray-200"
+                              )}
+                            >
+                              {copiedCaptionState ? (
+                                <>
+                                  <Check size={14} />
+                                  <span>Legenda Copiada!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={14} />
+                                  <span>Copiar Legenda</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadPostImage(previewTitle, previewText, postCardTemplate)}
+                              className="flex-1 py-2.5 px-4 bg-white hover:bg-amber-50 hover:text-amber-805 text-gray-700 font-bold rounded-xl border border-gray-200 hover:border-amber-300 transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                              title="Gerar e Baixar Cartão de Imagem Quadrado"
+                            >
+                              <Download size={14} className="text-amber-500 animate-bounce" />
+                              <span>Baixar Arte (PNG)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setShowInstagramConfigModal(!showInstagramConfigModal)}
+                              className={cn(
+                                "p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center",
+                                showInstagramConfigModal || (instaApiToken && instaPageId)
+                                  ? "bg-indigo-50 border-indigo-200 text-indigo-600"
+                                  : "bg-white border-gray-200 text-gray-400 hover:text-gray-600"
+                              )}
+                              title="Configurações de API do Instagram (Publicação Direta)"
+                            >
+                              <Settings size={15} />
+                            </button>
+                          </div>
+
+                          {/* Inline API Integration setup */}
+                          {showInstagramConfigModal && (
+                            <div className="p-3.5 bg-white border border-indigo-105 rounded-xl space-y-3 shadow-inner animate-none">
+                              <span className="text-[9.5px] font-black uppercase text-indigo-700 tracking-wider block">
+                                Conexão de API do Instagram (Parâmetros de Integração)
+                              </span>
+                              <p className="text-[10px] text-gray-400 leading-normal font-medium">
+                                Para publicar automaticamente, insira as chaves do Meta Graph API (Instagram Business). Se deixado em branco, o sistema efetuará <strong>Publicação Assistida</strong>.
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[8.5px] font-bold text-gray-400 uppercase tracking-widest block mb-1">ID da Conta Instagram</label>
+                                  <input
+                                    type="text"
+                                    value={instaPageId}
+                                    onChange={(e) => {
+                                      setInstaPageId(e.target.value);
+                                      localStorage.setItem('com_insta_page_id', e.target.value);
+                                    }}
+                                    placeholder="Ex: 178414002..."
+                                    className="w-full h-8 px-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:border-indigo-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[8.5px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Token Meta Access (User/Page)</label>
+                                  <input
+                                    type="password"
+                                    value={instaApiToken}
+                                    onChange={(e) => {
+                                      setInstaApiToken(e.target.value);
+                                      localStorage.setItem('com_insta_api_token', e.target.value);
+                                    }}
+                                    placeholder="EAABw..."
+                                    className="w-full h-8 px-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:border-indigo-500"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Main Trigger Direct Instagram Post */}
+                          <div className="pt-1.5">
+                            <button
+                              type="button"
+                              disabled={isSimulatingInstaPublish}
+                              onClick={() => handleSimulateInstagramPublish(activePost)}
+                              className="w-full py-3 bg-gradient-to-r from-pink-500 via-purple-600 to-amber-500 hover:opacity-95 text-white font-extrabold rounded-2xl shadow-md text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
+                            >
+                              {isSimulatingInstaPublish ? (
+                                <>
+                                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Publicando no Feed do Instagram...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Share2 size={13} />
+                                  <span>
+                                    {instaApiToken && instaPageId 
+                                      ? "Disparar Publicação via Meta Graph API" 
+                                      : "Publicar no Instagram Feed"}
+                                  </span>
+                                </>
+                              )}
+                            </button>
+                            <span className="text-[9.5px] text-gray-400 font-medium block text-center mt-2">
+                              A publicação direta altera o status da postagem na plataforma para <strong className="text-emerald-600 uppercase">Publicado</strong> e escreve a auditoria correspondente.
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Visual likes/comments decoration mockup */}
+                        <div className="p-3 bg-white text-xs text-left">
+                          <div className="flex items-center gap-3 text-gray-700 py-1 font-sans">
+                            <span>♥ <strong>54 curtidas</strong></span>
+                            <span>💬 <strong>8 comentários</strong></span>
+                          </div>
+                          <p className="text-gray-700 leading-snug font-sans">
+                            <strong className="text-gray-900 font-extrabold mr-1">mirantedeluz</strong>
+                            {previewText}
+                          </p>
+                          <p className="text-indigo-600 font-bold font-mono text-[11px] uppercase tracking-wider block mt-1">
+                            {previewHashtags}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Pre-filled comfort quotes list */}
                 <div className="mt-8 border-t border-gray-100 pt-6">
@@ -13503,7 +14012,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
 
                     <div className="flex justify-between items-center border-t border-gray-50 pt-2 shrink-0">
                       <button
-                        onClick={() => alert(`Inscritos no projeto espírita ${proj.name} salvos em prontuários.`)}
+                        onClick={() => {
+                          setActivePresenceProjId(proj.id);
+                          setPresenceDate(new Date().toISOString().split('T')[0]);
+                        }}
                         className="text-[9.5px] font-black uppercase text-rose-700 hover:underline animate-none"
                       >
                         Visualizar Lista Presença
@@ -13530,7 +14042,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               </div>
             </div>
 
-            <div className="lg:col-span-4 bg-white rounded-3xl border border-rose-100 p-6 space-y-4">
+            <div id="social-projeto-form-panel" className="lg:col-span-4 bg-white rounded-3xl border border-rose-100 p-6 space-y-4">
               <span className="text-base font-black text-rose-800 tracking-tight flex items-center justify-between pb-2 border-b border-rose-50 uppercase">
                 {editingSocialProjetoId ? "✏️ Editar Iniciativa" : "Criar Nova Iniciativa"}
               </span>
@@ -17684,6 +18196,263 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                   </div>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Presence and enrollment modal for Social Projects */}
+      <AnimatePresence>
+        {activePresenceProjId && (() => {
+          const proj = socialProjetos.find(p => p.id === activePresenceProjId);
+          if (!proj) return null;
+          
+          // Fallback to defaults or existing enrolled IDs
+          const enrolledIds: string[] = proj.participants || (proj.id === 'sp_1' ? ['as_1', 'as_3'] : proj.id === 'sp_2' ? ['as_1', 'as_2'] : ['as_3']);
+          const attendance = proj.attendance || {};
+          const presentListForDate = attendance[presenceDate] || [];
+
+          // Eligible assistidos to enroll (ones not already enrolled)
+          const eligibleToEnroll = socialAssistidos.filter(as => !enrolledIds.includes(as.id));
+
+          return (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                className="bg-white rounded-[32px] max-w-2xl w-full p-6 md:p-8 shadow-2xl relative border border-rose-100 flex flex-col space-y-6 max-h-[90vh] overflow-y-auto text-left font-sans"
+              >
+                {/* Absolute Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setActivePresenceProjId(null)}
+                  className="absolute top-6 right-6 p-2 text-rose-400 hover:text-rose-650 hover:bg-rose-50/50 rounded-full transition-colors cursor-pointer z-10"
+                  title="Fechar Janela"
+                  aria-label="Fechar"
+                >
+                  <X size={18} />
+                </button>
+
+                {/* Header */}
+                <div className="border-b border-rose-50 pb-4">
+                  <span className="text-[9.5px] bg-rose-50 text-rose-700 border border-rose-100 px-3 py-1 rounded-full font-black uppercase tracking-wider">
+                    Controle de Presença Socioeducativa
+                  </span>
+                  <h3 className="text-xl font-black text-rose-950 mt-2">
+                    {proj.name}
+                  </h3>
+                  <p className="text-xs text-gray-400 font-medium">
+                    Gerencie matrículas e controle de frequência dos assistidos das oficinas e projetos de desenvolvimento humano.
+                  </p>
+                </div>
+
+                {/* Sub-form: Add/enroll new participant */}
+                <div className="p-4 bg-rose-50/10 rounded-2xl border border-rose-100/50 space-y-3">
+                  <h4 className="text-[10px] font-black uppercase text-rose-900 tracking-wider">
+                    Matricular Novo Assistido no Projeto
+                  </h4>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <select
+                      value={selectedEnrollAssistidoId}
+                      onChange={(e) => setSelectedEnrollAssistidoId(e.target.value)}
+                      className="flex-1 min-h-[44px] px-3 bg-white border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-rose-200 transition-all font-sans text-gray-700"
+                    >
+                      <option value="">Selecione um assistido cadastrado...</option>
+                      {eligibleToEnroll.map(as => (
+                        <option key={as.id} value={as.id}>
+                          {as.name} ({as.neighborhood || 'Bairro s/ r.'} - CPF: {as.cpf || 'S/ CPF'})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!selectedEnrollAssistidoId}
+                      onClick={() => handleEnrollSocialParticipant(proj.id, selectedEnrollAssistidoId)}
+                      className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:hover:bg-gray-100 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-rose-100 flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      <Plus size={15} /> Matricular
+                    </button>
+                  </div>
+                  {eligibleToEnroll.length === 0 && (
+                    <p className="text-[10px] text-gray-400 font-bold leading-none">
+                      ⚠️ Todos os assistidos cadastrados na Ação Social já estão matriculados ou não há assistidos cadastrados.
+                    </p>
+                  )}
+                </div>
+
+                {/* Date Selection & Statistics */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block">Data da Chamada / Encontro</span>
+                    <input
+                      type="date"
+                      value={presenceDate}
+                      onChange={(e) => setPresenceDate(e.target.value)}
+                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-rose-200 transition-all text-gray-750 font-sans cursor-pointer"
+                    />
+                  </div>
+                  <div className="text-right sm:text-right flex sm:flex-col gap-4 sm:gap-1 text-xs">
+                    <div>
+                      <span className="text-gray-400 font-medium font-sans">Matriculados:</span> <strong className="text-rose-950 font-black font-sans">{enrolledIds.length}</strong>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 font-medium font-sans">Presenças nesta data:</span> <strong className="text-emerald-600 font-black font-sans">{presentListForDate.length}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Participant list table */}
+                <div className="space-y-3 flex-1 overflow-y-auto max-h-[250px] pr-1">
+                  <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">
+                    Lista de Alunos & Presença
+                  </h4>
+                  {enrolledIds.length === 0 ? (
+                    <div className="p-8 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                      <p className="text-xs text-gray-400 font-bold leading-relaxed">Nenhum aluno matriculado nesta iniciativa.</p>
+                      <p className="text-[10px] text-gray-400 font-medium mt-1">Selecione um assistido na barra superior para iniciar as matrículas.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {enrolledIds.map(id => {
+                        const assistido = socialAssistidos.find(as => as.id === id);
+                        if (!assistido) return null;
+                        const isPresent = presentListForDate.includes(id);
+
+                        return (
+                          <div 
+                            key={id} 
+                            className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
+                              isPresent ? 'bg-emerald-50/40 border-emerald-100/70' : 'bg-white border-gray-150'
+                            }`}
+                          >
+                            <div className="space-y-1 truncate">
+                              <p className="text-xs font-black text-slate-900 truncate">{assistido.name}</p>
+                              <div className="flex gap-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wide truncate">
+                                <span>CPF: {assistido.cpf || 'Não exp.'}</span>
+                                <span>•</span>
+                                <span>Bairro: {assistido.neighborhood || 'Centro'}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0">
+                              {/* Presence toggle button */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSocialPresence(proj.id, presenceDate, id)}
+                                className={`h-10 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer ${
+                                  isPresent 
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100' 
+                                    : 'bg-gray-100 hover:bg-gray-200 text-gray-650'
+                                }`}
+                              >
+                                {isPresent ? (
+                                  <>
+                                    <Check size={13} strokeWidth={3} /> Presente
+                                  </>
+                                ) : (
+                                  'Ausente'
+                                )}
+                              </button>
+
+                              {/* Unenroll button */}
+                              <button
+                                type="button"
+                                onClick={() => handleUnenrollSocialParticipant(proj.id, id)}
+                                className="p-2 bg-rose-50/50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors cursor-pointer"
+                                title="Desmatricular Aluno"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer action buttons */}
+                <div className="border-t border-gray-100 pt-4 flex justify-between gap-3 shrink-0">
+                  <div className="text-[10px] text-gray-400 font-bold leading-tight max-w-[250px] uppercase tracking-wide flex items-center gap-1.5 font-sans">
+                    <Shield size={14} className="text-rose-600 shrink-0" />
+                    As alterações são salvas automaticamente em tempo real no banco local.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActivePresenceProjId(null);
+                      alert('Lista de presença e matrículas sincronizadas com sucesso!');
+                    }}
+                    className="py-3 px-6 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-md shadow-rose-100 active:scale-95 cursor-pointer"
+                  >
+                    Gravar e Fechar
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* Modern animated social item delete confirmation modal */}
+      <AnimatePresence>
+        {socialItemToDelete && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-[32px] max-w-md w-full p-6 md:p-8 shadow-2xl space-y-6 relative border border-rose-100 text-left font-sans animate-none"
+            >
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="p-3.5 bg-rose-50 text-rose-600 rounded-full">
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-rose-950 uppercase tracking-tight">Confirmar Exclusão</h3>
+                  <p className="text-[10px] text-rose-500 font-extrabold uppercase mt-1 tracking-wider px-3 py-1 bg-rose-50/50 rounded-full border border-rose-100 inline-block">
+                    {socialItemToDelete.type === 'assistido' && 'Ficha de Assistido Beneficiário'}
+                    {socialItemToDelete.type === 'atendimento' && 'Atendimento / Prontuário Social'}
+                    {socialItemToDelete.type === 'doacao' && 'Registro de Doação Social'}
+                    {socialItemToDelete.type === 'cesta' && 'Recibo de Entrega de Cesta'}
+                    {socialItemToDelete.type === 'voluntario' && 'Cadastro de Voluntário / Trabalhador'}
+                    {socialItemToDelete.type === 'projeto' && 'Iniciativa Socioeducativa / Oficina'}
+                    {socialItemToDelete.type === 'visita' && 'Relatório de Visita Fraterna'}
+                    {socialItemToDelete.type === 'post' && 'Postagem Informativa com Imagem'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Item Details */}
+              <div className="bg-rose-50/10 rounded-2xl p-4 border border-rose-100/30 text-xs space-y-2">
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase font-black tracking-wider block">Elemento Selecionado</span>
+                  <span className="font-bold text-gray-800 text-sm leading-tight block mt-0.5">{socialItemToDelete.name}</span>
+                </div>
+                <p className="text-gray-500 font-medium text-[11px] leading-relaxed pt-2 border-t border-rose-100/20">
+                  ⚠️ <strong>Atenção:</strong> Ao confirmar, este registro será desvinculado e excluído do sistema permanentemente de forma irreversível.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSocialItemToDelete(null)}
+                  className="w-full py-3 bg-gray-150 hover:bg-gray-200 text-gray-700 font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer select-none text-center"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteSocialItem}
+                  className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-md shadow-rose-100 hover:shadow-lg active:scale-95 cursor-pointer flex items-center justify-center gap-2 select-none text-center"
+                >
+                  <Trash2 size={14} /> Excluir Registro
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

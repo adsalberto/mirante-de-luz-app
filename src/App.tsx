@@ -25,6 +25,7 @@ import { InventoryPage } from './pages/InventoryPage';
 import DonationLandingPage from './pages/DonationLandingPage';
 import { VendasPage } from './pages/VendasPage';
 import CredentialsPage from './pages/CredentialsPage';
+import ChangeTempPassword from './components/ChangeTempPassword';
 
 function AppRoutes() {
   const { currentUser, fbUser, loading, logout } = useAuth();
@@ -55,6 +56,10 @@ function AppRoutes() {
         </div>
       </div>
     );
+  }
+
+  if (currentUser?.mustChangePassword) {
+    return <ChangeTempPassword />;
   }
 
   return (

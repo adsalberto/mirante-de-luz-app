@@ -2189,7 +2189,12 @@ export const ParticipantsPage: React.FC = () => {
                               <p className="text-[6.5px] text-slate-500 leading-tight">
                                 Esta credencial identifica de forma unívoca o associado do Centro Espírita Maria Imaculada de Luz (CEMIL), sendo pessoal e insubstituível. O portador declara aceitar as diretrizes da federativa.
                               </p>
-                              <p className="text-[7px] font-bold text-slate-700">Setor: {customAccessLevel}</p>
+                              <p className="text-[7px] font-bold text-slate-750">Setor: {customAccessLevel}</p>
+                              <div className="text-[6px] font-bold text-indigo-700 bg-indigo-50/70 p-1 rounded-lg border border-indigo-100/50 space-y-0.5 mt-1 leading-normal">
+                                <p>🩸 <strong className="text-slate-800">TIPO SANGUÍNEO:</strong> {credentialParticipant.bloodType || 'N/I'}</p>
+                                <p>⚠️ <strong className="text-slate-800">ALERGIAS:</strong> <span className={credentialParticipant.allergies ? "text-rose-600" : ""}>{credentialParticipant.allergies || 'Nenhuma informada'}</span></p>
+                                <p>📞 <strong className="text-slate-800">EMERGÊNCIA:</strong> {credentialParticipant.emergencyContact || 'N/I'}</p>
+                              </div>
                             </div>
 
                             <div className="border-t border-slate-300 pt-1">
@@ -2410,7 +2415,12 @@ export const ParticipantsPage: React.FC = () => {
                                   <p class="rules-p" style="font-size: 4.5px; color: #4b5563; line-height: 1.2; margin: 0 0 1.5mm 0;">
                                     Esta credencial oficial identifica de forma unívoca o membro ou portador voluntário do CEMIL/Mirante de Luz, sendo de uso pessoal e intransferível. 
                                   </p>
-                                  <div class="access-sectors" style="font-size: 4.5px; font-weight: bold; color: #CF9E22; margin-bottom: 2mm;">Autorização de Setor: ${customAccessLevel}</div>
+                                  <div class="access-sectors" style="font-size: 4.5px; font-weight: bold; color: #CF9E22; margin-bottom: 0.8mm;">Autorização de Setor: ${customAccessLevel}</div>
+                                  <div class="medical-info" style="font-size: 4.2px; margin: 0.8mm 0; border: 0.15mm solid #e5e7eb; background: #f8fafc; padding: 0.8mm; border-radius: 0.5mm; color: #0f172a; line-height: 1.25; font-family: 'Space Grotesk', sans-serif;">
+                                    <div><strong>🩸 GRUPO SANGUÍNEO:</strong> ${credentialParticipant.bloodType || 'Não Informado'}</div>
+                                    <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><strong>⚠️ ALERGIAS:</strong> ${credentialParticipant.allergies || 'Nenhuma informada'}</div>
+                                    <div><strong>📞 CONTATO DE EMERGÊNCIA:</strong> ${credentialParticipant.emergencyContact || 'Não Informado'}</div>
+                                  </div>
                                   
                                   <div class="footer-meta" style="display: flex; justify-content: space-between; align-items: center; border-top: 0.2mm solid #e5e7eb; padding-top: 1mm; font-size: 4.8px; font-weight: bold; color: #9ca3af;">
                                     <div class="validity">VALIDADE: ${customExpiryDate}</div>

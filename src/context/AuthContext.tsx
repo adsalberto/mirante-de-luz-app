@@ -6,7 +6,8 @@ import {
   User,
   createUserWithEmailAndPassword,
   getAuth,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  updatePassword
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, query, where, collection, getDocs, updateDoc, addDoc } from 'firebase/firestore';
 import { initializeApp, getApp, getApps, deleteApp } from 'firebase/app';
@@ -23,6 +24,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   registerWorker: (data: Partial<Worker>, pass: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  changeTempPassword: (newPass: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -245,8 +248,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const changeTempPassword = async (newPass: string) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Usuário não autenticado.");
+    
+    // Update password in global FirebaseAuth state
+    await updatePassword(user, newPass);
+    
+    // Update property in user's profile document inside collection "trabalhadores"
+    const workerRef = doc(db, 'trabalhadores', user.uid);
+    await updateDoc(workerRef, {
+      mustChangePassword: false,
+    });
+    
+    // Sync the memory state so the block is immediately lifted
+    setCurrentUserRaw(prev => prev ? { ...prev, mustChangePassword: false } : null);
+    
+    // Create detailed audit log entry
+    try {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('pt-BR');
+      const timeStr = now.toLocaleTimeString('pt-BR');
+      const actionFormatted = `[${dateStr}] | [${timeStr}] | [${currentUser?.name || user.email}] | [Senha Alterada]`;
+      
+      await addDoc(collection(db, 'logs'), {
+        timestamp: Date.now(),
+        userId: user.uid,
+        userName: currentUser?.name || user.email || 'Trabalhador',
+        action: actionFormatted,
+        details: 'Trabalhador alterou a senha padrão do primeiro acesso com sucesso.'
+      });
+    } catch (logErr) {
+      console.error("Failed to write password update log:", logErr);
+    }
+  };
+
+  const refreshUser = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const docRef = doc(db, 'trabalhadores', user.uid);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      setCurrentUserRaw({ ...docSnap.data() as Worker, id: docSnap.id });
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ currentUser, fbUser, loading, login, logout, registerWorker, resetPassword }}>
+    <AuthContext.Provider value={{ currentUser, fbUser, loading, login, logout, registerWorker, resetPassword, changeTempPassword, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

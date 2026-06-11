@@ -30,9 +30,19 @@ export interface Worker {
   tempRoleExpiry?: number;
   originalRole?: UserRole;
   loginCount?: number;
+  mustChangePassword?: boolean;
+  tempPassword?: string;
   bloodType?: string;
   allergies?: string;
   emergencyContact?: string;
+  cpf?: string;
+  rg?: string;
+  address?: string;
+  cep?: string;
+  neighborhood?: string;
+  city?: string;
+  profession?: string;
+  nationality?: string;
 }
 
 export interface Speaker {
@@ -188,6 +198,7 @@ export interface Session {
 export interface ScheduleDay {
   dayOfWeek: number;
   shift: string;
+  specificDay?: number;
 }
 
 export interface ScheduleAssignment {
@@ -197,6 +208,17 @@ export interface ScheduleAssignment {
   days: ScheduleDay[]; // Multiple days with different shifts
 }
 
+export interface SectorActivity {
+  id: string;
+  specificDay: number; // e.g. 16
+  time: string; // e.g. '18:50 - 19:30'
+  title: string; // e.g. 'Estudo do Evangelho - Cap V - Bem-aventurados os aflitos'
+  dirigente?: string; // e.g. 'Altamir Arruda'
+  passistas?: string[]; // list of passistas (string names)
+  format?: 'PRESENCIAL' | 'ONLINE' | 'HIBRIDO'; // Format
+  observations?: string; // Optional holiday/details
+}
+
 export interface SectorSchedule {
   id: string;
   sectorId: string;
@@ -204,6 +226,7 @@ export interface SectorSchedule {
   month: number; // 0-11
   year: number;
   assignments: ScheduleAssignment[];
+  activities?: SectorActivity[];
 }
 
 export type InventoryCategory = 'MOBILIARIO' | 'ELETRONICOS' | 'LIVRARIA' | 'COZINHA' | 'LIMPEZA' | 'SUPRIMENTOS' | 'MANUTENCAO' | 'FIGURINO' | 'ACESSORIOS' | 'OUTROS';

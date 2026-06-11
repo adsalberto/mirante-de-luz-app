@@ -16,6 +16,10 @@ import {
   Search,
   ArrowLeft,
   Heart,
+  FileText,
+  Printer,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { dataService } from "../services/dataService";
 import {
@@ -58,6 +62,8 @@ export const SettingsPage: React.FC = () => {
   const [workerToDelete, setWorkerToDelete] = useState<Worker | null>(null);
   const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
   const [workerPassword, setWorkerPassword] = useState("");
+  const [forcePasswordChange, setForcePasswordChange] = useState(true);
+  const [showCreatedPassword, setShowCreatedPassword] = useState(false);
   const [hasTempPermission, setHasTempPermission] = useState(false);
   const [tempRole, setTempRole] = useState<UserRole>("SECRETARIO");
   const [tempDurationValue, setTempDurationValue] = useState<number>(1);
@@ -65,6 +71,549 @@ export const SettingsPage: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [workerFilter, setWorkerFilter] = useState<'all' | 'active' | 'pending'>('all');
+
+  const [selectedWorkerForTerm, setSelectedWorkerForTerm] = useState<Worker | null>(null);
+  const [termDate, setTermDate] = useState("");
+  const [termWorkerData, setTermWorkerData] = useState({
+    cpf: "",
+    rg: "",
+    address: "",
+    cep: "",
+    neighborhood: "",
+    city: "Salvador",
+    profession: "",
+    nationality: "brasileira",
+  });
+
+  const formatDateToPortuguese = (timestamp?: number) => {
+    const date = timestamp ? new Date(timestamp) : new Date();
+    const day = date.getDate();
+    const monthNames = [
+      "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+      "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+    ];
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} de ${month} de ${year}`;
+  };
+
+  const handleOpenTermModal = (w: Worker) => {
+    setSelectedWorkerForTerm(w);
+    setTermDate(formatDateToPortuguese(w.termAcceptedAt || w.createdAt));
+    setTermWorkerData({
+      cpf: w.cpf || "",
+      rg: w.rg || "",
+      address: w.address || "",
+      cep: w.cep || "",
+      neighborhood: w.neighborhood || "",
+      city: w.city || "Salvador",
+      profession: w.profession || "",
+      nationality: w.nationality || "brasileira",
+    });
+  };
+
+  const handleSaveAndPrintTerm = async () => {
+    if (!selectedWorkerForTerm) return;
+    try {
+      const updatedWorker = {
+        ...selectedWorkerForTerm,
+        ...termWorkerData,
+      };
+      await dataService.updateWorker(updatedWorker);
+      
+      setWorkers(prev => prev.map(w => w.id === selectedWorkerForTerm.id ? updatedWorker : w));
+      
+      const printWin = window.open("", "_blank");
+      if (!printWin) {
+        alert("Por favor, permita pop-ups para que o sistema de impressão integrada funcione.");
+        return;
+      }
+      
+      const elementHtml = `
+        <div class="contract-container">
+          <div class="brand-header">
+            <div class="brand-left">
+              <svg width="190" height="190" viewBox="0 0 340 370" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Sun Emblem Central Concentric Circles & Dot -->
+                <g transform="translate(0, -10)">
+                  <circle cx="170" cy="115" r="32" fill="none" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <circle cx="170" cy="115" r="16" fill="none" stroke="#E59A18" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="170" cy="115" r="7" fill="#E59A18" />
+
+                  <!-- 8 Sun Rays radiating outwards -->
+                  <line x1="152" y1="67" x2="134" y2="20" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <line x1="188" y1="67" x2="206" y2="20" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <line x1="128" y1="93" x2="78" y2="67" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <line x1="212" y1="93" x2="262" y2="67" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <line x1="118" y1="115" x2="58" y2="115" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <line x1="222" y1="115" x2="282" y2="115" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <line x1="128" y1="137" x2="78" y2="163" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                  <line x1="212" y1="137" x2="262" y2="163" stroke="#E59A18" stroke-width="6" stroke-linecap="round" />
+                </g>
+
+                <!-- Stepped Pyramid Graphics -->
+                <g transform="translate(0, -12)">
+                  <polygon points="80,165 215,165 235,193 60,193" fill="#063994" />
+                  <polygon points="40,197 240,197 260,225 20,225" fill="#063994" />
+                  <polygon points="25,229 265,229 285,257 5,257" fill="#063994" />
+                </g>
+
+                <!-- Brand Text -->
+                <g>
+                  <text x="170" y="298" text-anchor="middle" fill="#063994" font-size="15" font-weight="700" letter-spacing="5px" font-family="'Playfair Display', 'Georgia', serif">CENTRO ESPÍRITA</text>
+                  <text x="170" y="336" text-anchor="middle" fill="#063994" font-size="25" font-weight="900" letter-spacing="1px" font-family="'Playfair Display', 'Georgia', serif">MIRANTE DE LUZ</text>
+                </g>
+              </svg>
+            </div>
+            
+            <div class="brand-divider"></div>
+            
+            <div class="brand-right">
+              <svg width="250" height="95" viewBox="0 0 640 220" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block; margin: 0 auto 5px auto;">
+                <!-- KID 1 -->
+                <path d="M 75,45 Q 100,15 125,45 Z" fill="#063994" />
+                <path d="M 72,40 L 80,18 L 92,26 L 100,10 L 108,26 L 120,18 L 128,40" fill="#063994" />
+                <circle cx="100" cy="45" r="22" fill="#063994" />
+                <rect x="94" y="62" width="12" height="12" fill="#063994" />
+                <path d="M 84,72 L 116,72 Q 115,125 115,125 L 124,180 C 128,186 115,188 111,180 L 100,138 L 89,180 C 85,188 72,186 76,180 L 85,125 Q 85,125 84,72 Z" fill="#063994" />
+                <path d="M 85,85 C 65,115 50,115 30,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 115,85 C 135,115 145,115 155,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 100,102 c -3,-4.5 -8.5,-4.5 -8.5,1 c 0,5 6,9.5 8.5,12 c 2.5,-2.5 8.5,-7 8.5,-12 c 0,-5.5 -5.5,-5.5 -8.5,-1" fill="#3fc3ee" />
+
+                <!-- KID 2 -->
+                <path d="M 183,45 Q 210,12 237,45 Q 244,72 234,75 Q 210,65 186,75 Q 176,72 183,45 Z" fill="#063994" />
+                <circle cx="210" cy="45" r="22" fill="#063994" />
+                <rect x="204" y="62" width="12" height="12" fill="#063994" />
+                <path d="M 194,72 L 226,72 Q 225,125 225,125 L 234,180 C 238,186 225,188 221,180 L 210,138 L 199,180 C 195,188 182,186 186,180 L 195,125 Q 195,125 194,72 Z" fill="#063994" />
+                <path d="M 195,85 C 175,115 165,115 155,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 225,85 C 245,115 255,115 265,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 210,102 c -3,-4.5 -8.5,-4.5 -8.5,1 c 0,5 6,9.5 8.5,12 c 2.5,-2.5 8.5,-7 8.5,-12 c 0,-5.5 -5.5,-5.5 -8.5,-1" fill="#3fc3ee" />
+
+                <!-- KID 3 -->
+                <path d="M 292,38 Q 320,10 348,38 Z" fill="#063994" />
+                <circle cx="320" cy="45" r="22" fill="#063994" />
+                <rect x="314" y="62" width="12" height="12" fill="#063994" />
+                <path d="M 304,72 L 336,72 Q 335,125 335,125 L 344,180 C 348,186 335,188 331,180 L 320,138 L 309,180 C 305,188 292,186 296,180 L 305,125 Q 305,125 304,72 Z" fill="#063994" />
+                <path d="M 305,85 C 285,115 275,115 265,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 335,85 C 355,115 365,115 375,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 320,102 c -3,-4.5 -8.5,-4.5 -8.5,1 c 0,5 6,9.5 8.5,12 c 2.5,-2.5 8.5,-7 8.5,-12 c 0,-5.5 -5.5,-5.5 -8.5,-1" fill="#3fc3ee" />
+
+                <!-- KID 4 -->
+                <path d="M 405,42 L 410,24 L 420,32 L 430,17 L 440,30 L 450,22 L 455,42" fill="#063994" />
+                <circle cx="430" cy="45" r="22" fill="#063994" />
+                <rect x="424" y="62" width="12" height="12" fill="#063994" />
+                <path d="M 414,72 L 446,72 Q 445,125 445,125 L 454,180 C 458,186 445,188 441,180 L 430,138 L 419,180 C 415,188 402,186 406,180 L 415,125 Q 415,125 414,72 Z" fill="#063994" />
+                <path d="M 415,85 C 395,115 385,115 375,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 445,85 C 465,115 475,115 485,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 430,102 c -3,-4.5 -8.5,-4.5 -8.5,1 c 0,5 6,9.5 8.5,12 c 2.5,-2.5 8.5,-7 8.5,-12 c 0,-5.5 -5.5,-5.5 -8.5,-1" fill="#3fc3ee" />
+
+                <!-- KID 5 -->
+                <circle cx="510" cy="40" r="10" fill="#063994" />
+                <circle cx="520" cy="25" r="12" fill="#063994" />
+                <circle cx="540" cy="22" r="12" fill="#063994" />
+                <circle cx="560" cy="28" r="11" fill="#063994" />
+                <circle cx="568" cy="42" r="10" fill="#063994" />
+                <circle cx="540" cy="45" r="22" fill="#063994" />
+                <rect x="533" y="62" width="12" height="12" fill="#063994" />
+                <path d="M 524,72 L 556,72 Q 555,125 555,125 L 564,180 C 568,186 555,188 551,180 L 540,138 L 529,180 C 525,188 512,186 516,180 L 525,125 Q 525,125 524,72 Z" fill="#063994" />
+                <path d="M 525,85 C 505,115 495,115 485,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 555,85 C 575,115 590,115 610,120" stroke="#063994" stroke-width="14" stroke-linecap="round" fill="none" />
+                <path d="M 540,102 c -3,-4.5 -8.5,-4.5 -8.5,1 c 0,5 6,9.5 8.5,12 c 2.5,-2.5 8.5,-7 8.5,-12 c 0,-5.5 -5.5,-5.5 -8.5,-1" fill="#3fc3ee" />
+              </svg>
+              <div class="voluntario-espiritas-subtitle">Voluntário Espírita</div>
+            </div>
+          </div>
+          
+          <div class="document-title-block">
+            <h1 class="title">TERMO DE ADESÃO A SERVIÇO VOLUNTÁRIO</h1>
+            <p class="subtitle">(Lei nº 9.608, de 18 de fevereiro de 1998)</p>
+          </div>
+
+          <div class="content">
+            <p class="paragraph">
+              <strong>1 - Centro Espírita Mirante de Luz (CEMIL)</strong>, organização religiosa sem fins lucrativos, inscrita no CNPJ 07.821.422/0001-77, situada na Rua Antônio Teixeira, nº 222 E, Conjunto Mirantes de Periperi, Periperi, Salvador/BA, CEP: 40.720-196, Consolação, neste ato representada por seu Presidente Sr. Altamir Airon Arruda, com endereço comercial no local supracitado.
+            </p>
+
+            <p class="paragraph">
+              <strong>2 - ${selectedWorkerForTerm.name.toUpperCase()}</strong>, residente na ${termWorkerData.address || "_________________________________"}, Bairro: ${termWorkerData.neighborhood || "___________"}, Cidade: ${termWorkerData.city || "___________"}, CEP: ${termWorkerData.cep || "___________"}, inscrito(a) no CPF sob o nº ${termWorkerData.cpf || "___________"}, portador(a) do RG nº ${termWorkerData.rg || "___________"}, de profissão ${termWorkerData.profession || "__________"}, nacionalidade ${termWorkerData.nationality || "__________"}.
+            </p>
+
+            <div class="section-title">Serviço Prestado</div>
+
+            <p class="paragraph">
+              <strong>3 -</strong> O Voluntário reconhece que alguns serviços são administrativo, mediúnico e doutrinário na casa espírita, nas dependências da organização, que funciona no mesmo endereço dela, por 20 horas semanais, no período da manhã, tarde ou noite, conforme disponibilidade do voluntário e vinculado à necessidade da entidade, dentro da capacitação do voluntário.
+            </p>
+
+            <p class="paragraph">
+              <strong>4 -</strong> O Voluntário declara conhecer que a prestação dos serviços acima não gera vínculo empregatício, nem obrigações de natureza trabalhista, previdenciária ou afim; que inexiste controle de frequência ou exigência de aviso prévio formal no caso de descontinuidade da relação objeto deste Termo.
+            </p>
+
+            <p class="paragraph">
+              <strong>5 -</strong> O Voluntário declara que é detentor de todas as condições necessárias ao desempenho dos serviços a que se compromete e que tem ciência de que, no caso de acarretar danos a terceiros, sejam decorrentes de dolo ou culpa, poderá ficar sujeito a arcar com os consequentes prejuízos.
+            </p>
+
+            <p class="paragraph">
+              <strong>6 -</strong> O Voluntário declara, espontaneamente, estar ciente e de acordo com os termos da Lei Federal nº 9.608 de 18/02/98, que dispõe sobre o serviço voluntário, cujo texto está transcrito no verso deste termo.
+            </p>
+
+            <p class="paragraph">
+              <strong>7 -</strong> O Voluntário AUTORIZA a instituição beneficiária, acima qualificada, a título gratuito e em caráter definitivo, irrevogável, irretratável e por prazo indeterminado, utilizar o seu nome e sua imagem e voz obtidas, captadas, gravadas e fotografadas nos trabalhos da instituição, bem como reproduzidas por qualquer forma de tecnologia para uso em atividades doutrinárias ou de divulgação, seja através de mídia virtual, impressa, televisiva, radiodifusão, palestras e seminários, dentre outros.
+            </p>
+
+            <p class="paragraph">
+              <strong>8 -</strong> O presente termo vigora pelo prazo de um ano, com início na data de sua assinatura, podendo qualquer das partes rescindi-lo quando lhe aprouver, sem qualquer ônus e independentemente de prévia comunicação.
+            </p>
+
+            <p class="paragraph subitem">
+              <strong>8.1) -</strong> Na ausência de manifestação das partes, o presente termo será sucessiva e automaticamente renovado por iguais períodos.
+            </p>
+          </div>
+
+          <div class="date-location">
+            Salvador, ${termDate}.
+          </div>
+
+          <div class="signatures-wrapper">
+            <div class="signature-block">
+              <div class="signature-line"></div>
+              <div class="signature-name">${selectedWorkerForTerm.name}</div>
+              <div class="signature-label">Voluntário(a)</div>
+            </div>
+
+            <div class="signature-block president">
+              <div class="signature-line"></div>
+              <div class="signature-name">Altamir Airon Arruda</div>
+              <div class="signature-label">Presidente - CEMIL</div>
+            </div>
+          </div>
+
+          <hr class="page-break" />
+
+          <div class="law-section">
+            <div class="law-title">LEI Nº 9.608, DE 18 DE FEVEREIRO DE 1998</div>
+            <p class="law-subtitle">Dispõe sobre o serviço voluntário e dá outras providências.</p>
+            
+            <p class="law-text">
+              <strong>Art. 1º</strong> Considera-se serviço voluntário, para os fins desta Lei, a atividade não remunerada prestada por pessoa física a entidade pública de qualquer natureza ou a instituição privada de fins não lucrativos que tenha objetivos cívicos, culturais, educacionais, científicos, recreativos ou de assistência à pessoa.
+            </p>
+            <p class="law-text italic font-bold">
+              <strong>Parágrafo único.</strong> O serviço voluntário não gera vínculo empregatício, nem obrigação de natureza trabalhista previdenciária ou afim.
+            </p>
+            <p class="law-text">
+              <strong>Art. 2º</strong> O serviço voluntário será exercido mediante a celebração de termo de adesão entre a entidade, pública ou privada, e o prestador do serviço voluntário, dele devendo constar o objeto e as condições de seu exercício.
+            </p>
+            <p class="law-text">
+              <strong>Art. 3º</strong> O prestador do serviço voluntário poderá ser ressarcido pelas despesas que comprovadamente realizar no desempenho das atividades voluntárias.
+            </p>
+            <p class="law-text italic font-bold">
+              <strong>Parágrafo único.</strong> As despesas a serem ressarcidas deverão estar expressamente autorizadas pela entidade a que for prestado o serviço voluntário.
+            </p>
+            <p class="law-text">
+              <strong>Art. 4º</strong> Esta Lei entra em vigor na data de sua publicação.
+            </p>
+            <p class="law-text">
+              <strong>Art. 5º</strong> Revogam-se as disposições em contrário.
+            </p>
+            <p class="law-footer">
+              Brasília, 18 de fevereiro de 1998; 177º da Independência e 110º da República.<br />
+              <strong>PRESIDÊNCIA DA REPÚBLICA - Fernando Henrique Cardoso</strong>
+            </p>
+          </div>
+        </div>
+      `;
+
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Termo de Voluntariado - ${selectedWorkerForTerm.name}</title>
+          <meta charset="utf-8" />
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;700;900&display=swap');
+            
+            body {
+              font-family: 'Inter', sans-serif;
+              color: #111827;
+              background-color: #ffffff;
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact;
+            }
+
+            .no-print-bar {
+              background-color: #4f46e5;
+              color: white;
+              padding: 12px 24px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-family: 'Space Grotesk', sans-serif;
+              box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            }
+
+            .no-print-bar h3 {
+              margin: 0;
+              font-size: 14px;
+              font-weight: 700;
+              letter-spacing: 0.5px;
+            }
+
+            .print-btn {
+              background-color: white;
+              color: #4f46e5;
+              border: none;
+              padding: 8px 16px;
+              font-weight: 700;
+              border-radius: 8px;
+              cursor: pointer;
+              font-size: 12px;
+              transition: all 0.2s;
+            }
+
+            .print-btn:hover {
+              background-color: #f3f4f6;
+            }
+
+            .contract-container {
+              max-width: 800px;
+              margin: 40px auto;
+              padding: 0 40px;
+              box-sizing: border-box;
+              line-height: 1.6;
+              font-size: 13.5px;
+            }
+
+            .brand-header {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              width: 100%;
+              margin-bottom: 25px;
+              border-bottom: 3px solid #063994;
+              padding-bottom: 15px;
+            }
+
+            .brand-left {
+              flex: 1;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+            }
+
+            .brand-divider {
+              width: 3.5px;
+              height: 120px;
+              background-color: #000000;
+              margin: 0 15px;
+              align-self: center;
+            }
+
+            .brand-right {
+              flex: 1.2;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+            }
+
+            .voluntario-espiritas-subtitle {
+              font-family: 'Space Grotesk', 'Playfair Display', 'Georgia', serif;
+              font-size: 21px;
+              font-weight: 700;
+              color: #063994;
+              text-align: center;
+              letter-spacing: -0.3px;
+              line-height: 1.2;
+              margin-top: 5px;
+              text-shadow: 1px 1px 1px rgba(0,0,0,0.05);
+            }
+
+            .document-title-block {
+              text-align: center;
+              margin-top: 15px;
+              margin-bottom: 25px;
+            }
+
+            .title {
+              font-family: 'Space Grotesk', sans-serif;
+              font-weight: 950;
+              font-size: 16px;
+              margin: 0 0 5px 0;
+              letter-spacing: -0.5px;
+              color: #111827;
+            }
+
+            .subtitle {
+              margin: 0;
+              font-size: 10px;
+              font-weight: 700;
+              color: #6b7280;
+              letter-spacing: 1px;
+              text-transform: uppercase;
+            }
+
+            .section-title {
+              font-family: 'Space Grotesk', sans-serif;
+              font-size: 14px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-top: 25px;
+              margin-bottom: 15px;
+              color: #374151;
+              border-left: 3px solid #4f46e5;
+              padding-left: 10px;
+            }
+
+            .paragraph {
+              text-align: justify;
+              margin-bottom: 16px;
+              text-indent: 2em;
+            }
+
+            .paragraph.subitem {
+              margin-left: 2em;
+              text-indent: 0;
+            }
+
+            .date-location {
+              margin-top: 40px;
+              margin-bottom: 50px;
+              text-align: right;
+              font-weight: 700;
+            }
+
+            .signatures-wrapper {
+              margin-top: 50px;
+              margin-bottom: 50px;
+              display: flex;
+              justify-content: space-between;
+            }
+
+            .signature-block {
+              display: inline-block;
+              width: 45%;
+              text-align: center;
+            }
+
+            .signature-line {
+              width: 85%;
+              margin: 0 auto;
+              border-top: 1px solid #374151;
+              margin-bottom: 8px;
+            }
+
+            .signature-name {
+              font-weight: 700;
+              font-size: 12px;
+            }
+
+            .signature-label {
+              font-size: 11px;
+              color: #6b7280;
+              text-transform: uppercase;
+              font-weight: 500;
+            }
+
+            .page-break {
+              display: none;
+              page-break-after: always;
+              border: none;
+              margin: 50px 0;
+            }
+
+            .law-section {
+              margin-top: 60px;
+              border-top: 1px dashed #d1d5db;
+              padding-top: 40px;
+              font-size: 11px;
+              color: #4b5563;
+              line-height: 1.5;
+            }
+
+            .law-title {
+              font-family: 'Space Grotesk', sans-serif;
+              font-weight: 950;
+              font-size: 13px;
+              text-align: center;
+              color: #1f2937;
+              margin-bottom: 4px;
+            }
+
+            .law-subtitle {
+              text-align: center;
+              margin-bottom: 20px;
+              font-weight: 700;
+              font-size: 10px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+
+            .law-text {
+              text-align: justify;
+              margin-bottom: 12px;
+            }
+
+            .law-text.italic {
+              font-style: italic;
+            }
+
+            .law-text.font-bold {
+              font-weight: 700;
+            }
+
+            .law-footer {
+              margin-top: 25px;
+              text-align: center;
+              font-size: 9px;
+              font-weight: 500;
+              color: #9ca3af;
+              line-height: 1.4;
+            }
+
+            @media print {
+              body {
+                background: #ffffff;
+                padding: 0;
+              }
+              .no-print-bar {
+                display: none !important;
+              }
+              .contract-container {
+                margin: 0;
+                padding: 0;
+                max-width: 100%;
+              }
+              .page-break {
+                display: block;
+                height: 0;
+                page-break-after: always;
+              }
+              .law-section {
+                border-top: none;
+                margin-top: 0;
+                padding-top: 20px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print-bar">
+            <h3>SISTEMA DE IMPRESSÃO INTEGRADA CEMIL</h3>
+            <button class="print-btn" onclick="window.print()">Imprimir Agora</button>
+          </div>
+          ${elementHtml}
+        </body>
+        </html>
+      `);
+      
+      printWin.document.close();
+      setSelectedWorkerForTerm(null);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar dados do termo.");
+    }
+  };
 
   useEffect(() => {
     if (location.state?.filterPending) {
@@ -84,6 +633,14 @@ export const SettingsPage: React.FC = () => {
     bloodType: "",
     allergies: "",
     emergencyContact: "",
+    cpf: "",
+    rg: "",
+    address: "",
+    cep: "",
+    neighborhood: "",
+    city: "Salvador",
+    profession: "",
+    nationality: "brasileira",
   });
   const [newSector, setNewSector] = useState({
     name: "",
@@ -152,18 +709,38 @@ export const SettingsPage: React.FC = () => {
       phone: "",
       role: "VOLUNTARIO",
       position: "",
-      sectorId: "",
+      sectorId: (currentUser?.role === "COORDENADOR" && currentUser.sectorId) ? currentUser.sectorId : "",
       photoUrl: "",
       acceptedTerm: false,
       bloodType: "",
       allergies: "",
       emergencyContact: "",
+      cpf: "",
+      rg: "",
+      address: "",
+      cep: "",
+      neighborhood: "",
+      city: "Salvador",
+      profession: "",
+      nationality: "brasileira",
     });
     setWorkerPassword("");
+    setForcePasswordChange(true);
+    setShowCreatedPassword(false);
     setHasTempPermission(false);
     setTempRole("SECRETARIO");
     setTempDurationValue(1);
     setTempDurationUnit("days");
+  };
+
+  const generateRandomPassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*";
+    let generated = "";
+    for (let i = 0; i < 8; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setWorkerPassword(generated);
+    setShowCreatedPassword(true); // Automatically show the password to the admin so they can copy it
   };
 
   useEffect(() => {
@@ -203,6 +780,14 @@ export const SettingsPage: React.FC = () => {
       bloodType: w.bloodType || "",
       allergies: w.allergies || "",
       emergencyContact: w.emergencyContact || "",
+      cpf: w.cpf || "",
+      rg: w.rg || "",
+      address: w.address || "",
+      cep: w.cep || "",
+      neighborhood: w.neighborhood || "",
+      city: w.city || "Salvador",
+      profession: w.profession || "",
+      nationality: w.nationality || "brasileira",
     });
 
     const active = !!(w.tempRole && w.tempRoleExpiry && Date.now() < w.tempRoleExpiry);
@@ -295,7 +880,7 @@ export const SettingsPage: React.FC = () => {
       }
 
       console.log("Preparing payload for worker:", normalizedEmail);
-      const payload = {
+      const payload: any = {
         ...newWorker,
         email: normalizedEmail,
         termAcceptedAt: newWorker.acceptedTerm ? Date.now() : undefined,
@@ -306,6 +891,7 @@ export const SettingsPage: React.FC = () => {
               ? tempDurationValue * 24 * 60 * 60 * 1000
               : tempDurationValue * 60 * 60 * 1000)
           : null,
+        mustChangePassword: editingWorker ? undefined : forcePasswordChange,
       };
 
       if (editingWorker) {
@@ -539,7 +1125,7 @@ export const SettingsPage: React.FC = () => {
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-50 transition-all shadow-sm"
                 />
               </div>
-              {isAdmin && (
+              {(isAdmin || currentUser?.role === "COORDENADOR") && (
                 <button
                   onClick={() => setIsAddingWorker(true)}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 shrink-0"
@@ -722,6 +1308,13 @@ export const SettingsPage: React.FC = () => {
                           {canEdit && (
                             <>
                               <button
+                                onClick={() => handleOpenTermModal(w)}
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                title="Gerar Termo de Voluntariado"
+                              >
+                                <FileText size={14} />
+                              </button>
+                              <button
                                 onClick={() => handleEditWorker(w)}
                                 className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                                 title="Editar"
@@ -742,6 +1335,21 @@ export const SettingsPage: React.FC = () => {
                           )}
                         </div>
                       </div>
+
+                      {/* Botão de Ação Direta para Trabalhadores Ativos */}
+                      {w.active && canEdit && (
+                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest leading-none">Termos & Contratos:</span>
+                          <button
+                            onClick={() => handleOpenTermModal(w)}
+                            className="py-1.5 px-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[9px] uppercase tracking-widest rounded-lg flex items-center gap-1 transition-all"
+                            title="Gerar e Imprimir Termo de Voluntariado"
+                          >
+                            <FileText size={10} />
+                            Termo de Adesão
+                          </button>
+                        </div>
+                      )}
 
                       {/* Botão de Ação Direta para Solicitações Pendentes */}
                       {!w.active && canEdit && (
@@ -769,6 +1377,14 @@ export const SettingsPage: React.FC = () => {
                             >
                               <CheckCircle2 size={12} strokeWidth={3} />
                               Aprovar Cadastro
+                            </button>
+                            <button
+                              onClick={() => handleOpenTermModal(w)}
+                              className="py-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all flex items-center gap-1"
+                              title="Preencher e Imprimir Termo de Voluntariado"
+                            >
+                              <FileText size={10} />
+                              Termo
                             </button>
                             <button
                               onClick={() => handleEditWorker(w)}
@@ -1001,6 +1617,104 @@ export const SettingsPage: React.FC = () => {
                 }
               />
 
+              {/* Documentação e Endereço para Termo de Adesão (Item 2) */}
+              <div id="admin-secao-documentacao" className="p-5 bg-indigo-50/20 rounded-[24px] border border-indigo-100/30 space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 bg-indigo-600 rounded-lg text-white shrink-0">
+                    <ShieldCheck size={14} />
+                  </span>
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase text-indigo-950 tracking-wider">Dados do Termo de Voluntariado (Item 2)</h4>
+                    <p className="text-[9px] text-indigo-800/80 font-bold leading-relaxed">Informações obrigatórias para o preenchimento automático do contrato de serviço voluntário (Lei 9.608/98).</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">CPF</label>
+                    <input
+                      type="text"
+                      value={newWorker.cpf}
+                      onChange={e => setNewWorker({...newWorker, cpf: e.target.value})}
+                      placeholder="Ex: 313.211.515-00"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">RG</label>
+                    <input
+                      type="text"
+                      value={newWorker.rg}
+                      onChange={e => setNewWorker({...newWorker, rg: e.target.value})}
+                      placeholder="Ex: 24.394.89-7"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Profissão</label>
+                    <input
+                      type="text"
+                      value={newWorker.profession}
+                      onChange={e => setNewWorker({...newWorker, profession: e.target.value})}
+                      placeholder="Ex: professora letróloga"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Nacionalidade</label>
+                    <input
+                      type="text"
+                      value={newWorker.nationality}
+                      onChange={e => setNewWorker({...newWorker, nationality: e.target.value})}
+                      placeholder="Ex: brasileira"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Endereço Residencial Completo</label>
+                    <input
+                      type="text"
+                      value={newWorker.address}
+                      onChange={e => setNewWorker({...newWorker, address: e.target.value})}
+                      placeholder="Ex: Avenida Dom João VI, N°.195, Edf Aguassai, Apto 164"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Bairro</label>
+                    <input
+                      type="text"
+                      value={newWorker.neighborhood}
+                      onChange={e => setNewWorker({...newWorker, neighborhood: e.target.value})}
+                      placeholder="Ex: Brotas"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Cidade</label>
+                      <input
+                        type="text"
+                        value={newWorker.city}
+                        onChange={e => setNewWorker({...newWorker, city: e.target.value})}
+                        placeholder="Ex: Salvador"
+                        className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">CEP</label>
+                      <input
+                        type="text"
+                        value={newWorker.cep}
+                        onChange={e => setNewWorker({...newWorker, cep: e.target.value})}
+                        placeholder="Ex: 40.285-000"
+                        className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-gray-150 font-bold text-gray-700 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Emergency Medical Information Group */}
               <div className="p-5 bg-amber-50/50 rounded-[24px] border border-amber-100/50 space-y-4">
                 <div className="flex items-center gap-2">
@@ -1065,23 +1779,56 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               {!editingWorker && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">
-                    Senha Inicial
-                  </label>
-                  <div className="relative group/pass">
+                <div className="space-y-4 bg-gray-50/50 p-5 rounded-2xl border border-gray-150">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">
+                      Senha Inicial
+                    </label>
+                    <button
+                      type="button"
+                      onClick={generateRandomPassword}
+                      className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 border border-indigo-100"
+                    >
+                      <span>Gerar Senha Aleatória</span>
+                    </button>
+                  </div>
+                  <div className="relative group/pass animate-none">
                     <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 group-focus-within/pass:text-indigo-600 transition-colors">
                       <Lock size={18} />
                     </div>
                     <input
                       required
-                      type="password"
+                      type={showCreatedPassword ? "text" : "password"}
                       value={workerPassword}
                       onChange={(e) => setWorkerPassword(e.target.value)}
-                      className="w-full pl-12 pr-6 py-3.5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700"
+                      className="w-full pl-12 pr-12 py-3 bg-white border border-gray-200 focus:border-indigo-600 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all font-bold text-gray-750 text-sm"
                       placeholder="Mínimo 6 caracteres"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatedPassword(!showCreatedPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showCreatedPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
+
+                  <label className="flex items-start gap-3 select-none cursor-pointer group mt-2">
+                    <input
+                      type="checkbox"
+                      checked={forcePasswordChange}
+                      onChange={(e) => setForcePasswordChange(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-gray-700 group-hover:text-gray-900 transition-colors">
+                        Forçar alteração de senha no próximo acesso
+                      </span>
+                      <p className="text-[10px] text-gray-400 font-medium">
+                        O trabalhador será obrigado a cadastrar uma nova senha pessoal ao realizar o primeiro login.
+                      </p>
+                    </div>
+                  </label>
                 </div>
               )}
 
@@ -1103,10 +1850,14 @@ export const SettingsPage: React.FC = () => {
                     <option value="VOLUNTARIO">Voluntário</option>
                     <option value="ATENDENTE">Atendente</option>
                     <option value="RECEPCIONISTA">Recepcionista</option>
-                    <option value="SECRETARIO">Secretário</option>
-                    <option value="COORDENADOR">Coordenador</option>
-                    <option value="ADMIN">Administrador</option>
-                    <option value="ADM">ADM (Admin)</option>
+                    {(isAdmin || currentUser?.role === "ADM" || currentUser?.role === "ADMIN") && (
+                      <>
+                        <option value="SECRETARIO">Secretário</option>
+                        <option value="COORDENADOR">Coordenador</option>
+                        <option value="ADMIN">Administrador</option>
+                        <option value="ADM">ADM (Admin)</option>
+                      </>
+                    )}
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -1114,11 +1865,12 @@ export const SettingsPage: React.FC = () => {
                     Setor Principal
                   </label>
                   <select
+                    disabled={currentUser?.role === "COORDENADOR"}
                     value={newWorker.sectorId}
                     onChange={(e) =>
                       setNewWorker({ ...newWorker, sectorId: e.target.value })
                     }
-                    className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700"
+                    className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700 disabled:opacity-75"
                   >
                     <option value="">Acesso Geral</option>
                     {sectors.map((s) => {
@@ -1149,18 +1901,19 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               {/* Permissão Temporária Especial */}
-              <div className="p-5 bg-amber-50/50 rounded-[24px] border border-amber-100 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-black uppercase text-amber-950 flex items-center gap-2">
-                    <ShieldCheck size={14} className="text-amber-600" /> Permissão Temporária Especial
-                  </h3>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={hasTempPermission}
-                      onChange={(e) => setHasTempPermission(e.target.checked)}
-                      className="sr-only peer"
-                    />
+              {isAdmin && (
+                <div className="p-5 bg-amber-50/50 rounded-[24px] border border-amber-100 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black uppercase text-amber-950 flex items-center gap-2">
+                      <ShieldCheck size={14} className="text-amber-600" /> Permissão Temporária Especial
+                    </h3>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasTempPermission}
+                        onChange={(e) => setHasTempPermission(e.target.checked)}
+                        className="sr-only peer"
+                      />
                     <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
                   </label>
                 </div>
@@ -1226,6 +1979,7 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 )}
               </div>
+              )}
 
               <div className="p-5 bg-indigo-50/50 rounded-[24px] border border-indigo-100 space-y-4">
                 <h3 className="text-xs font-black uppercase text-indigo-900 flex items-center gap-2">
@@ -1704,6 +2458,170 @@ export const SettingsPage: React.FC = () => {
                 className="flex-1 py-3.5 bg-red-600 text-white font-black rounded-2xl shadow-xl shadow-red-100 hover:bg-red-700 transition-all"
               >
                 Confirmar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal do Termo de Adesão e Impressão */}
+      {selectedWorkerForTerm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-indigo-950/40 backdrop-blur-sm"
+            onClick={() => setSelectedWorkerForTerm(null)}
+          />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="relative w-full max-w-2xl bg-white rounded-[32px] shadow-2xl p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <span className="p-2 bg-indigo-50 text-indigo-600 rounded-2xl">
+                  <FileText size={24} />
+                </span>
+                <div>
+                  <h3 className="text-xl font-black text-gray-950 tracking-tight">
+                    Termo de Voluntariado
+                  </h3>
+                  <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                    Preenchimento Automático do Item 2
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedWorkerForTerm(null)}
+                className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100/30 space-y-2">
+              <p className="text-xs text-indigo-950 font-bold leading-relaxed">
+                Revise ou preencha as informações do voluntário <strong>{selectedWorkerForTerm.name}</strong> para o preenchimento da Cláusula 2 do termo contratual sob a Lei nº 9.608/98.
+              </p>
+              <p className="text-[10px] text-indigo-800/80 font-medium leading-normal">
+                Ao salvar e imprimir, estas informações serão gravadas definitivamente no cadastro do voluntário no Firestore e uma aba de impressão otimizada será iniciada automaticamente.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">CPF do Voluntário</label>
+                <input
+                  type="text"
+                  value={termWorkerData.cpf}
+                  onChange={e => setTermWorkerData({...termWorkerData, cpf: e.target.value})}
+                  placeholder="Ex: 313.211.515-00"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">RG do Voluntário</label>
+                <input
+                  type="text"
+                  value={termWorkerData.rg}
+                  onChange={e => setTermWorkerData({...termWorkerData, rg: e.target.value})}
+                  placeholder="Ex: 24.394.89-7"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Profissão</label>
+                <input
+                  type="text"
+                  value={termWorkerData.profession}
+                  onChange={e => setTermWorkerData({...termWorkerData, profession: e.target.value})}
+                  placeholder="Ex: professora letróloga"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Nacionalidade</label>
+                <input
+                  type="text"
+                  value={termWorkerData.nationality}
+                  onChange={e => setTermWorkerData({...termWorkerData, nationality: e.target.value})}
+                  placeholder="Ex: brasileira"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Endereço Completo</label>
+                <input
+                  type="text"
+                  value={termWorkerData.address}
+                  onChange={e => setTermWorkerData({...termWorkerData, address: e.target.value})}
+                  placeholder="Ex: Avenida Dom João VI, N°.195, Edf Aguassai, Apto 164"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Bairro</label>
+                <input
+                  type="text"
+                  value={termWorkerData.neighborhood}
+                  onChange={e => setTermWorkerData({...termWorkerData, neighborhood: e.target.value})}
+                  placeholder="Ex: Brotas"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">Cidade</label>
+                  <input
+                    type="text"
+                    value={termWorkerData.city}
+                    onChange={e => setTermWorkerData({...termWorkerData, city: e.target.value})}
+                    placeholder="Ex: Salvador"
+                    className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block">CEP</label>
+                  <input
+                    type="text"
+                    value={termWorkerData.cep}
+                    onChange={e => setTermWorkerData({...termWorkerData, cep: e.target.value})}
+                    placeholder="Ex: 40.285-000"
+                    className="w-full px-4 py-3 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-transparent focus:bg-white focus:border-indigo-600 font-bold text-gray-700 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5 md:col-span-2 border-t border-gray-100 pt-4">
+                <label className="text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-1 block">Data de Assinatura por Extenso</label>
+                <input
+                  type="text"
+                  value={termDate}
+                  onChange={e => setTermDate(e.target.value)}
+                  placeholder="Ex: 22 de fevereiro de 2026"
+                  className="w-full px-5 py-3.5 bg-indigo-50/30 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 transition-all border border-indigo-100/50 focus:bg-white focus:border-indigo-600 font-bold text-gray-800 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => setSelectedWorkerForTerm(null)}
+                className="flex-1 py-3.5 font-bold text-gray-400 hover:bg-gray-50 rounded-2xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveAndPrintTerm}
+                className="flex-1.5 py-3.5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <Printer size={18} />
+                <span>Salvar & Gerar Termo</span>
               </button>
             </div>
           </motion.div>

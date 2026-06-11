@@ -84,6 +84,8 @@ service cloud.firestore {
       allow create: if 
         // 1. Admin can create any valid worker
         isAdmin() || 
+        // 1.1 Coordinator can create worker profiles ONLY for their own sector
+        (isCoordinator() && isValidWorker(incoming()) && incoming().sectorId == getUserData().sectorId && !(incoming().role in ['ADMIN', 'ADM'])) ||
         // 2. The super admin can bootstrap or sync their own profile
         (isSuperAdmin() && request.auth.uid == workerId) ||
         // 3. A newly created user (via Auth) can create their own worker profile as volunteer
@@ -94,10 +96,15 @@ service cloud.firestore {
       allow update: if 
         isAdmin() || 
         isSuperAdmin() ||
+        // Coordinator can update workers of their own sector
+        (isCoordinator() && existing().sectorId == getUserData().sectorId && incoming().sectorId == getUserData().sectorId && !(incoming().role in ['ADMIN', 'ADM'])) ||
         (isSignedIn() && request.auth.uid == workerId && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoUrl', 'phone', 'observation', 'active', 'acceptedTerm', 'termAcceptedAt', 'lgpdConsent', 'lgpdDate']));
+         incoming().diff(existing()).affectedKeys().hasOnly([
+           'name', 'photoUrl', 'phone', 'observation', 'active', 'acceptedTerm', 'termAcceptedAt', 'lgpdConsent', 'lgpdDate',
+           'bloodType', 'allergies', 'emergencyContact', 'cpf', 'rg', 'address', 'cep', 'neighborhood', 'city', 'profession', 'nationality'
+         ]));
       
-      allow delete: if isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin() || (isCoordinator() && existing().sectorId == getUserData().sectorId);
     }
 
     // Sectors: Public read for registration

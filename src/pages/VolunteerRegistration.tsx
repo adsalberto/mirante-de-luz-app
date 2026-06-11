@@ -39,7 +39,15 @@ export default function VolunteerRegistration() {
     observation: '',
     bloodType: '',
     allergies: '',
-    emergencyContact: ''
+    emergencyContact: '',
+    cpf: '',
+    rg: '',
+    address: '',
+    cep: '',
+    neighborhood: '',
+    city: 'Salvador',
+    profession: '',
+    nationality: 'brasileira'
   });
 
   useEffect(() => {
@@ -124,6 +132,14 @@ export default function VolunteerRegistration() {
         bloodType: formData.bloodType || '',
         allergies: formData.allergies || '',
         emergencyContact: formData.emergencyContact || '',
+        cpf: formData.cpf || '',
+        rg: formData.rg || '',
+        address: formData.address || '',
+        cep: formData.cep || '',
+        neighborhood: formData.neighborhood || '',
+        city: formData.city || 'Salvador',
+        profession: formData.profession || '',
+        nationality: formData.nationality || 'brasileira',
       });
       
       setIsSuccess(true);
@@ -310,6 +326,111 @@ export default function VolunteerRegistration() {
                     <option key={s.id} value={s.id}>{formatSectorName(s.name)}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Documentação e Endereço para Termo de Adesão (Item 2) */}
+              <div id="secao-documentacao-termo" className="md:col-span-2 p-5 bg-indigo-50/30 rounded-2xl border border-indigo-100 space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 bg-indigo-600 rounded-lg text-white">
+                    <ShieldCheck size={14} />
+                  </span>
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase text-indigo-950 tracking-wider">Dados Auxiliares de Voluntário (Item 2 - Termo de Adesão)</h4>
+                    <p className="text-[9px] text-indigo-700/80 font-bold">Estas informações preenchem automaticamente seu Termo Oficial de Voluntariado para assinatura física ou digital.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">CPF</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.cpf}
+                      onChange={e => setFormData({...formData, cpf: e.target.value})}
+                      placeholder="Ex: 000.000.000-00"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">RG</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.rg}
+                      onChange={e => setFormData({...formData, rg: e.target.value})}
+                      placeholder="Ex: 00.000.000-0"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">Profissão</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.profession}
+                      onChange={e => setFormData({...formData, profession: e.target.value})}
+                      placeholder="Ex: professora letróloga, autônomo, estudante..."
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">Nacionalidade</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.nationality}
+                      onChange={e => setFormData({...formData, nationality: e.target.value})}
+                      placeholder="Ex: brasileira, portuguesa, etc."
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">Endereço Residencial (Rua / Av., Nº, Apto, Edf.)</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address}
+                      onChange={e => setFormData({...formData, address: e.target.value})}
+                      placeholder="Ex: Avenida Dom João VI, N°.195, Edf Aguassai, Apto 164"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">Bairro</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.neighborhood}
+                      onChange={e => setFormData({...formData, neighborhood: e.target.value})}
+                      placeholder="Ex: Brotas"
+                      className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">Cidade</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.city}
+                        onChange={e => setFormData({...formData, city: e.target.value})}
+                        className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-500 tracking-wider ml-1">CEP</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.cep}
+                        onChange={e => setFormData({...formData, cep: e.target.value})}
+                        placeholder="Ex: 40.285-000"
+                        className="w-full px-4 py-3 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-200 transition-all border border-transparent focus:bg-white focus:border-indigo-600 ring-1 ring-gray-200 focus:ring-2 font-medium text-gray-700 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Ficha Médica de Emergência */}
