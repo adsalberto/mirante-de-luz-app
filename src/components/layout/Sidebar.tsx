@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck, Package, ShoppingCart, CreditCard } from 'lucide-react';
+import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck, Package, ShoppingCart, CreditCard, Target, Headphones, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
@@ -48,9 +48,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
     { to: '/agenda', icon: CalendarIcon, label: 'Agenda', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'PALESTRANTE'] },
     { to: '/escalas', icon: CalendarCheck, label: 'Escalas', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/vendas', icon: ShoppingCart, label: 'Vendas (PDV)', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
+    { to: '/audiobooks', icon: Headphones, label: 'Audiobooks', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
+    { to: '/mascote', icon: Sparkles, label: 'Mascote & Projeção', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
     { to: '/palestrantes', icon: Mic2, label: 'Palestrantes', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'PALESTRANTE'] },
     { to: '/relatorios', icon: BarChart3, label: 'Relatórios', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
     { to: '/setores', icon: Building2, label: 'Setores', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
+    { to: '/planejamento', icon: Target, label: 'Planejamento', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
     { to: '/inventario', icon: Package, label: 'Inventário', roles: ['ADMIN', 'ADM', 'SECRETARIO'] },
     { to: '/trabalhadores', icon: Settings, label: 'Trabalhadores/RH', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },
     { to: '/logs', icon: ShieldCheck, label: 'Logs de Auditoria', roles: ['ADMIN', 'ADM'] },
@@ -58,6 +61,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
 
   const filteredItems = navItems.filter(item => {
     if (!user || !user.role) return false;
+
+    // Acesso ao planejamento restrito apenas para ADMIN/ADM ou cargo "Secretário(a) de Planejamento"
+    if (item.to === '/planejamento') {
+      const isUserAdmin = user.role === 'ADMIN' || user.role === 'ADM' || user.email === 'carlostecal35@gmail.com';
+      const isPlanejamentoSec = user.position && [
+        'secretário de planejamento',
+        'secretário(a) de planejamento',
+        'secretária de planejamento',
+        'secretario de planejamento',
+        'secretario(a) de planejamento',
+        'secretaria de planejamento'
+      ].includes(user.position.toLowerCase());
+      
+      return !!(isUserAdmin || isPlanejamentoSec);
+    }
+
     if (isAdmin) return true; // Admins see everything
     return item.roles.includes(user.role);
   });

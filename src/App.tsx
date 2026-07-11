@@ -26,6 +26,9 @@ import DonationLandingPage from './pages/DonationLandingPage';
 import { VendasPage } from './pages/VendasPage';
 import CredentialsPage from './pages/CredentialsPage';
 import ChangeTempPassword from './components/ChangeTempPassword';
+import { PlanejamentoPage } from './pages/PlanejamentoPage';
+import { AudiobooksPage } from './pages/AudiobooksPage';
+import { MascotPage } from './pages/MascotPage';
 
 function AppRoutes() {
   const { currentUser, fbUser, loading, logout } = useAuth();
@@ -84,12 +87,30 @@ function AppRoutes() {
                 <Route path="/relatorios" element={<ReportsPage />} />
                 <Route path="/vendas" element={<VendasPage />} />
                 <Route path="/credenciais" element={<CredentialsPage />} />
+                <Route path="/audiobooks" element={<AudiobooksPage />} />
+                <Route path="/mascote" element={<MascotPage />} />
                 
                 {/* Admin & Secretary/Coordinator routes */}
                 <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'ADM', 'SECRETARIO', 'COORDENADOR']} />}>
                   <Route path="/trabalhadores" element={<SettingsPage />} />
                   <Route path="/setores" element={<SectorsPage />} />
                 </Route>
+
+                {/* Acesso ao Planejamento restrito apenas para ADMIN/ADM ou cargo "Secretário(a) de Planejamento" */}
+                <Route path="/planejamento" element={
+                  currentUser && (
+                    currentUser.role === 'ADMIN' || 
+                    currentUser.role === 'ADM' || 
+                    (currentUser.position && [
+                      'secretário de planejamento',
+                      'secretário(a) de planejamento',
+                      'secretária de planejamento',
+                      'secretario de planejamento',
+                      'secretario(a) de planejamento',
+                      'secretaria de planejamento'
+                    ].includes(currentUser.position.toLowerCase()))
+                  ) ? <PlanejamentoPage /> : <Navigate to="/" replace />
+                } />
 
                 {/* Strictly Admin only logs */}
                 <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'ADM']} />}>
