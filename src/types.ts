@@ -395,4 +395,78 @@ export interface DoutrinarioDiretriz {
   observations?: string;
 }
 
+export interface SocialImpactMetric {
+  id: string;
+  category: 'CESTAS_BASICAS' | 'ATENDIMENTOS_FRATERNOS' | 'PASSES_MINISTRADOS' | 'REFEICOES_SOPAO' | 'LIVROS_DOADOS' | 'HORAS_VOLUNTARIAS';
+  title: string;
+  targetCount: number;
+  currentCount: number;
+  period: 'MENSAL' | 'ANUAL';
+  monthYear: string; // e.g. "08/2026"
+  notes?: string;
+  updatedAt: number;
+}
+
+export interface AnnouncementNotification {
+  id: string;
+  title: string;
+  content: string;
+  category: 'GERAL' | 'URGENTE' | 'ESCALA' | 'EVENTO' | 'ESPIRITUAL';
+  priority: 'ALTA' | 'MEDIA' | 'BAIXA';
+  targetAudience: 'TODOS' | 'VOLUNTARIOS' | 'FREQUENTADORES' | 'COORDENADORES';
+  displayOnMascotProjection: boolean;
+  active: boolean;
+  createdAt: number;
+  authorName: string;
+}
+
+export interface BookLoan {
+  id: string;
+  bookTitle: string;
+  bookIsbnOrCode?: string;
+  borrowerName: string;
+  borrowerContact: string;
+  loanDate: string; // YYYY-MM-DD
+  dueDate: string;  // YYYY-MM-DD
+  returnDate?: string;
+  status: 'EMPRESTADO' | 'DEVOLVIDO' | 'ATRASADO';
+  notes?: string;
+}
+
+export interface FinancialEntry {
+  id: string;
+  description: string;
+  amount: number;
+  type: 'RECEITA' | 'DESPESA';
+  category: 'DOACAO' | 'LIVRARIA_BAZAR' | 'EVENTO' | 'MANUTENCAO' | 'CONTAS_CONSUMO' | 'ASSISTENCIA_SOCIAL' | 'OUTROS';
+  date: string; // YYYY-MM-DD
+  paymentMethod: 'PIX' | 'DINHEIRO' | 'CARTAO' | 'TRANSFERENCIA';
+  proofUrl?: string;
+  createdBy: string;
+}
+
+export interface AttendanceCheckIn {
+  id: string;
+  participantId: string;
+  participantName: string;
+  role: 'VOLUNTARIO' | 'FREQUENTADOR' | 'ATENDIDO' | 'PALESTRANTE';
+  sectorOrActivity: string;
+  timestamp: number;
+  method: 'QR_CODE' | 'CODIGO_BARRAS' | 'MANUAL';
+  status: 'PRESENTE' | 'JUSTIFICADO';
+}
+
+export interface ScheduleReminder {
+  id: string;
+  workerName: string;
+  workerPhone: string;
+  sectorName: string;
+  date: string;
+  shift: string;
+  sentAt?: number;
+  status: 'PENDENTE' | 'ENVIADO' | 'CONFIRMADO' | 'CANCELADO';
+}
+
+
+
 

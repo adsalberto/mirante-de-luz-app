@@ -28,7 +28,12 @@ import {
   ChevronRight,
   ArrowRightLeft,
   CalendarRange,
-  CornerDownRight
+  CornerDownRight,
+  Printer,
+  Download,
+  RefreshCw,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -53,6 +58,8 @@ import {
   IntersectorDemand,
   COORDINATIONS
 } from '../services/planejamentoData';
+import { dataService } from '../services/dataService';
+import { FinancialEntry, SectorSchedule } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 
@@ -69,6 +76,12 @@ export function PlanejamentoPage() {
   const [meetings, setMeetings] = useState<MeetingMinutes[]>([]);
   const [documents, setDocuments] = useState<PlanningDocument[]>([]);
   const [demands, setDemands] = useState<IntersectorDemand[]>([]);
+
+  // Integrated Real Financial & Operational States
+  const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>([]);
+  const [houseSchedules, setHouseSchedules] = useState<SectorSchedule[]>([]);
+  const [loadingAsync, setLoadingAsync] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Search/Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,7 +113,8 @@ export function PlanejamentoPage() {
     loadAllData();
   }, []);
 
-  const loadAllData = () => {
+  const loadAllData = async () => {
+    // Fast initial sync load from local cache
     setPlans(planejamentoService.getPlans());
     setGoals(planejamentoService.getGoals());
     setProjects(planejamentoService.getProjects());
@@ -109,6 +123,36 @@ export function PlanejamentoPage() {
     setMeetings(planejamentoService.getMeetings());
     setDocuments(planejamentoService.getDocuments());
     setDemands(planejamentoService.getDemands());
+
+    setLoadingAsync(true);
+    try {
+      const [p, g, pr, ac, ev, me, doList, de, fin, sch] = await Promise.all([
+        planejamentoService.getPlansAsync(),
+        planejamentoService.getGoalsAsync(),
+        planejamentoService.getProjectsAsync(),
+        planejamentoService.getActivitiesAsync(),
+        planejamentoService.getEventsAsync(),
+        planejamentoService.getMeetingsAsync(),
+        planejamentoService.getDocumentsAsync(),
+        planejamentoService.getDemandsAsync(),
+        dataService.getFinancialEntries(),
+        dataService.getSchedules()
+      ]);
+      setPlans(p);
+      setGoals(g);
+      setProjects(pr);
+      setActivities(ac);
+      setEvents(ev);
+      setMeetings(me);
+      setDocuments(doList);
+      setDemands(de);
+      if (fin) setFinancialEntries(fin);
+      if (sch) setHouseSchedules(sch);
+    } catch (err) {
+      console.error('Error fetching async Firestore planning data:', err);
+    } finally {
+      setLoadingAsync(false);
+    }
   };
 
   const syncData = (type: string, updatedList: any[]) => {
@@ -312,6 +356,15 @@ export function PlanejamentoPage() {
   const inProgressGoalsCount = goals.filter(g => g.status === 'Em Execuição').length;
   const pendingDemandsCount = demands.filter(d => d.status === 'Aberta').length;
 
+  // Real-time Financial Integration Metrics
+  const totalPlannedBudget = projects.reduce((acc, p) => acc + (Number(p.budget) || 0), 0);
+  const totalRealExpenses = financialEntries.filter(e => e.type === 'DESPESA').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+  const totalRealRevenue = financialEntries.filter(e => e.type === 'RECEITA').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+  const budgetBalance = totalPlannedBudget - totalRealExpenses;
+  const avgGoalProgress = goals.length > 0 
+    ? Math.round(goals.reduce((acc, g) => acc + (Number(g.progress) || 0), 0) / goals.length) 
+    : 0;
+
   // Custom visual calendar calculations
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState('2026-06');
   const getDaysInMonth = (yearMonth: string) => {
@@ -345,10 +398,25 @@ export function PlanejamentoPage() {
             Alinhamento estratégico, acompanhamento de metas institucionais e integração integrada entre os setores de caridade e ensino.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs transition-all shadow-md shadow-indigo-100 cursor-pointer active:scale-95"
+          >
+            <Printer size={15} />
+            <span>Relatório Executivo PDF/Impressão</span>
+          </button>
+          <button
+            onClick={loadAllData}
+            disabled={loadingAsync}
+            className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-2xl text-xs font-bold transition-all cursor-pointer"
+            title="Sincronizar com o Firestore"
+          >
+            <RefreshCw size={14} className={loadingAsync ? 'animate-spin text-indigo-600' : ''} />
+            <span className="hidden sm:inline">Sincronizar</span>
+          </button>
           <button
             onClick={() => {
-              // Easily trigger pre-seeded reset to show raw functionality
               if (window.confirm('Deseja resetar as informações deste módulo para o padrão pre-configurado da Secretaria?')) {
                 localStorage.removeItem('plan_plans');
                 localStorage.removeItem('plan_goals');
@@ -361,9 +429,9 @@ export function PlanejamentoPage() {
                 loadAllData();
               }
             }}
-            className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-2xl text-xs font-bold transition-all"
+            className="px-3 py-2.5 border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-2xl text-xs font-bold transition-all"
           >
-            Resetar Dados Demonstrativos
+            Resetar
           </button>
         </div>
       </header>
@@ -466,6 +534,63 @@ export function PlanejamentoPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Column: Core dynamic states in progress */}
               <div className="lg:col-span-8 space-y-6">
+                {/* Financial Execution Card */}
+                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl space-y-6 relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-indigo-800/60 pb-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-indigo-300 font-bold text-[10px] uppercase tracking-widest">
+                        <DollarSign size={14} className="text-emerald-400" />
+                        <span>Integração com Módulo Financeiro em Tempo Real</span>
+                      </div>
+                      <h2 className="text-xl font-black tracking-tight italic uppercase">Consolidação Orçamentária</h2>
+                    </div>
+                    <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                      <Sparkles size={12} /> Dados Atualizados
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 space-y-1">
+                      <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider block">Orçamento Planejado</span>
+                      <p className="text-xl font-black text-indigo-200">
+                        R$ {totalPlannedBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[9px] text-gray-400 font-medium italic">Somatório dos projetos</p>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 space-y-1">
+                      <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider block">Despesas Executadas</span>
+                      <p className="text-xl font-black text-rose-300">
+                        R$ {totalRealExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[9px] text-gray-400 font-medium italic">Lançamentos reais em caixa</p>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 space-y-1">
+                      <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider block">Receitas Arrecadadas</span>
+                      <p className="text-xl font-black text-emerald-300">
+                        R$ {totalRealRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[9px] text-gray-400 font-medium italic">Doações / Eventos / Entradas</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between text-[11px] font-bold text-indigo-200">
+                      <span>Execução Orçamentária dos Projetos</span>
+                      <span>
+                        {totalPlannedBudget > 0 ? Math.round((totalRealExpenses / totalPlannedBudget) * 100) : 0}% do limite planejado
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full bg-indigo-950 rounded-full overflow-hidden border border-indigo-800/50">
+                      <div 
+                        className="h-full bg-gradient-to-r from-emerald-400 to-indigo-400 rounded-full transition-all duration-500" 
+                        style={{ width: `${Math.min(100, totalPlannedBudget > 0 ? (totalRealExpenses / totalPlannedBudget) * 100 : 0)}%` }} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Active Projects progress timeline */}
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
                   <div className="flex items-center justify-between">
@@ -2330,6 +2455,189 @@ export function PlanejamentoPage() {
                 >
                   Confirmar Exclusão
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* MODAL 3: EXECUTIVE REPORT PRINT / PDF MODAL */}
+      <AnimatePresence>
+        {showReportModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              className="bg-white rounded-3xl border border-gray-100 max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] print:max-h-none print:shadow-none print:border-none print:rounded-none"
+            >
+              {/* Modal Top Toolbar (Hidden on print) */}
+              <div className="p-4 bg-gray-900 text-white flex justify-between items-center print:hidden">
+                <div className="flex items-center gap-2">
+                  <Printer className="text-indigo-400" size={18} />
+                  <span className="font-bold text-xs uppercase tracking-wider">Relatório Executivo de Planejamento Institucional</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+                  >
+                    <Printer size={14} /> Imprimir / Salvar PDF
+                  </button>
+                  <button
+                    onClick={() => setShowReportModal(false)}
+                    className="p-2 hover:bg-gray-800 rounded-xl text-gray-400 hover:text-white transition-all"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Document Body */}
+              <div className="p-8 sm:p-12 overflow-y-auto space-y-8 text-gray-900 font-sans print:p-0 print:overflow-visible">
+                {/* Official Letterhead Header */}
+                <div className="border-b-2 border-indigo-900 pb-6 text-center space-y-2">
+                  <div className="flex justify-center items-center gap-2 text-indigo-900 font-black tracking-widest text-xs uppercase">
+                    <Building2 size={18} />
+                    <span>SOCIEDADE ESPÍRITA MIRANTE DE LUZ</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-black text-gray-900 uppercase tracking-tight">
+                    RELATÓRIO EXECUTIVO DE PLANEJAMENTO E METAS
+                  </h1>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                    Secretaria de Planejamento e Organização • Emissão: {new Date().toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+
+                {/* Executive Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Planos Estratégicos</span>
+                    <p className="text-2xl font-black text-indigo-900">{plans.length}</p>
+                    <p className="text-[9px] text-gray-500 italic">Em vigor no ciclo</p>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Taxa Médio OKRs</span>
+                    <p className="text-2xl font-black text-emerald-600">{avgGoalProgress}%</p>
+                    <p className="text-[9px] text-gray-500 italic">{completedGoalsCount} concluídas</p>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Projetos Ativos</span>
+                    <p className="text-2xl font-black text-indigo-600">{activeProjectsCount}</p>
+                    <p className="text-[9px] text-gray-500 italic">Em execução</p>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Atas e Deliberações</span>
+                    <p className="text-2xl font-black text-purple-600">{meetings.length}</p>
+                    <p className="text-[9px] text-gray-500 italic">Reuniões registradas</p>
+                  </div>
+                </div>
+
+                {/* Financial Execution Summary Section */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider border-l-4 border-indigo-600 pl-3">
+                    Consolidação de Orçamento e Caixa (Módulo Financeiro)
+                  </h3>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-semibold">
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Orçamento Geral Planejado</span>
+                        <p className="text-base font-extrabold text-indigo-900">
+                          R$ {totalPlannedBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Despesas Reais Registradas</span>
+                        <p className="text-base font-extrabold text-rose-600">
+                          R$ {totalRealExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Receitas Arrecadadas</span>
+                        <p className="text-base font-extrabold text-emerald-600">
+                          R$ {totalRealRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Strategic Plans Table */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider border-l-4 border-indigo-600 pl-3">
+                    Planos Estratégicos Institucionais
+                  </h3>
+                  <table className="w-full text-left text-xs border-collapse border border-gray-200">
+                    <thead>
+                      <tr className="bg-gray-100 text-gray-700 font-bold uppercase text-[10px]">
+                        <th className="p-2 border border-gray-200">Ano</th>
+                        <th className="p-2 border border-gray-200">Título / Eixo</th>
+                        <th className="p-2 border border-gray-200">Setor Responsável</th>
+                        <th className="p-2 border border-gray-200">Prazo</th>
+                        <th className="p-2 border border-gray-200">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plans.map(p => (
+                        <tr key={p.id} className="border-b border-gray-200">
+                          <td className="p-2 border border-gray-200 font-bold">{p.year}</td>
+                          <td className="p-2 border border-gray-200 font-semibold">{p.title}</td>
+                          <td className="p-2 border border-gray-200">{p.responsible}</td>
+                          <td className="p-2 border border-gray-200">{p.deadline}</td>
+                          <td className="p-2 border border-gray-200 font-bold">{p.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Projects Table */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider border-l-4 border-indigo-600 pl-3">
+                    Projetos e Ações Prioritárias
+                  </h3>
+                  <table className="w-full text-left text-xs border-collapse border border-gray-200">
+                    <thead>
+                      <tr className="bg-gray-100 text-gray-700 font-bold uppercase text-[10px]">
+                        <th className="p-2 border border-gray-200">Projeto</th>
+                        <th className="p-2 border border-gray-200">Coordenador</th>
+                        <th className="p-2 border border-gray-200">Orçamento (R$)</th>
+                        <th className="p-2 border border-gray-200">Conclusão</th>
+                        <th className="p-2 border border-gray-200">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projects.map(p => {
+                        const totalTasks = p.tasks.length;
+                        const doneTasks = p.tasks.filter(t => t.done).length;
+                        const pct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+                        return (
+                          <tr key={p.id} className="border-b border-gray-200">
+                            <td className="p-2 border border-gray-200 font-bold">{p.name}</td>
+                            <td className="p-2 border border-gray-200">{p.coordinator}</td>
+                            <td className="p-2 border border-gray-200">R$ {p.budget.toLocaleString('pt-BR')}</td>
+                            <td className="p-2 border border-gray-200 font-semibold">{pct}% ({doneTasks}/{totalTasks})</td>
+                            <td className="p-2 border border-gray-200 font-bold">{p.status}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Signatures Area */}
+                <div className="pt-12 grid grid-cols-2 gap-8 text-center text-xs">
+                  <div className="border-t border-gray-400 pt-2 space-y-0.5">
+                    <p className="font-bold text-gray-900">Presidente da Diretoria Executiva</p>
+                    <p className="text-[10px] text-gray-500">Sociedade Espírita Mirante de Luz</p>
+                  </div>
+                  <div className="border-t border-gray-400 pt-2 space-y-0.5">
+                    <p className="font-bold text-gray-900">Diretor de Planejamento e Organização</p>
+                    <p className="text-[10px] text-gray-500">Secretaria Unificada</p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </div>

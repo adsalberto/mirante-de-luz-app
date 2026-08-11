@@ -1,0 +1,108 @@
+================================================================================
+GUIA OFICIAL DE INTEGRAÇÃO - WHATSAPP BUSINESS CLOUD API (META)
+Centro Espírita Mirante de Luz (CEMIL)
+================================================================================
+
+Este guia contém as instruções passo a passo para cadastrar, configurar e obter
+as credenciais oficiais da Meta (WhatsApp Cloud API) para envio automático e massivo
+de lembretes de escala, convocação de trabalhadores e avisos do mural.
+
+--------------------------------------------------------------------------------
+REQUISITOS PRÉVIOS
+--------------------------------------------------------------------------------
+1. Conta Pessoal no Facebook: Necessária para acessar o portal de desenvolvedores.
+2. Número de Telefone Dedicado: Um número exclusivo para a Casa Espírita (que não
+   esteja em uso em um aplicativo WhatsApp normal no celular).
+3. Gerenciador de Negócios da Meta (Meta Business Manager): Conta comercial da
+   instituição (com CNPJ ou dados da Casa Espírita).
+
+--------------------------------------------------------------------------------
+ETAPA 1: Cadastro no Portal Meta for Developers
+--------------------------------------------------------------------------------
+1. Acesse: https://developers.facebook.com/
+2. Faça login com a conta do Facebook responsável pela administração da Casa Espírita.
+3. Clique em "Começar" ou "Meus Apps" no canto superior direito.
+4. Conclua a verificação de conta digitando seu e-mail e número de confirmação via SMS.
+
+--------------------------------------------------------------------------------
+ETAPA 2: Criação do Aplicativo de Negócios
+--------------------------------------------------------------------------------
+1. No painel de Desenvolvedores, clique no botão azul "Criar App".
+2. Selecione o tipo de aplicativo: "Outro" ou "Negócios" (Business).
+3. Informe os detalhes do app:
+   - Nome do App: CEMIL - Lembretes de Escala
+   - E-mail de contato: E-mail oficial da secretaria/administração.
+   - Conta do Gerenciador de Negócios: Selecione a conta comercial da instituição.
+4. Clique em "Criar App" e digite sua senha do Facebook para confirmar.
+
+--------------------------------------------------------------------------------
+ETAPA 3: Adicionar o Produto WhatsApp
+--------------------------------------------------------------------------------
+1. No painel do seu app recém-criado, vá até "Adicionar produtos ao seu app".
+2. Localize o WhatsApp e clique em "Configurar".
+3. Selecione ou vincule sua conta do Gerenciador de Negócios Meta.
+4. Na tela "Painel do WhatsApp / Começar", identifique os campos:
+   - Identificação do Número de Telefone (Phone Number ID)
+   - Identificação da Conta do WhatsApp Business (WABA ID)
+
+--------------------------------------------------------------------------------
+ETAPA 4: Cadastrar o Número Oficial da Casa Espírita
+--------------------------------------------------------------------------------
+1. Vá até "Etapa 5: Adicionar número de telefone".
+2. Preencha os dados do perfil público:
+   - Nome de exibição: Centro Espírita Mirante de Luz
+   - Categoria: Organização sem fins lucrativos ou Religioso/Comunitário
+3. Digite o número de telefone fixo ou móvel exclusivo da instituição.
+4. Insira o código de 6 dígitos recebido por SMS ou ligação para confirmar.
+
+--------------------------------------------------------------------------------
+ETAPA 5: Gerar o Token de Acesso Permanente (System User Token)
+--------------------------------------------------------------------------------
+1. Acesse o Gerenciador de Negócios da Meta: https://business.facebook.com/
+2. Vá em Configurações do Negócio > Usuários > Usuários do Sistema.
+3. Clique em Adicionar:
+   - Nome: Bot_Escalas_CEMIL
+   - Função: Administrador
+4. Clique em Adicionar Ativos > Selecione o App (CEMIL - Lembretes de Escala) > Controle Total.
+5. Clique em "Gerar Novo Token":
+   - Selecione as permissões obrigatorias:
+     * whatsapp_business_messaging
+     * whatsapp_business_management
+6. COPIE E GUARDE O TOKEN GERADO EM LOCAL SEGURO (exibido apenas uma vez).
+
+--------------------------------------------------------------------------------
+ETAPA 6: Criar e Aprovar os Modelos de Mensagem (Templates HSM)
+--------------------------------------------------------------------------------
+1. No Gerenciador do WhatsApp, clique em "Criar modelo de mensagem".
+2. Crie o modelo:
+   - Categoria: UTILITY
+   - Nome do Modelo: lembrete_escala_voluntario
+   - Idioma: Portuguese (BR)
+3. Texto do modelo:
+   Olá, {{1}}! 🌿
+   Lembramos da sua escala de trabalho voluntário no Centro Espírita Mirante de Luz:
+   📅 Setor: {{2}}
+   ⏰ Data/Horário: {{3}}
+   Por favor, confirme sua presença respondendo esta mensagem.
+   Que a paz do Mestre Jesus acompanhe seus passos!
+
+4. Clique em Enviar para Análise (Aprovação entre 1 e 15 minutos).
+
+--------------------------------------------------------------------------------
+ETAPA 7: Inserir as Credenciais no Sistema (.env)
+--------------------------------------------------------------------------------
+WHATSAPP_CLOUD_API_TOKEN=EAAG...
+WHATSAPP_PHONE_NUMBER_ID=1092837465...
+WHATSAPP_BUSINESS_ACCOUNT_ID=987654321...
+WHATSAPP_TEMPLATE_NAME=lembrete_escala_voluntario
+
+--------------------------------------------------------------------------------
+RESUMO DAS CREDENCIAIS (ANOTE AQUI AO FINALIZAR):
+--------------------------------------------------------------------------------
+Phone Number ID: _______________
+WABA ID: _______________
+Token Permanente: _______________
+Modelo do Template: lembrete_escala_voluntario
+
+================================================================================
+Documento gerado para o Centro Espírita Mirante de Luz (CEMIL).

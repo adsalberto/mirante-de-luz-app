@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck, Package, ShoppingCart, CreditCard, Target, Headphones, Sparkles } from 'lucide-react';
+import { Layout, Users, ClipboardList, Clock, BarChart3, Settings, LogOut, Menu, X, ShieldCheck, Mic2, Calendar as CalendarIcon, Building2, CalendarCheck, Package, ShoppingCart, CreditCard, Target, Headphones, Sparkles, Bell, HeartHandshake } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
@@ -49,6 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
     { to: '/escalas', icon: CalendarCheck, label: 'Escalas', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/vendas', icon: ShoppingCart, label: 'Vendas (PDV)', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO'] },
     { to: '/audiobooks', icon: Headphones, label: 'Audiobooks', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
+    { to: '/avisos', icon: Bell, label: 'Mural de Avisos', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
+    { to: '/impacto-social', icon: HeartHandshake, label: 'Impacto Social', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
     { to: '/mascote', icon: Sparkles, label: 'Mascote & Projeção', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA', 'ATENDENTE', 'VOLUNTARIO', 'PALESTRANTE'] },
     { to: '/palestrantes', icon: Mic2, label: 'Palestrantes', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'PALESTRANTE'] },
     { to: '/relatorios', icon: BarChart3, label: 'Relatórios', roles: ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO'] },

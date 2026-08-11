@@ -29,6 +29,8 @@ import ChangeTempPassword from './components/ChangeTempPassword';
 import { PlanejamentoPage } from './pages/PlanejamentoPage';
 import { AudiobooksPage } from './pages/AudiobooksPage';
 import { MascotPage } from './pages/MascotPage';
+import { AvisosPage } from './pages/AvisosPage';
+import { ImpactoSocialPage } from './pages/ImpactoSocialPage';
 
 function AppRoutes() {
   const { currentUser, fbUser, loading, logout } = useAuth();
@@ -88,6 +90,8 @@ function AppRoutes() {
                 <Route path="/vendas" element={<VendasPage />} />
                 <Route path="/credenciais" element={<CredentialsPage />} />
                 <Route path="/audiobooks" element={<AudiobooksPage />} />
+                <Route path="/avisos" element={<AvisosPage />} />
+                <Route path="/impacto-social" element={<ImpactoSocialPage />} />
                 <Route path="/mascote" element={<MascotPage />} />
                 
                 {/* Admin & Secretary/Coordinator routes */}

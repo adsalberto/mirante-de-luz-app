@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
+import { dataService } from '../services/dataService';
 
 // Standard Interfaces for the Mascot Panel
 interface DailyActivity {
@@ -137,6 +138,24 @@ export const MascotPage: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('cemil_mascot_activities', JSON.stringify(activities));
   }, [activities]);
+
+  // Subscribe to real-time announcements from mural/dataService that are enabled for projection
+  useEffect(() => {
+    const unsub = dataService.subscribeAnnouncements((liveAnnouncements) => {
+      const projectionList = liveAnnouncements
+        .filter(a => a.displayOnMascotProjection && a.active)
+        .map(a => ({
+          id: a.id,
+          title: a.title,
+          content: a.content,
+          priority: (a.priority === 'ALTA' ? 'alta' : 'normal') as 'normal' | 'alta'
+        }));
+      if (projectionList.length > 0) {
+        setAnnouncements(projectionList);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('cemil_mascot_announcements', JSON.stringify(announcements));

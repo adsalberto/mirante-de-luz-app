@@ -32,7 +32,13 @@ import {
   DoutrinarioReuniao,
   DoutrinarioTrabalhador,
   DoutrinarioApoio,
-  DoutrinarioDiretriz
+  DoutrinarioDiretriz,
+  SocialImpactMetric,
+  AnnouncementNotification,
+  BookLoan,
+  FinancialEntry,
+  AttendanceCheckIn,
+  ScheduleReminder
 } from '../types';
 
 enum OperationType {
@@ -401,6 +407,17 @@ class DataService {
   }
 
   // --- SCHEDULES ---
+  async getSchedules(): Promise<SectorSchedule[]> {
+    const path = 'escalas';
+    try {
+      const snap = await getDocs(collection(db, path));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as SectorSchedule));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
   async getSchedulesByMonth(month: number, year: number) {
     const path = 'escalas';
     try {
@@ -992,6 +1009,297 @@ class DataService {
       this.createLog('Exclusão de Diretriz', `ID: ${id}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'doutrinario_diretrizes');
+    }
+  }
+
+  // --- IMPACTO SOCIAL & METAS DA CASA ---
+  async getSocialMetrics(): Promise<SocialImpactMetric[]> {
+    const path = 'social_metrics';
+    try {
+      const snap = await getDocs(collection(db, path));
+      if (snap.empty) {
+        // Default initial metrics if none exist
+        const initialMetrics: Omit<SocialImpactMetric, 'id'>[] = [
+          { category: 'CESTAS_BASICAS', title: 'Cestas Básicas Entregues', targetCount: 100, currentCount: 78, period: 'MENSAL', monthYear: '08/2026', updatedAt: Date.now() },
+          { category: 'ATENDIMENTOS_FRATERNOS', title: 'Atendimentos Fraternos Realizados', targetCount: 150, currentCount: 132, period: 'MENSAL', monthYear: '08/2026', updatedAt: Date.now() },
+          { category: 'PASSES_MINISTRADOS', title: 'Passes Energéticos Aplicados', targetCount: 500, currentCount: 410, period: 'MENSAL', monthYear: '08/2026', updatedAt: Date.now() },
+          { category: 'REFEICOES_SOPAO', title: 'Refeições/Marmitas Doadas (Sopão)', targetCount: 300, currentCount: 280, period: 'MENSAL', monthYear: '08/2026', updatedAt: Date.now() },
+          { category: 'HORAS_VOLUNTARIAS', title: 'Horas de Trabalho Voluntário', targetCount: 400, currentCount: 365, period: 'MENSAL', monthYear: '08/2026', updatedAt: Date.now() },
+        ];
+        const created: SocialImpactMetric[] = [];
+        for (const item of initialMetrics) {
+          const docRef = await addDoc(collection(db, path), item);
+          await updateDoc(docRef, { id: docRef.id });
+          created.push({ id: docRef.id, ...item });
+        }
+        return created;
+      }
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as SocialImpactMetric));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  async addSocialMetric(metric: Omit<SocialImpactMetric, 'id'>) {
+    const path = 'social_metrics';
+    try {
+      const docRef = await addDoc(collection(db, path), metric);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Nova Meta Social Criada', `Título: ${metric.title}`);
+      return { id: docRef.id, ...metric } as SocialImpactMetric;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateSocialMetric(metric: SocialImpactMetric) {
+    try {
+      await setDoc(doc(db, 'social_metrics', metric.id), metric);
+      this.createLog('Atualização de Meta Social', `Título: ${metric.title}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'social_metrics');
+    }
+  }
+
+  async deleteSocialMetric(id: string) {
+    try {
+      await deleteDoc(doc(db, 'social_metrics', id));
+      this.createLog('Exclusão de Meta Social', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'social_metrics');
+    }
+  }
+
+  // --- CENTRAL DE AVISOS E MURAL INTELIGENTE ---
+  async getAnnouncements(): Promise<AnnouncementNotification[]> {
+    const path = 'announcements';
+    try {
+      const snap = await getDocs(collection(db, path));
+      if (snap.empty) {
+        const defaultAvisos: Omit<AnnouncementNotification, 'id'>[] = [
+          { title: 'Reunião Geral de Voluntários', content: 'Lembrete: neste sábado às 15h teremos o encontro mensal de alinhamento das equipes de passe e recepção.', category: 'GERAL', priority: 'ALTA', targetAudience: 'VOLUNTARIOS', displayOnMascotProjection: true, active: true, createdAt: Date.now() - 3600000 * 2, authorName: 'Secretaria Geral' },
+          { title: 'Campanha do Agasalho e Cestas', content: 'Estamos arrecadando mantas, cobertores e alimentos não perecíveis no balcão da recepção.', category: 'EVENTO', priority: 'MEDIA', targetAudience: 'TODOS', displayOnMascotProjection: true, active: true, createdAt: Date.now() - 3600000 * 10, authorName: 'Setor de Assistência Social' },
+        ];
+        const list: AnnouncementNotification[] = [];
+        for (const av of defaultAvisos) {
+          const ref = await addDoc(collection(db, path), av);
+          await updateDoc(ref, { id: ref.id });
+          list.push({ id: ref.id, ...av });
+        }
+        return list;
+      }
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as AnnouncementNotification)).sort((a, b) => b.createdAt - a.createdAt);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  async addAnnouncement(announcement: Omit<AnnouncementNotification, 'id'>) {
+    const path = 'announcements';
+    try {
+      const docRef = await addDoc(collection(db, path), announcement);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Novo Aviso/Notificação', `Título: ${announcement.title}`);
+      return { id: docRef.id, ...announcement } as AnnouncementNotification;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateAnnouncement(announcement: AnnouncementNotification) {
+    try {
+      await setDoc(doc(db, 'announcements', announcement.id), announcement);
+      this.createLog('Atualização de Aviso', `Título: ${announcement.title}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'announcements');
+    }
+  }
+
+  async deleteAnnouncement(id: string) {
+    try {
+      await deleteDoc(doc(db, 'announcements', id));
+      this.createLog('Exclusão de Aviso', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'announcements');
+    }
+  }
+
+  subscribeAnnouncements(callback: (announcements: AnnouncementNotification[]) => void) {
+    const path = 'announcements';
+    try {
+      return onSnapshot(collection(db, path), (snap) => {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as AnnouncementNotification));
+        list.sort((a, b) => b.createdAt - a.createdAt);
+        callback(list);
+      }, (err) => {
+        handleFirestoreError(err, OperationType.GET, path);
+      });
+    } catch (error) {
+      console.error("Error subscribing to announcements:", error);
+      return () => {};
+    }
+  }
+
+  // --- BIBLIOTECA & EMPRÉSTIMO DE LIVROS ---
+  async getBookLoans(): Promise<BookLoan[]> {
+    const path = 'book_loans';
+    try {
+      const snap = await getDocs(collection(db, path));
+      if (snap.empty) {
+        const defaults: Omit<BookLoan, 'id'>[] = [
+          { bookTitle: 'O Livro dos Espíritos - Allan Kardec', borrowerName: 'Maria das Graças Silva', borrowerContact: '(11) 98888-7711', loanDate: '2026-08-01', dueDate: '2026-08-15', status: 'EMPRESTADO', notes: 'Obra de estudo do ESDE' },
+          { bookTitle: 'Nosso Lar - Chico Xavier / André Luiz', borrowerName: 'João Carlos Mendes', borrowerContact: '(11) 97777-6622', loanDate: '2026-07-20', dueDate: '2026-08-03', status: 'ATRASADO', notes: 'Enviado lembrete por mensagem' },
+          { bookTitle: 'O Evangelho Segundo o Espiritismo', borrowerName: 'Ana Beatriz Souza', borrowerContact: '(11) 96666-5533', loanDate: '2026-07-10', dueDate: '2026-07-24', returnDate: '2026-07-22', status: 'DEVOLVIDO' },
+        ];
+        const list: BookLoan[] = [];
+        for (const item of defaults) {
+          const docRef = await addDoc(collection(db, path), item);
+          await updateDoc(docRef, { id: docRef.id });
+          list.push({ id: docRef.id, ...item });
+        }
+        return list;
+      }
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as BookLoan));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  async addBookLoan(loan: Omit<BookLoan, 'id'>) {
+    const path = 'book_loans';
+    try {
+      const docRef = await addDoc(collection(db, path), loan);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Novo Empréstimo de Livro', `Livro: ${loan.bookTitle} | Leitor: ${loan.borrowerName}`);
+      return { id: docRef.id, ...loan } as BookLoan;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateBookLoan(loan: BookLoan) {
+    try {
+      await setDoc(doc(db, 'book_loans', loan.id), loan);
+      this.createLog('Atualização de Empréstimo', `Livro: ${loan.bookTitle} | Status: ${loan.status}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'book_loans');
+    }
+  }
+
+  async deleteBookLoan(id: string) {
+    try {
+      await deleteDoc(doc(db, 'book_loans', id));
+      this.createLog('Exclusão de Registro de Empréstimo', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'book_loans');
+    }
+  }
+
+  // --- GESTÃO FINANCEIRA & DRE ---
+  async getFinancialEntries(): Promise<FinancialEntry[]> {
+    const path = 'financial_entries';
+    try {
+      const snap = await getDocs(collection(db, path));
+      if (snap.empty) {
+        const defaults: Omit<FinancialEntry, 'id'>[] = [
+          { description: 'Doações via PIX - Bazar Beneficente', amount: 1450.00, type: 'RECEITA', category: 'DOACAO', date: '2026-08-05', paymentMethod: 'PIX', createdBy: 'Tesouraria' },
+          { description: 'Vendas da Livraria Espiritual', amount: 890.50, type: 'RECEITA', category: 'LIVRARIA_BAZAR', date: '2026-08-08', paymentMethod: 'DINHEIRO', createdBy: 'Recepção' },
+          { description: 'Conta de Energia Elétrica - Sede', amount: 620.40, type: 'DESPESA', category: 'CONTAS_CONSUMO', date: '2026-08-02', paymentMethod: 'PIX', createdBy: 'Administração' },
+          { description: 'Aquisição de Cestas Básicas para Sopão', amount: 1100.00, type: 'DESPESA', category: 'ASSISTENCIA_SOCIAL', date: '2026-08-06', paymentMethod: 'PIX', createdBy: 'Setor Social' },
+        ];
+        const list: FinancialEntry[] = [];
+        for (const item of defaults) {
+          const docRef = await addDoc(collection(db, path), item);
+          await updateDoc(docRef, { id: docRef.id });
+          list.push({ id: docRef.id, ...item });
+        }
+        return list;
+      }
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as FinancialEntry));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  async addFinancialEntry(entry: Omit<FinancialEntry, 'id'>) {
+    const path = 'financial_entries';
+    try {
+      const docRef = await addDoc(collection(db, path), entry);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog(`Lançamento Financeiro (${entry.type})`, `${entry.description} - R$ ${entry.amount}`);
+      return { id: docRef.id, ...entry } as FinancialEntry;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async deleteFinancialEntry(id: string) {
+    try {
+      await deleteDoc(doc(db, 'financial_entries', id));
+      this.createLog('Exclusão de Lançamento Financeiro', `ID: ${id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'financial_entries');
+    }
+  }
+
+  // --- FREQUÊNCIA INTELIGENTE POR QR CODE / CÓDIGO ---
+  async getAttendanceCheckIns(): Promise<AttendanceCheckIn[]> {
+    const path = 'attendance_checkins';
+    try {
+      const snap = await getDocs(collection(db, path));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceCheckIn)).sort((a, b) => b.timestamp - a.timestamp);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  async recordCheckIn(checkIn: Omit<AttendanceCheckIn, 'id'>) {
+    const path = 'attendance_checkins';
+    try {
+      const docRef = await addDoc(collection(db, path), checkIn);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Check-in de Frequência', `${checkIn.participantName} - ${checkIn.sectorOrActivity} (${checkIn.method})`);
+      return { id: docRef.id, ...checkIn } as AttendanceCheckIn;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  // --- CENTRAL DE LEMBRETES & NOTIFICAÇÕES DE ESCALA ---
+  async getScheduleReminders(): Promise<ScheduleReminder[]> {
+    const path = 'schedule_reminders';
+    try {
+      const snap = await getDocs(collection(db, path));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as ScheduleReminder));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  async addScheduleReminder(reminder: Omit<ScheduleReminder, 'id'>) {
+    const path = 'schedule_reminders';
+    try {
+      const docRef = await addDoc(collection(db, path), reminder);
+      await updateDoc(docRef, { id: docRef.id });
+      this.createLog('Lembrete de Escala Agendado', `${reminder.workerName} - ${reminder.sectorName} (${reminder.date})`);
+      return { id: docRef.id, ...reminder } as ScheduleReminder;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  }
+
+  async updateScheduleReminderStatus(id: string, status: ScheduleReminder['status']) {
+    try {
+      await updateDoc(doc(db, 'schedule_reminders', id), { status, sentAt: Date.now() });
+      this.createLog('Status do Lembrete de Escala Atualizado', `ID: ${id} | Status: ${status}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'schedule_reminders');
     }
   }
 }

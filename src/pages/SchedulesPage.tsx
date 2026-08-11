@@ -15,13 +15,17 @@ import {
   MoreVertical,
   CalendarCheck,
   Pencil,
-  ArrowLeft
+  ArrowLeft,
+  Printer,
+  Bell
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataService } from '../services/dataService';
 import { SectorSchedule, Worker, ScheduleAssignment, Sector, formatSectorName, SectorActivity } from '../types';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
+import { printFormattedReport } from '../lib/exportUtils';
+import { ScheduleRemindersModal } from '../components/ScheduleRemindersModal';
 
 export const SchedulesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -55,6 +59,7 @@ export const SchedulesPage: React.FC = () => {
 
   // Activity Modal states
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [isRemindersOpen, setIsRemindersOpen] = useState(false);
   const [selectedScheduleForActivity, setSelectedScheduleForActivity] = useState<SectorSchedule | null>(null);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [activityFormData, setActivityFormData] = useState({
@@ -723,6 +728,71 @@ export const SchedulesPage: React.FC = () => {
     }
   };
 
+  const handlePrintSchedule = () => {
+    const monthName = months[selectedMonth];
+    const title = `ESCALA DE TRABALHADORES E ATIVIDADES - ${monthName.toUpperCase()} / ${selectedYear}`;
+    
+    let html = `
+      <div style="margin-bottom: 20px;">
+        <p style="font-size: 14px; color: #475569; font-weight: 600;">Centro Espírita Mirante de Luz - Programação e Quadro Geral de Escalas</p>
+      </div>
+    `;
+
+    displaySchedules.forEach(schedule => {
+      html += `
+        <div style="margin-bottom: 30px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; background: #fafafa; page-break-inside: avoid;">
+          <h2 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #3b82f6; padding-bottom: 6px; font-size: 18px;">Setor: ${schedule.sectorName}</h2>
+          
+          <h3 style="font-size: 14px; margin-top: 12px; color: #1e293b; text-transform: uppercase; tracking: 1px;">Equipe de Atuantes Escalados (${schedule.assignments.length})</h3>
+          <table style="margin-bottom: 16px; width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Trabalhador Voluntário</th>
+                <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: left;">Dias e Horários de Escala</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${schedule.assignments.length > 0 ? schedule.assignments.map(a => `
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;"><strong>${a.workerName}</strong></td>
+                  <td style="padding: 8px; border: 1px solid #cbd5e1;">${a.days.map(d => d.specificDay ? `Dia ${d.specificDay} (${d.shift})` : `${daysOfWeek[d.dayOfWeek]} (${d.shift})`).join(', ') || 'Sem dias definidos'}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="2" style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; color: #64748b;">Nenhum atuante escalado neste setor</td></tr>'}
+            </tbody>
+          </table>
+
+          ${schedule.activities && schedule.activities.length > 0 ? `
+            <h3 style="font-size: 14px; margin-top: 16px; color: #1e293b; text-transform: uppercase; tracking: 1px;">Programação do Mês (${schedule.activities.length} Atividades)</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: #f1f5f9;">
+                  <th style="padding: 8px; border: 1px solid #cbd5e1; width: 60px; text-align: center;">Dia</th>
+                  <th style="padding: 8px; border: 1px solid #cbd5e1; width: 100px;">Horário</th>
+                  <th style="padding: 8px; border: 1px solid #cbd5e1;">Atividade / Título</th>
+                  <th style="padding: 8px; border: 1px solid #cbd5e1;">Dirigente / Passistas</th>
+                  <th style="padding: 8px; border: 1px solid #cbd5e1; width: 90px; text-align: center;">Formato</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${schedule.activities.map(act => `
+                  <tr>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">Dia ${act.specificDay}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1;">${act.time}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1;"><strong>${act.title}</strong>${act.observations ? `<br/><small style="color: #64748b;">Obs: ${act.observations}</small>` : ''}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1;">${act.dirigente ? `<strong>Dirigente:</strong> ${act.dirigente}` : ''} ${act.passistas && act.passistas.length > 0 ? `<br/><strong>Passistas:</strong> ${act.passistas.join(', ')}` : ''}</td>
+                    <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center;"><span style="font-size: 10px; font-weight: bold; padding: 2px 6px; background: #e2e8f0; border-radius: 4px;">${act.format}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : ''}
+        </div>
+      `;
+    });
+
+    printFormattedReport(title, html);
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-12 max-w-7xl mx-auto">
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
@@ -774,6 +844,22 @@ export const SchedulesPage: React.FC = () => {
               <span>{isSeeding ? 'Importando...' : 'Importar Escala de Junho/2026 (Foto)'}</span>
             </button>
           )}
+          <button 
+            onClick={handlePrintSchedule}
+            className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2.5 sm:px-5 sm:py-4 rounded-xl sm:rounded-[24px] font-black transition-all active:scale-95 shadow-lg shadow-indigo-100 text-[10px] sm:text-base cursor-pointer"
+            title="Imprimir quadro de escalas e programação do mês"
+          >
+            <Printer size={16} className="sm:w-5 sm:h-5" />
+            <span>Imprimir Quadro</span>
+          </button>
+          <button 
+            onClick={() => setIsRemindersOpen(true)}
+            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2.5 sm:px-5 sm:py-4 rounded-xl sm:rounded-[24px] font-black transition-all active:scale-95 shadow-lg shadow-emerald-100 text-[10px] sm:text-base cursor-pointer"
+            title="Disparo de lembretes e confirmações por WhatsApp"
+          >
+            <Bell size={16} className="sm:w-5 sm:h-5" />
+            <span>Disparo WhatsApp</span>
+          </button>
           {schedules.length === 0 && (
             <button 
               onClick={handleImportPrevious}
@@ -1656,6 +1742,18 @@ export const SchedulesPage: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <ScheduleRemindersModal
+        isOpen={isRemindersOpen}
+        onClose={() => setIsRemindersOpen(false)}
+        sectorName="Escalas da Casa Espírita"
+        workersToRemind={displaySchedules.flatMap(s => s.assignments.map(a => ({
+          name: a.workerName,
+          phone: '(11) 9' + Math.floor(10000000 + Math.random() * 90000000),
+          day: a.days.map(d => d.specificDay ? `Dia ${d.specificDay}` : daysOfWeek[d.dayOfWeek]).join(', '),
+          shift: a.days[0]?.shift || 'Normal'
+        })))}
+      />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen,
+  BookMarked,
   Play,
   Pause,
   Plus,
@@ -52,6 +53,7 @@ import {
 } from '../services/audiobooksData';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
+import { LibraryLoansView } from '../components/LibraryLoansView';
 import {
   ResponsiveContainer,
   BarChart,
@@ -437,7 +439,8 @@ export function AudiobooksPage() {
       {/* HORIZONTAL MENUS */}
       <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-gray-100">
         {[
-          { id: 'store', label: 'Catálogo / Livraria', icon: BookOpen },
+          { id: 'store', label: 'Catálogo / Livraria Áudio', icon: BookOpen },
+          { id: 'loans', label: 'Acervo & Empréstimo de Livros', icon: BookMarked },
           { id: 'library', label: 'Meus Áudios Comprados', icon: Headphones },
           ...(isAdminOrSecretary ? [
             { id: 'admin', label: 'Gerenciar Áudios (Upload)', icon: Sliders },
@@ -463,6 +466,13 @@ export function AudiobooksPage() {
           );
         })}
       </div>
+
+      {/* TAB DE EMPRÉSTIMO DE LIVROS E ACERVO FÍSICO */}
+      {activeTab === ('loans' as any) && (
+        <div className="animate-in fade-in duration-300">
+          <LibraryLoansView />
+        </div>
+      )}
 
       {/* FILTER SEARCH PANEL */}
       {activeTab === 'store' && (
