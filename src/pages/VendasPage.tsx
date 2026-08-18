@@ -11,7 +11,6 @@ import {
   BookOpen, 
   Coffee, 
   ShoppingBag, 
-  AlertTriangle, 
   QrCode, 
   Coins, 
   CreditCard,
@@ -23,57 +22,17 @@ import {
   Pencil,
   X,
   Sparkles,
-  RefreshCw,
   Printer,
   Lock,
-  Unlock,
-  FileText
+  Barcode,
+  UserCheck,
+  Calculator
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services/dataService';
+import { MarketProduct, CashSession, Worker } from '../types';
 import { cn } from '../lib/utils';
-
-// Enhanced Interfaces with Promotional pricing support
-interface MarketProduct {
-  id: string;
-  name: string;
-  category: 'LIVRARIA' | 'CANTINA' | 'BAZAR';
-  price: number;
-  promoPrice?: number; // Optional promotional price
-  stock: number;
-  minLimit: number;
-  expirationDate?: string;
-}
-
-interface FinancialTransaction {
-  id: string;
-  date: string;
-  type: 'ENTRADA' | 'SAÍDA';
-  category: string;
-  description: string;
-  amount: number;
-  amountEstimated?: number;
-  amountRealized?: number;
-  status?: string;
-  accountType?: string;
-  paymentMethod?: string;
-}
-
-interface CashSession {
-  isOpen: boolean;
-  openedAt: string;
-  openedBy: string;
-  initialCash: number;
-  closedAt?: string;
-  transactionsCount: number;
-  pixTotal: number;
-  cashTotal: number;
-  cardTotal: number;
-  finalCashExpected?: number;
-  finalCashRecorded?: number;
-  difference?: number;
-}
 
 export const VendasPage: React.FC = () => {
   const navigate = useNavigate();
@@ -84,12 +43,20 @@ export const VendasPage: React.FC = () => {
   const [cart, setCart] = useState<{ product: MarketProduct; quantity: number }[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'LIVRARIA' | 'CANTINA' | 'BAZAR'>('ALL');
-  const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'DINHEIRO' | 'CARTÃO'>('PIX');
+  const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'DINHEIRO' | 'CARTÃO' | 'CONTA_TRABALHADOR'>('PIX');
+  
+  // Workers for "Conta do Trabalhador / Venda Consignada"
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
+
+  // Change Calculator (Calculadora de Troco)
+  const [receivedCash, setReceivedCash] = useState<string>('');
+
+  // Modals
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [soldAmount, setSoldAmount] = useState(0);
-  const [finalDiscountApplied, setFinalDiscountApplied] = useState(0);
 
   // Cashier (Caixa Diário) states
   const [cashSession, setCashSession] = useState<CashSession | null>(null);
@@ -99,18 +66,21 @@ export const VendasPage: React.FC = () => {
   const [openInitialCash, setOpenInitialCash] = useState('100.00');
   const [closeActualCash, setCloseActualCash] = useState('');
 
-  // Snapshot states for the printable receipt mockup
+  // Snapshot states for the printable receipt modal
   const [checkoutCart, setCheckoutCart] = useState<{ name: string; qty: number; price: number }[]>([]);
   const [checkoutSubtotal, setCheckoutSubtotal] = useState(0);
   const [checkoutDiscount, setCheckoutDiscount] = useState(0);
   const [checkoutTxId, setCheckoutTxId] = useState('');
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('');
+  const [checkoutWorkerName, setCheckoutWorkerName] = useState<string | undefined>(undefined);
+  const [checkoutChangeGiven, setCheckoutChangeGiven] = useState(0);
+  const [checkoutReceivedCash, setCheckoutReceivedCash] = useState(0);
 
   // Cart discount states
   const [discountType, setDiscountType] = useState<'PERCENT' | 'VALUE'>('PERCENT');
   const [discountValueInput, setDiscountValueInput] = useState<string>('0');
 
-  // New Product States (with promoPrice option)
+  // New Product States (with promoPrice & barcode option)
   const [newProdName, setNewProdName] = useState('');
   const [newProdCategory, setNewProdCategory] = useState<'LIVRARIA' | 'CANTINA' | 'BAZAR'>('LIVRARIA');
   const [newProdPrice, setNewProdPrice] = useState('');
@@ -118,6 +88,7 @@ export const VendasPage: React.FC = () => {
   const [newProdStock, setNewProdStock] = useState('');
   const [newProdMin, setNewProdMin] = useState('5');
   const [newProdExp, setNewProdExp] = useState('');
+  const [newProdBarcode, setNewProdBarcode] = useState('');
 
   // Editing Product States
   const [editingProduct, setEditingProduct] = useState<MarketProduct | null>(null);
@@ -128,50 +99,31 @@ export const VendasPage: React.FC = () => {
   const [editProdStock, setEditProdStock] = useState('');
   const [editProdMin, setEditProdMin] = useState('5');
   const [editProdExp, setEditProdExp] = useState('');
+  const [editProdBarcode, setEditProdBarcode] = useState('');
 
-  // Load Admin Data from Storage
+  // 1. Subscribe to Firestore Real-time Products, Cash Session, and Workers
   useEffect(() => {
-    // 1. Load Products
-    const cachedProducts = localStorage.getItem('admin_products');
-    if (cachedProducts) {
-      try {
-        setProducts(JSON.parse(cachedProducts));
-      } catch {
-        initializeDefaultProducts();
-      }
-    } else {
-      initializeDefaultProducts();
-    }
+    // Real-time market products listener from Firestore
+    const unsubProducts = dataService.subscribeMarketProducts((list) => {
+      setProducts(list);
+    });
 
-    // 2. Load Cash Session
-    const cachedSession = localStorage.getItem('admin_cash_session');
-    if (cachedSession) {
-      try {
-        setCashSession(JSON.parse(cachedSession));
-      } catch {}
-    }
-    setSessionLoading(false);
+    // Real-time active cash session listener from Firestore
+    const unsubSession = dataService.subscribeActiveCashSession((active) => {
+      setCashSession(active);
+      setSessionLoading(false);
+    });
+
+    // Load workers list for "Conta do Trabalhador"
+    dataService.getWorkers().then(wList => {
+      if (wList) setWorkers(wList.filter(w => w.active));
+    });
+
+    return () => {
+      unsubProducts();
+      unsubSession();
+    };
   }, []);
-
-  const initializeDefaultProducts = () => {
-    const defaults: MarketProduct[] = [
-      { id: 'p1', name: 'Livro: O Livro dos Espíritos (Edição Histórica FEB)', category: 'LIVRARIA', price: 45.00, promoPrice: 39.90, stock: 12, minLimit: 5 },
-      { id: 'p2', name: 'Livro: O Evangelho Segundo o Espiritismo', category: 'LIVRARIA', price: 45.00, stock: 3, minLimit: 5 },
-      { id: 'p3', name: 'Livro: O Livro dos Médiuns', category: 'LIVRARIA', price: 45.00, stock: 6, minLimit: 5 },
-      { id: 'p4', name: 'Pão de Queijo Assado (Fornada do Dia)', category: 'CANTINA', price: 5.50, stock: 25, minLimit: 8, expirationDate: '2026-05-22' },
-      { id: 'p5', name: 'Suco Natural Polpa 300ml (Uva/Laranja)', category: 'CANTINA', price: 6.00, stock: 15, minLimit: 5, expirationDate: '2026-06-10' },
-      { id: 'p6', name: 'Bolo Caseiro de Cenoura (Fatia)', category: 'CANTINA', price: 4.50, stock: 4, minLimit: 5, expirationDate: '2026-05-18' },
-      { id: 'p7', name: 'Camiseta Infantil Estampa Mirante', category: 'BAZAR', price: 35.00, promoPrice: 24.90, stock: 8, minLimit: 3 },
-      { id: 'p8', name: 'Artesanato em Gesso Decorado', category: 'BAZAR', price: 25.00, stock: 2, minLimit: 3 }
-    ];
-    localStorage.setItem('admin_products', JSON.stringify(defaults));
-    setProducts(defaults);
-  };
-
-  const saveProductsToStorage = (list: MarketProduct[]) => {
-    localStorage.setItem('admin_products', JSON.stringify(list));
-    setProducts(list);
-  };
 
   // Helper to obtain active selling price (considers promo value)
   const getSellingPrice = (p: MarketProduct): number => {
@@ -179,6 +131,23 @@ export const VendasPage: React.FC = () => {
       return p.promoPrice;
     }
     return p.price;
+  };
+
+  // Expiration Check Helper for Cantina/Food
+  const getExpirationBadge = (expirationDate?: string) => {
+    if (!expirationDate) return null;
+    const today = new Date().toISOString().split('T')[0];
+    const expDate = new Date(expirationDate);
+    const now = new Date();
+    const diffTime = expDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+
+    if (expirationDate <= today) {
+      return { text: `⚠️ Vencido (${expirationDate.split('-').reverse().slice(0, 2).join('/')})`, isExpired: true };
+    } else if (diffDays <= 7) {
+      return { text: `⏳ Vence em ${diffDays}d`, isExpiringSoon: true };
+    }
+    return null;
   };
 
   // Cart operations
@@ -219,14 +188,6 @@ export const VendasPage: React.FC = () => {
     }
   };
 
-  // Reset/Reset demo inventory if needed
-  const handleResetCatalog = () => {
-    if (window.confirm('Deseja resetar o estoque para as configurações padrão do Mirante de Luz? (Isso sobrescreverá suas alterações locais)')) {
-      initializeDefaultProducts();
-      setCart([]);
-    }
-  };
-
   // Apply quick discount preset on total cart
   const applyPresetDiscount = (val: number, type: 'PERCENT' | 'VALUE' = 'PERCENT') => {
     setDiscountType(type);
@@ -244,7 +205,14 @@ export const VendasPage: React.FC = () => {
 
   const finalTotal = Math.max(0, cartSubtotal - discountAmount);
 
-  const handlePOSCheckout = () => {
+  // Troco calculo
+  const parsedReceivedCash = parseFloat(receivedCash) || 0;
+  const changeAmount = paymentMethod === 'DINHEIRO' && parsedReceivedCash >= finalTotal
+    ? parsedReceivedCash - finalTotal
+    : 0;
+
+  // Finalize Sale in Firestore
+  const handlePOSCheckout = async () => {
     if (cart.length === 0) {
       alert('Adicione itens ao carrinho primeiro.');
       return;
@@ -260,18 +228,25 @@ export const VendasPage: React.FC = () => {
       return;
     }
 
-    // Step 1: Reduce stock in DB
-    const updatedProducts = products.map(p => {
-      const cartItem = cart.find(c => c.product.id === p.id);
-      if (cartItem) {
-        return { ...p, stock: Math.max(0, p.stock - cartItem.quantity) };
-      }
-      return p;
-    });
+    if (paymentMethod === 'DINHEIRO' && parsedReceivedCash > 0 && parsedReceivedCash < finalTotal) {
+      alert(`O valor em dinheiro informado (R$ ${parsedReceivedCash.toFixed(2)}) é inferior ao total da venda (R$ ${finalTotal.toFixed(2)}).`);
+      return;
+    }
 
-    saveProductsToStorage(updatedProducts);
+    if (paymentMethod === 'CONTA_TRABALHADOR' && !selectedWorkerId) {
+      alert('Selecione o Voluntário/Trabalhador responsável para vincular esta venda.');
+      return;
+    }
 
-    // Step 2: Save to transactions
+    const selectedWorker = workers.find(w => w.id === selectedWorkerId);
+
+    // 1. Reduce stock in Firestore
+    for (const item of cart) {
+      const newStock = Math.max(0, item.product.stock - item.quantity);
+      await dataService.updateMarketProduct({ ...item.product, stock: newStock });
+    }
+
+    // 2. Format details and create Financial Entry in Firestore
     const itemsDescription = cart.map(c => {
       const itemPrice = getSellingPrice(c.product);
       const isPromo = c.product.promoPrice !== undefined && c.product.promoPrice < c.product.price;
@@ -279,38 +254,43 @@ export const VendasPage: React.FC = () => {
     }).join(', ');
 
     const discountDetail = discountAmount > 0 
-      ? ` [Desconto de R$ ${discountAmount.toFixed(2)} (${discountType === 'PERCENT' ? `${discountValueInput}%` : 'Fixo'})]`
+      ? ` [Desc: R$ ${discountAmount.toFixed(2)}]`
       : '';
 
-    const tx: FinancialTransaction = {
-      id: `TX:${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      type: 'ENTRADA',
-      category: 'Venda de Eventos/Bazar',
-      description: `[PDV - ${paymentMethod}] ${itemsDescription}${discountDetail}`,
-      amount: finalTotal,
-      amountEstimated: finalTotal,
-      amountRealized: finalTotal,
-      status: 'Recebido',
-      paymentMethod: paymentMethod
-    };
+    const workerDetail = selectedWorker ? ` [Voluntário: ${selectedWorker.name}]` : '';
 
-    // Load existing transactions
-    let existingTx: FinancialTransaction[] = [];
-    const cachedTx = localStorage.getItem('admin_transactions');
-    if (cachedTx) {
-      try {
-        existingTx = JSON.parse(cachedTx);
-      } catch {}
+    const txCategory = selectedCategory === 'CANTINA' ? 'LIVRARIA_BAZAR' : 'LIVRARIA_BAZAR';
+    const entryPaymentMethod = paymentMethod === 'CONTA_TRABALHADOR' ? 'DINHEIRO' : (paymentMethod as any);
+
+    const txId = `TX:${Date.now()}`;
+    await dataService.addFinancialEntry({
+      description: `[PDV - ${paymentMethod === 'CONTA_TRABALHADOR' ? 'Conta Trabalhador' : paymentMethod}] ${itemsDescription}${discountDetail}${workerDetail}`,
+      amount: finalTotal,
+      type: 'RECEITA',
+      category: txCategory,
+      date: new Date().toISOString().split('T')[0],
+      paymentMethod: entryPaymentMethod,
+      createdBy: cashSession?.openedBy || currentUser?.name || 'Operador PDV'
+    });
+
+    // 3. Update active cash session in Firestore
+    if (cashSession && cashSession.isOpen) {
+      const activeSession: CashSession = { ...cashSession };
+      activeSession.transactionsCount += 1;
+      if (paymentMethod === 'DINHEIRO' || paymentMethod === 'CONTA_TRABALHADOR') {
+        activeSession.cashTotal += finalTotal;
+      } else if (paymentMethod === 'PIX') {
+        activeSession.pixTotal += finalTotal;
+      } else if (paymentMethod === 'CARTÃO') {
+        activeSession.cardTotal += finalTotal;
+      }
+      await dataService.saveActiveCashSession(activeSession);
     }
 
-    const updatedTx = [tx, ...existingTx];
-    localStorage.setItem('admin_transactions', JSON.stringify(updatedTx));
-
-    // Audit Log
+    // Audit Log in Firestore
     dataService.createLog(
       'Venda Realizada', 
-      `Nova venda finalizada via PDV [Líquido: R$ ${finalTotal.toFixed(2)} - ${paymentMethod}]${discountDetail}: ${itemsDescription}`
+      `Nova venda finalizada via PDV [Líquido: R$ ${finalTotal.toFixed(2)} - ${paymentMethod}]${workerDetail}${discountDetail}: ${itemsDescription}`
     );
 
     // Capture snapshot for receipt print
@@ -319,41 +299,33 @@ export const VendasPage: React.FC = () => {
       qty: c.quantity,
       price: getSellingPrice(c.product)
     }));
+
     setCheckoutCart(itemsSnapshot);
     setCheckoutSubtotal(cartSubtotal);
     setCheckoutDiscount(discountAmount);
-    setCheckoutTxId(tx.id);
-    setCheckoutPaymentMethod(paymentMethod);
+    setCheckoutTxId(txId);
+    setCheckoutPaymentMethod(paymentMethod === 'CONTA_TRABALHADOR' ? `Conta Voluntário (${selectedWorker?.name})` : paymentMethod);
+    setCheckoutWorkerName(selectedWorker?.name);
+    setCheckoutReceivedCash(paymentMethod === 'DINHEIRO' ? parsedReceivedCash : finalTotal);
+    setCheckoutChangeGiven(changeAmount);
 
-    // Update active cash session
-    if (cashSession && cashSession.isOpen) {
-      const activeSession = { ...cashSession };
-      activeSession.transactionsCount += 1;
-      if (paymentMethod === 'DINHEIRO') {
-        activeSession.cashTotal += finalTotal;
-      } else if (paymentMethod === 'PIX') {
-        activeSession.pixTotal += finalTotal;
-      } else if (paymentMethod === 'CARTÃO') {
-        activeSession.cardTotal += finalTotal;
-      }
-      setCashSession(activeSession);
-      localStorage.setItem('admin_cash_session', JSON.stringify(activeSession));
-    }
-
-    // Show success modal
+    // Reset UI state
     setSoldAmount(finalTotal);
-    setFinalDiscountApplied(discountAmount);
     setCart([]);
     setDiscountValueInput('0');
+    setReceivedCash('');
+    setSelectedWorkerId('');
     setCheckoutSuccess(true);
   };
 
-  const handleOpenCashSession = (e: React.FormEvent) => {
+  // Open Cashier Session in Firestore
+  const handleOpenCashSession = async (e: React.FormEvent) => {
     e.preventDefault();
     const op = openOperator || currentUser?.name || 'Operador de Vendas';
     const initCash = parseFloat(openInitialCash) || 0;
     
     const newSession: CashSession = {
+      id: 'current_session',
       isOpen: true,
       openedAt: new Date().toISOString(),
       openedBy: op,
@@ -364,17 +336,15 @@ export const VendasPage: React.FC = () => {
       cardTotal: 0
     };
     
-    setCashSession(newSession);
-    localStorage.setItem('admin_cash_session', JSON.stringify(newSession));
-    
-    // Audit Log
+    await dataService.saveActiveCashSession(newSession);
     dataService.createLog(
       'Caixa Aberto', 
       `Nova sessão de caixa aberta pelo operador ${op} com troco inicial de R$ ${initCash.toFixed(2)}`
     );
   };
 
-  const handleCloseCashSession = (e: React.FormEvent) => {
+  // Close Cashier Session in Firestore
+  const handleCloseCashSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cashSession) return;
     
@@ -390,132 +360,18 @@ export const VendasPage: React.FC = () => {
       difference: difference
     };
 
-    // Save to historical sessions list
-    let historical: any[] = [];
-    const cachedHist = localStorage.getItem('admin_closed_cash_sessions');
-    if (cachedHist) {
-      try {
-        historical = JSON.parse(cachedHist);
-      } catch {}
-    }
-    
-    localStorage.setItem('admin_closed_cash_sessions', JSON.stringify([finalSession, ...historical]));
-    localStorage.removeItem('admin_cash_session');
-    
-    setCashSession(null);
+    await dataService.closeActiveCashSession(finalSession);
     setCloseCashModal(false);
-    
-    // Audit Log
-    dataService.createLog(
-      'Caixa Fechado', 
-      `Sessão de caixa encerrada por ${cashSession.openedBy}. Dinheiro Esperado: R$ ${expectedCashValue.toFixed(2)}, Caixa Físico Contado: R$ ${actualCashCollected.toFixed(2)}. Diferença: R$ ${difference.toFixed(2)}.`
-    );
-    
     alert(`Caixa fechado com sucesso! Balanço final registrado de R$ ${actualCashCollected.toFixed(2)}.`);
   };
 
+  // Native Print Receipt (Zero Pop-Up Blocker Risk)
   const handlePrintReceipt = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Por favor, permita popups para imprimir o recibo.');
-      return;
-    }
-    const itemsHTML = checkoutCart.map(item => `
-      <tr>
-        <td style="font-size: 11px; font-family: monospace;">${item.qty}x ${item.name}</td>
-        <td style="text-align: right; font-size: 11px; font-family: monospace;">R$ ${item.price.toFixed(2)}</td>
-      </tr>
-    `).join('');
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Recibo de Venda - CEMIL</title>
-          <style>
-            @page { size: 80mm auto; margin: 0; }
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 76mm;
-              padding: 4mm;
-              margin: 0;
-              color: #000;
-              background-color: #fff;
-            }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .divider { border-top: 1px dashed #000; margin: 3px 0; }
-            table { width: 100%; border-collapse: collapse; }
-            td { padding: 1px 0; }
-            .font-title { font-size: 14px; margin: 0; font-weight: bold; }
-            .font-sub { font-size: 10px; margin: 2px 0 5px 0; }
-            .font-text { font-size: 11px; }
-            .footer { font-size: 9px; margin-top: 10px; font-style: italic; }
-          </style>
-        </head>
-        <body>
-          <div class="center">
-            <p class="font-title">ASSOC. ESPÍRITA MIRANTE DE LUZ</p>
-            <p class="font-sub">MOC-MG • CNPJ: 12.345.678/0001-90</p>
-            <p class="font-sub">CUPOM NÃO-FISCAL - PDV DE VENDAS</p>
-          </div>
-          <div class="divider"></div>
-          <div class="font-text">
-            <b>Data:</b> ${new Date().toLocaleString('pt-BR')}<br />
-            <b>Operador:</b> ${cashSession?.openedBy || currentUser?.name || 'Balcão'}<br />
-            <b>Nº Transação:</b> ${checkoutTxId}<br />
-          </div>
-          <div class="divider"></div>
-          <table>
-            <thead>
-              <tr>
-                <th style="text-align: left; font-size: 11px;">Produto</th>
-                <th style="text-align: right; font-size: 11px;">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHTML}
-            </tbody>
-          </table>
-          <div class="divider"></div>
-          <table class="font-text bold">
-            <tr>
-              <td>SUBTOTAL:</td>
-              <td style="text-align: right;">R$ ${checkoutSubtotal.toFixed(2)}</td>
-            </tr>
-            ${checkoutDiscount > 0 ? `
-            <tr>
-              <td>DESCONTO:</td>
-              <td style="text-align: right; color: #000;">- R$ ${checkoutDiscount.toFixed(2)}</td>
-            </tr>
-            ` : ''}
-            <tr style="font-size: 12px; border-top: 1px dashed #050505;">
-              <td>TOTAL PAGO:</td>
-              <td style="text-align: right;">R$ ${soldAmount.toFixed(2)}</td>
-            </tr>
-          </table>
-          <div class="divider"></div>
-          <div class="font-text">
-            <b>Pagamento:</b> ${checkoutPaymentMethod}<br />
-          </div>
-          <div class="divider"></div>
-          <div class="center footer">
-            "A caridade é o dever de todos. Obrigado por sua ajuda!"<br />
-            <b>CEMIL • Montes Claros - MG</b>
-          </div>
-          <script>
-            setTimeout(() => {
-              window.print();
-              window.close();
-            }, 450);
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    window.print();
   };
 
-  // Add new product
-  const handleCreateProduct = (e: React.FormEvent) => {
+  // Add new product to Firestore
+  const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName || !newProdPrice || !newProdStock) {
       alert('Preencha os dados necessários do produto.');
@@ -541,29 +397,25 @@ export const VendasPage: React.FC = () => {
       return;
     }
 
-    const item: MarketProduct = {
-      id: `P:${Date.now()}`,
+    await dataService.addMarketProduct({
       name: newProdName,
       category: newProdCategory,
       price: price,
       promoPrice: promo,
       stock: stock,
       minLimit: min || 5,
-      expirationDate: newProdExp ? newProdExp : undefined
-    };
+      expirationDate: newProdExp ? newProdExp : undefined,
+      barcode: newProdBarcode ? newProdBarcode.trim() : undefined
+    });
 
-    const updated = [...products, item];
-    saveProductsToStorage(updated);
-    
     // Reset forms
     setNewProdName('');
     setNewProdPrice('');
     setNewProdPromoPrice('');
     setNewProdStock('');
     setNewProdExp('');
+    setNewProdBarcode('');
     setShowAddProductModal(false);
-
-    alert(`Produto "${newProdName}" cadastrado no acervo com sucesso!`);
   };
 
   // Open Edit Product Modal
@@ -576,11 +428,12 @@ export const VendasPage: React.FC = () => {
     setEditProdStock(p.stock.toString());
     setEditProdMin(p.minLimit.toString());
     setEditProdExp(p.expirationDate || '');
+    setEditProdBarcode(p.barcode || '');
     setShowEditProductModal(true);
   };
 
-  // Edit / Update Product
-  const handleUpdateProduct = (e: React.FormEvent) => {
+  // Update Product in Firestore
+  const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
 
@@ -609,55 +462,38 @@ export const VendasPage: React.FC = () => {
       return;
     }
 
-    const updated = products.map(p => {
-      if (p.id === editingProduct.id) {
-        return {
-          ...p,
-          name: editProdName,
-          category: editProdCategory,
-          price: price,
-          promoPrice: promo && promo > 0 ? promo : undefined,
-          stock: stock,
-          minLimit: min,
-          expirationDate: editProdExp ? editProdExp : undefined
-        };
-      }
-      return p;
-    });
+    const updatedItem: MarketProduct = {
+      ...editingProduct,
+      name: editProdName,
+      category: editProdCategory,
+      price: price,
+      promoPrice: promo && promo > 0 ? promo : undefined,
+      stock: stock,
+      minLimit: min,
+      expirationDate: editProdExp ? editProdExp : undefined,
+      barcode: editProdBarcode ? editProdBarcode.trim() : undefined
+    };
 
-    saveProductsToStorage(updated);
+    await dataService.updateMarketProduct(updatedItem);
     setShowEditProductModal(false);
     setEditingProduct(null);
-
-    // Also update instances in active cart if any
-    const updatedCart = cart.map(item => {
-      const liveProd = updated.find(up => up.id === item.product.id);
-      if (liveProd) {
-        return { ...item, product: liveProd };
-      }
-      return item;
-    });
-    setCart(updatedCart);
-
-    alert('Informações do produto e promoções salvas com sucesso!');
   };
 
-  // Delete product on editing modal
-  const handleDeleteProduct = (id: string, name: string) => {
+  // Delete product in Firestore
+  const handleDeleteProduct = async (id: string, name: string) => {
     if (window.confirm(`Tem certeza que deseja DELETAR o produto "${name}" permanentemente do estoque?`)) {
-      const updated = products.filter(p => p.id !== id);
-      saveProductsToStorage(updated);
+      await dataService.deleteMarketProduct(id);
       setCart(cart.filter(item => item.product.id !== id));
       setShowEditProductModal(false);
       setEditingProduct(null);
-      alert('Produto removido.');
     }
   };
 
-  // Filter products
+  // Filter products by search (Name or Barcode)
   const filteredProducts = products.filter(p => {
     const matchesCategory = selectedCategory === 'ALL' || p.category === selectedCategory;
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = searchTerm.toLowerCase().trim();
+    const matchesSearch = p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q));
     return matchesCategory && matchesSearch;
   });
 
@@ -678,9 +514,9 @@ export const VendasPage: React.FC = () => {
           </div>
           <div className="space-y-1">
             <h2 className="text-xl font-black text-gray-901 uppercase tracking-tight">Caixa Diário Fechado</h2>
-            <p className="text-xs text-indigo-600 font-black uppercase tracking-widest">Controle de Operador CEMIL</p>
+            <p className="text-xs text-indigo-600 font-black uppercase tracking-widest">Sincronização em Tempo Real (Firestore)</p>
             <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-              Para realizar vendas de bazar, cantina ou livraria com total controle administrativo do caixa físico, abra o turno de caixa informando seu nome e o fundo de troco atual.
+              Para realizar vendas na Livraria, Cantina ou Bazar com auditoria e sincronização direta na Tesouraria Geral do CEMIL, abra a sessão informando seu nome e o troco inicial.
             </p>
           </div>
           
@@ -717,7 +553,16 @@ export const VendasPage: React.FC = () => {
               type="submit"
               className="w-full py-4 bg-indigo-600 hover:bg-indigo-750 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer mt-2"
             >
-              Abrir Caixa do Dia
+              Abrir Caixa no Banco de Dados
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <ArrowLeft size={14} />
+              <span>Voltar ao Painel Geral</span>
             </button>
           </form>
         </div>
@@ -752,12 +597,12 @@ export const VendasPage: React.FC = () => {
           {cashSession && cashSession.isOpen && (
             <div className="flex items-center gap-3 bg-indigo-50/60 hover:bg-indigo-50 border border-indigo-100/50 rounded-2xl px-4 py-2 text-left shadow-sm">
               <div className="text-left py-0.5">
-                <p className="text-[8px] font-black uppercase text-indigo-600 tracking-wider">Caixa Diário Aberto</p>
+                <p className="text-[8px] font-black uppercase text-indigo-600 tracking-wider">Caixa Diário (Nuvem)</p>
                 <p className="text-[11px] font-extrabold text-gray-700 leading-none mt-0.5">Op: {cashSession.openedBy}</p>
               </div>
               <div className="h-6 w-px bg-indigo-100" />
               <div className="text-left font-mono py-0.5">
-                <p className="text-[8px] font-black uppercase text-gray-400 tracking-wider">Mão de Troco</p>
+                <p className="text-[8px] font-black uppercase text-gray-400 tracking-wider">Fundo de Troco</p>
                 <p className="text-[11px] font-black text-emerald-600 leading-none mt-0.5">R$ {cashSession.initialCash.toFixed(2)}</p>
               </div>
               <button
@@ -772,14 +617,6 @@ export const VendasPage: React.FC = () => {
               </button>
             </div>
           )}
-
-          <button
-            onClick={handleResetCatalog}
-            className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-400 hover:text-indigo-600 transition-all active:scale-95 cursor-pointer"
-            title="Resetar Estoque para Padrão"
-          >
-            <RefreshCw size={18} />
-          </button>
 
           <button
             onClick={() => setShowAddProductModal(true)}
@@ -855,18 +692,21 @@ export const VendasPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Search input */}
-              <div className="relative w-full md:w-72">
+              {/* Search input with Barcode Scanner hint */}
+              <div className="relative w-full md:w-80">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
                   <Search size={18} />
                 </span>
                 <input
                   type="text"
-                  placeholder="Pesquisar produto no estoque..."
+                  placeholder="Buscar nome ou código de barras..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-semibold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all"
+                  className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-semibold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all"
                 />
+                <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-350" title="Suporta Leitor de Código de Barras USB">
+                  <Barcode size={18} />
+                </span>
               </div>
 
             </div>
@@ -879,7 +719,7 @@ export const VendasPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-800 text-lg">Nenhum produto catalogado</h3>
-                  <p className="text-sm text-gray-500 max-w-sm mt-1">Nenhum produto encontrado na categoria selecionada ou com este termo de busca.</p>
+                  <p className="text-sm text-gray-500 max-w-sm mt-1">Nenhum produto encontrado na categoria selecionada ou com este código de busca.</p>
                 </div>
                 <button
                   onClick={() => { setSelectedCategory('ALL'); setSearchTerm(''); }}
@@ -894,14 +734,14 @@ export const VendasPage: React.FC = () => {
                   const isLowStock = p.stock <= p.minLimit;
                   const isOut = p.stock <= 0;
                   const hasPromo = p.promoPrice !== undefined && p.promoPrice > 0 && p.promoPrice < p.price;
-                  const activePrice = getSellingPrice(p);
                   const discountPercent = hasPromo ? Math.round(((p.price - p.promoPrice!) / p.price) * 100) : 0;
+                  const expInfo = getExpirationBadge(p.expirationDate);
                   
                   return (
                     <div 
                       key={p.id}
                       className={cn(
-                        "bg-white rounded-2xl p-4.5 border transition-all flex flex-col justify-between group h-[180px] relative overflow-hidden",
+                        "bg-white rounded-2xl p-4.5 border transition-all flex flex-col justify-between group min-h-[190px] relative overflow-hidden",
                         isOut 
                           ? "opacity-60 border-gray-100 bg-gray-50/50" 
                           : "border-gray-100 hover:border-indigo-150 hover:shadow-lg hover:shadow-indigo-50/20"
@@ -909,7 +749,7 @@ export const VendasPage: React.FC = () => {
                     >
                       {/* Promo Tag overlay */}
                       {hasPromo && !isOut && (
-                        <div className="absolute top-0 right-0 bg-rose-500 text-white font-extrabold text-[9px] px-2.5 py-1 rounded-bl-xl uppercase tracking-wider flex items-center gap-1/5 animate-pulse">
+                        <div className="absolute top-0 right-0 bg-rose-500 text-white font-extrabold text-[9px] px-2.5 py-1 rounded-bl-xl uppercase tracking-wider flex items-center gap-1 animate-pulse">
                           <span>Oferta -{discountPercent}%</span>
                         </div>
                       )}
@@ -938,6 +778,23 @@ export const VendasPage: React.FC = () => {
                         <h3 className="font-black text-gray-900 leading-snug text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 h-10 pr-2">
                           {p.name}
                         </h3>
+
+                        {/* Expiration date or Barcode badges */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          {expInfo && (
+                            <span className={cn(
+                              "text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider",
+                              expInfo.isExpired ? "bg-rose-100 text-rose-700 animate-bounce" : "bg-amber-100 text-amber-800"
+                            )}>
+                              {expInfo.text}
+                            </span>
+                          )}
+                          {p.barcode && (
+                            <span className="text-[9px] font-mono text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 flex items-center gap-1">
+                              <Barcode size={10} /> {p.barcode}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Buy Action and Price row */}
@@ -961,7 +818,6 @@ export const VendasPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                          {/* Quick edit product directly from POS */}
                           <button
                             type="button"
                             onClick={() => handleOpenEditProduct(p)}
@@ -1011,7 +867,7 @@ export const VendasPage: React.FC = () => {
             </div>
 
             {/* Cart list items */}
-            <div className="p-5 flex-1 max-h-[250px] overflow-y-auto no-scrollbar border-b border-gray-50 min-h-[170px]">
+            <div className="p-5 flex-1 max-h-[220px] overflow-y-auto no-scrollbar border-b border-gray-50 min-h-[150px]">
               {cart.length === 0 ? (
                 <div className="h-full py-10 flex flex-col items-center justify-center text-center space-y-3">
                   <ShoppingCart size={32} className="text-gray-300" />
@@ -1077,12 +933,12 @@ export const VendasPage: React.FC = () => {
               )}
             </div>
 
-            {/* NEW ADDITION: Discount management section */}
+            {/* Discount management section */}
             <div className="p-4 border-b border-gray-100 bg-slate-50/50 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] text-gray-405 font-black uppercase tracking-wider flex items-center gap-1">
                   <Percent size={13} className="text-rose-600" />
-                  Desconto no Carrinho (Promoções)
+                  Desconto no Carrinho
                 </span>
                 <span className="text-[10px] font-extrabold text-rose-600 bg-rose-50/80 px-2 py-0.5 rounded-full">
                   {discountAmount > 0 ? `- R$ ${discountAmount.toFixed(2)}` : 'Nenhum'}
@@ -1091,59 +947,22 @@ export const VendasPage: React.FC = () => {
 
               {/* Presets discount buttons row */}
               <div className="grid grid-cols-5 gap-1 shadow-sm rounded-lg overflow-hidden border border-gray-100 bg-white">
-                <button
-                  type="button"
-                  onClick={() => applyPresetDiscount(0)}
-                  className={cn(
-                    "py-1.5 text-[10px] font-black transition-all cursor-pointer border-r border-gray-100 last:border-0",
-                    numDiscountValue === 0 ? "bg-rose-500 text-white" : "text-gray-500 hover:bg-gray-50"
-                  )}
-                >
-                  Sem desc.
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPresetDiscount(5)}
-                  className={cn(
-                    "py-1.5 text-[10px] font-black transition-all cursor-pointer border-r border-gray-100 last:border-0",
-                    numDiscountValue === 5 && discountType === 'PERCENT' ? "bg-rose-550 text-white" : "text-gray-500 hover:bg-gray-55"
-                  )}
-                >
-                  5%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPresetDiscount(10)}
-                  className={cn(
-                    "py-1.5 text-[10px] font-black transition-all cursor-pointer border-r border-gray-100 last:border-0",
-                    numDiscountValue === 10 && discountType === 'PERCENT' ? "bg-rose-550 text-white" : "text-gray-500 hover:bg-gray-55"
-                  )}
-                >
-                  10%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPresetDiscount(15)}
-                  className={cn(
-                    "py-1.5 text-[10px] font-black transition-all cursor-pointer border-r border-gray-100 last:border-0",
-                    numDiscountValue === 15 && discountType === 'PERCENT' ? "bg-rose-550 text-white" : "text-gray-500 hover:bg-gray-55"
-                  )}
-                >
-                  15%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPresetDiscount(20)}
-                  className={cn(
-                    "py-1.5 text-[10px] font-black transition-all cursor-pointer last:border-0",
-                    numDiscountValue === 20 && discountType === 'PERCENT' ? "bg-rose-550 text-white" : "text-gray-500 hover:bg-gray-55"
-                  )}
-                >
-                  20%
-                </button>
+                {[0, 5, 10, 15, 20].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => applyPresetDiscount(v)}
+                    className={cn(
+                      "py-1 text-[10px] font-black transition-all cursor-pointer border-r border-gray-100 last:border-0",
+                      numDiscountValue === v && discountType === 'PERCENT' ? "bg-rose-500 text-white" : "text-gray-500 hover:bg-gray-50"
+                    )}
+                  >
+                    {v === 0 ? 'Sem desc.' : `${v}%`}
+                  </button>
+                ))}
               </div>
 
-              {/* Custom discount picker toggler */}
+              {/* Custom discount picker */}
               <div className="flex gap-2 items-center bg-white p-2 rounded-xl border border-gray-100">
                 <select
                   value={discountType}
@@ -1151,14 +970,14 @@ export const VendasPage: React.FC = () => {
                     setDiscountType(e.target.value as 'PERCENT' | 'VALUE');
                     setDiscountValueInput('0');
                   }}
-                  className="bg-transparent text-[11px] font-black text-gray-700 uppercase pr-2 focus:outline-none focus:ring-0 border-0 cursor-pointer"
+                  className="bg-transparent text-[10px] font-black text-gray-700 uppercase pr-1 focus:outline-none cursor-pointer"
                 >
-                  <option value="PERCENT">% Percentual</option>
-                  <option value="VALUE">Valor Bruto (R$)</option>
+                  <option value="PERCENT">% Porcentagem</option>
+                  <option value="VALUE">R$ Valor Fixo</option>
                 </select>
 
                 <div className="flex-1 flex items-center justify-end font-mono">
-                  <span className="text-[11px] font-bold text-gray-400 mr-1">
+                  <span className="text-[10px] font-bold text-gray-400 mr-1">
                     {discountType === 'PERCENT' ? '%' : 'R$'}
                   </span>
                   <input
@@ -1185,13 +1004,13 @@ export const VendasPage: React.FC = () => {
                 </div>
 
                 {discountAmount > 0 && (
-                  <div className="flex justify-between items-center text-xs text-rose-600 font-extrabold leading-none animate-in slide-in-from-top-1">
+                  <div className="flex justify-between items-center text-xs text-rose-600 font-extrabold leading-none">
                     <span className="flex items-center gap-1">🏷️ Desconto Total</span>
                     <span className="font-mono font-black">- R$ {discountAmount.toFixed(2)}</span>
                   </div>
                 )}
 
-                <div className="flex items-end justify-between border-t border-gray-100 pt-3 mt-1 pb-1">
+                <div className="flex items-end justify-between border-t border-gray-100 pt-2.5 mt-1 pb-1">
                   <span className="text-[11px] text-gray-400 uppercase font-black tracking-widest leading-none">Total Líquido</span>
                   <span className="font-black text-xl text-indigo-950 font-mono leading-none">
                     R$ {finalTotal.toFixed(2)}
@@ -1202,48 +1021,112 @@ export const VendasPage: React.FC = () => {
               {/* Payment methods choosing */}
               <div className="space-y-2">
                 <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider block">Método de Recebimento</span>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('PIX')}
                     className={cn(
-                      "p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer",
+                      "p-2.5 rounded-xl flex items-center justify-center gap-1.5 border transition-all cursor-pointer",
                       paymentMethod === 'PIX'
                         ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm font-bold"
                         : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"
                     )}
                   >
-                    <QrCode size={16} />
-                    <span className="text-[9px] font-black uppercase">PIX</span>
+                    <QrCode size={15} />
+                    <span className="text-[10px] font-black uppercase">PIX</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('DINHEIRO')}
                     className={cn(
-                      "p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer",
+                      "p-2.5 rounded-xl flex items-center justify-center gap-1.5 border transition-all cursor-pointer",
                       paymentMethod === 'DINHEIRO'
                         ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm font-bold"
                         : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"
                     )}
                   >
-                    <Coins size={16} />
-                    <span className="text-[9px] font-black uppercase">Dinheiro</span>
+                    <Coins size={15} />
+                    <span className="text-[10px] font-black uppercase">Dinheiro</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('CARTÃO')}
                     className={cn(
-                      "p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer",
+                      "p-2.5 rounded-xl flex items-center justify-center gap-1.5 border transition-all cursor-pointer",
                       paymentMethod === 'CARTÃO'
                         ? "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm font-bold"
-                        : "bg-white border-gray-100 text-gray-500 hover:bg-gray-55"
+                        : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"
                     )}
                   >
-                    <CreditCard size={16} />
-                    <span className="text-[9px] font-black uppercase">Cartão</span>
+                    <CreditCard size={15} />
+                    <span className="text-[10px] font-black uppercase">Cartão</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('CONTA_TRABALHADOR')}
+                    className={cn(
+                      "p-2.5 rounded-xl flex items-center justify-center gap-1.5 border transition-all cursor-pointer",
+                      paymentMethod === 'CONTA_TRABALHADOR'
+                        ? "bg-amber-50 border-amber-200 text-amber-700 shadow-sm font-bold"
+                        : "bg-white border-gray-100 text-gray-500 hover:bg-gray-50"
+                    )}
+                  >
+                    <UserCheck size={15} />
+                    <span className="text-[10px] font-black uppercase">Voluntário</span>
                   </button>
                 </div>
               </div>
+
+              {/* Conditional Change Calculator for Cash */}
+              {paymentMethod === 'DINHEIRO' && (
+                <div className="bg-emerald-50/70 p-3 rounded-2xl border border-emerald-100 space-y-2 animate-in fade-in duration-200">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase text-emerald-800 flex items-center gap-1">
+                      <Calculator size={13} /> Calculadora de Troco
+                    </span>
+                    {changeAmount > 0 && (
+                      <span className="text-[10px] font-mono font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Troco: R$ {changeAmount.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-gray-500 font-bold uppercase block mb-1">Valor Entregue pelo Comprador (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder={`Ex: ${(Math.ceil(finalTotal / 10) * 10).toFixed(2)}`}
+                      value={receivedCash}
+                      onChange={e => setReceivedCash(e.target.value)}
+                      className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-1.5 font-mono text-xs font-black focus:outline-none text-emerald-950"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Conditional Worker Selector for Worker Account */}
+              {paymentMethod === 'CONTA_TRABALHADOR' && (
+                <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-100 space-y-1.5 animate-in fade-in duration-200">
+                  <label className="text-[10px] font-black uppercase text-amber-800 block flex items-center gap-1">
+                    <UserCheck size={13} /> Selecionar Voluntário/Trabalhador
+                  </label>
+                  <select
+                    value={selectedWorkerId}
+                    onChange={e => setSelectedWorkerId(e.target.value)}
+                    className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none"
+                  >
+                    <option value="">-- Selecionar Trabalhador --</option>
+                    {workers.map(w => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} {w.position ? `(${w.position})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Checkout Submit button */}
               <button
@@ -1292,7 +1175,7 @@ export const VendasPage: React.FC = () => {
                   <PlusCircle className="text-indigo-650" size={20} />
                   Catalogar Produto Novo
                 </h2>
-                <p className="text-xs text-gray-400 font-medium">Cadastre obras, materiais, lanches ou itens do bazar direto no sistema.</p>
+                <p className="text-xs text-gray-400 font-medium">Cadastre obras, materiais, lanches ou itens do bazar com código de barras.</p>
               </div>
 
               <form onSubmit={handleCreateProduct} className="space-y-4">
@@ -1324,9 +1207,7 @@ export const VendasPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex justify-between items-center pb-0.5">
-                      <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Preço de Venda (R$)</label>
-                    </div>
+                    <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Preço de Venda (R$)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1340,20 +1221,31 @@ export const VendasPage: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                    <Barcode size={13} /> Código de Barras (EAN / SKU)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 78910001 (Opcional - Leitor USB)"
+                    value={newProdBarcode}
+                    onChange={e => setNewProdBarcode(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
                 <div className="bg-rose-50/50 rounded-2xl p-3 border border-rose-100/50 space-y-1">
-                  <div className="flex items-center gap-1 md:gap-1.5 text-rose-700 font-extrabold text-[10px] uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5 text-rose-700 font-extrabold text-[10px] uppercase tracking-wider">
                     <Tag size={12} />
                     <span>Promoção Ativa? (Opcional)</span>
                   </div>
-                  <p className="text-[10px] text-gray-500 leading-normal mb-1.5">Configure um valor com desconto. Ao vender, o sistema priorizará esse preço.</p>
-                  
                   <div className="relative">
                     <span className="absolute left-3 inset-y-0 text-rose-500 text-xs font-black font-mono flex items-center pointer-events-none">R$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      placeholder="Ex: 35.00 (Deixar em branco para preço regular)"
+                      placeholder="Ex: 35.00 (Opcional)"
                       value={newProdPromoPrice}
                       onChange={e => setNewProdPromoPrice(e.target.value)}
                       className="w-full pl-8 pr-4 py-2.5 bg-white border border-rose-100 rounded-xl text-xs font-semibold text-rose-600 placeholder-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-500/15 focus:border-rose-350"
@@ -1444,9 +1336,9 @@ export const VendasPage: React.FC = () => {
               <div className="text-center space-y-2 mb-5">
                 <h2 className="text-lg font-black text-gray-901 uppercase tracking-tight flex items-center justify-center gap-1.5">
                   <Pencil className="text-indigo-650" size={18} />
-                  Gerenciar Item & Promoção
+                  Editar Item & Promoção
                 </h2>
-                <p className="text-xs text-gray-400 font-medium">Modifique preços, estoque, lance descontos e promoções.</p>
+                <p className="text-xs text-gray-400 font-medium">Modifique preços, estoque, código de barras e validade.</p>
               </div>
 
               <form onSubmit={handleUpdateProduct} className="space-y-4">
@@ -1477,7 +1369,7 @@ export const VendasPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Preço de Venda Regular (R$)</label>
+                    <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Preço Regular (R$)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1490,16 +1382,24 @@ export const VendasPage: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                    <Barcode size={13} /> Código de Barras (EAN / SKU)
+                  </label>
+                  <input
+                    type="text"
+                    value={editProdBarcode}
+                    onChange={e => setEditProdBarcode(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+
                 {/* PROMO BOX */}
                 <div className="bg-rose-50/75 rounded-2xl p-4 border border-rose-100 space-y-1.5">
                   <div className="flex items-center gap-1.5 text-rose-700 font-extrabold text-[10px] uppercase tracking-wider">
                     <Sparkles size={13} className="animate-bounce" />
                     <span>PROMOÇÃO ATIVA / LIQUIDAÇÃO?</span>
                   </div>
-                  <p className="text-[10.5px] text-gray-500 leading-normal mb-1">
-                    Defina um preço promocional menor que o preço das obras regulares ou bazar. Apague o valor para desativar a promoção do produto.
-                  </p>
-                  
                   <div className="relative">
                     <span className="absolute left-3 inset-y-0 text-rose-550 text-xs font-black font-mono flex items-center pointer-events-none">R$</span>
                     <input
@@ -1585,7 +1485,7 @@ export const VendasPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Checkout Success Modal */}
+      {/* Checkout Success & Thermal Receipt Modal */}
       <AnimatePresence>
         {checkoutSuccess && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
@@ -1601,26 +1501,26 @@ export const VendasPage: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <h3 className="text-base font-black text-gray-900 uppercase tracking-tight text-emerald-600">Venda Processada com Sucesso!</h3>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Entrada de caixa registrada</p>
+                <h3 className="text-base font-black uppercase tracking-tight text-emerald-600">Venda Registrada na Nuvem!</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Entrada financeira e abatimento de estoque gravados no Firestore</p>
               </div>
 
-              {/* Simulated 80mm Thermal Receipt Preview */}
-              <div className="bg-gray-50 border border-gray-200/60 rounded-2xl p-4 text-left font-mono text-[11px] text-gray-800 space-y-3 relative overflow-hidden shadow-inner max-h-[300px] overflow-y-auto">
-                <div className="absolute top-0 right-0 p-1.5 uppercase text-[7px] font-black tracking-widest bg-emerald-100 text-emerald-800 rounded-bl-xl border-l border-b border-gray-200/50 leading-none">
-                  Simulação Térmica
-                </div>
+              {/* Printable 80mm Thermal Receipt */}
+              <div id="printable-receipt" className="bg-white border border-gray-200 rounded-2xl p-4 text-left font-mono text-[11px] text-gray-800 space-y-3 relative overflow-hidden shadow-sm max-h-[320px] overflow-y-auto">
                 
                 <div className="text-center space-y-0.5 pb-2 border-b border-dashed border-gray-300">
-                  <p className="text-xs font-black uppercase text-gray-901">MIRANTE DE LUZ</p>
-                  <p className="text-[9px] text-gray-400">Montes Claros - MG • CNPJ 12.345/0001-90</p>
-                  <p className="text-[9px] font-bold uppercase text-indigo-650">Cupom Não-Fiscal Simplificado</p>
+                  <p className="text-xs font-black uppercase text-gray-900">ASSOC. ESPÍRITA MIRANTE DE LUZ</p>
+                  <p className="text-[9px] text-gray-500">Montes Claros - MG • CNPJ 12.345.678/0001-90</p>
+                  <p className="text-[9px] font-black uppercase text-indigo-700">Comprovante Não-Fiscal de Venda</p>
                 </div>
 
                 <div className="space-y-0.5 text-[10px]">
-                  <p><strong>Nº Transação:</strong> {checkoutTxId}</p>
-                  <p><strong>Data/Hora:</strong> {new Date().toLocaleString('pt-BR')}</p>
+                  <p><strong>Cód:</strong> {checkoutTxId}</p>
+                  <p><strong>Data:</strong> {new Date().toLocaleString('pt-BR')}</p>
                   <p><strong>Operador:</strong> {cashSession?.openedBy || currentUser?.name || 'Balcão'}</p>
+                  {checkoutWorkerName && (
+                    <p className="text-amber-800 font-bold"><strong>Voluntário:</strong> {checkoutWorkerName}</p>
+                  )}
                 </div>
 
                 <div className="border-t border-dashed border-gray-300 pt-2">
@@ -1654,16 +1554,22 @@ export const VendasPage: React.FC = () => {
                     </div>
                   )}
                   <div className="flex justify-between text-indigo-700 pt-1 border-t border-dashed border-gray-250">
-                    <span>VALOR TOTAL PAGO:</span>
+                    <span>TOTAL LÍQUIDO PAGO:</span>
                     <span>R$ {soldAmount.toFixed(2)}</span>
                   </div>
                 </div>
 
                 <div className="border-t border-dashed border-gray-300 pt-2 space-y-0.5 text-[10px]">
-                  <p><strong>Forma de Recibo:</strong> {checkoutPaymentMethod}</p>
+                  <p><strong>Recebimento:</strong> {checkoutPaymentMethod}</p>
+                  {checkoutReceivedCash > soldAmount && (
+                    <>
+                      <p><strong>Valor Entregue:</strong> R$ {checkoutReceivedCash.toFixed(2)}</p>
+                      <p className="text-emerald-700 font-extrabold"><strong>Troco Devolvido:</strong> R$ {checkoutChangeGiven.toFixed(2)}</p>
+                    </>
+                  )}
                 </div>
 
-                <div className="text-center pt-2 border-t border-dashed border-gray-300 text-[9px] text-gray-400 leading-snug">
+                <div className="text-center pt-2 border-t border-dashed border-gray-300 text-[9px] text-gray-500 leading-snug">
                   "A caridade de cada tostão constrói<br />pontos de socorro. Deus lhe pague!"
                 </div>
               </div>
@@ -1682,7 +1588,7 @@ export const VendasPage: React.FC = () => {
                   onClick={() => setCheckoutSuccess(false)}
                   className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center"
                 >
-                  Confirmar & OK
+                  Confirmar & Fechar
                 </button>
               </div>
             </motion.div>
@@ -1714,7 +1620,7 @@ export const VendasPage: React.FC = () => {
                   <Lock className="text-rose-500" size={20} />
                   Fechar Caixa do Turno
                 </h2>
-                <p className="text-xs text-gray-400 font-medium">Preste contas e feche o caixa do balcão diário.</p>
+                <p className="text-xs text-gray-400 font-medium">Preste contas e feche a sessão oficial no banco de dados.</p>
               </div>
 
               <div className="space-y-4 text-xs font-medium text-gray-600">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen,
@@ -43,14 +44,18 @@ import {
   Coffee,
   CloudRain,
   Compass,
-  FilePieChart
+  FilePieChart,
+  ArrowLeft
 } from 'lucide-react';
 import {
   audiobooksService,
+  DEFAULT_AUDIOBOOKS,
   Audiobook,
   AudioTrack,
-  AudioPurchase
+  AudioPurchase,
+  AudiobookProgress
 } from '../services/audiobooksData';
+import { dataService } from '../services/dataService';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { LibraryLoansView } from '../components/LibraryLoansView';
@@ -67,6 +72,7 @@ import {
 } from 'recharts';
 
 export function AudiobooksPage() {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'store' | 'library' | 'admin' | 'dashboard'>('store');
   const [audiobooks, setAudiobooks] = useState<Audiobook[]>([]);
@@ -108,21 +114,57 @@ export function AudiobooksPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Progress tracking map by book ID
+  const [userProgressMap, setUserProgressMap] = useState<Record<string, AudiobookProgress>>({});
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [isBuffering, setIsBuffering] = useState<boolean>(false);
+
   // Load user details
   const userEmail = currentUser?.email || 'anonimo@cemil.com';
   const userName = currentUser?.name || 'Visitante Colaborador';
   const isAdminOrSecretary = currentUser?.role === 'ADMIN' || currentUser?.role === 'ADM' || currentUser?.role === 'SECRETARIO';
 
+  // Real-time Firestore Subscriptions
   useEffect(() => {
-    loadAllData();
-  }, []);
+    // 1. Subscribe to Audiobooks Catalog
+    const unsubAudiobooks = dataService.subscribeAudiobooks(async (remoteBooks) => {
+      if (remoteBooks.length === 0) {
+        // Seed default audiobooks if empty
+        console.log('Seeding initial audiobooks catalog to Firestore...');
+        for (const book of DEFAULT_AUDIOBOOKS) {
+          await dataService.saveAudiobook(book);
+        }
+        setAudiobooks(DEFAULT_AUDIOBOOKS);
+        audiobooksService.saveAudiobooks(DEFAULT_AUDIOBOOKS);
+      } else {
+        setAudiobooks(remoteBooks);
+        audiobooksService.saveAudiobooks(remoteBooks);
+      }
+    });
 
-  const loadAllData = () => {
-    setAudiobooks(audiobooksService.getAudiobooks());
-    setPurchases(audiobooksService.getPurchases());
-  };
+    // 2. Subscribe to Audio Purchases
+    const unsubPurchases = dataService.subscribeAudioPurchases((remotePurchases) => {
+      setPurchases(remotePurchases);
+      audiobooksService.savePurchases(remotePurchases);
+    });
 
-  // Manage Main Audio elements
+    // 3. Subscribe to Audiobook Progress
+    const unsubProgress = dataService.subscribeAudiobookProgress(userEmail, (progressList) => {
+      const pMap: Record<string, AudiobookProgress> = {};
+      progressList.forEach(p => {
+        pMap[p.audiobookId] = p;
+      });
+      setUserProgressMap(pMap);
+    });
+
+    return () => {
+      unsubAudiobooks();
+      unsubPurchases();
+      unsubProgress();
+    };
+  }, [userEmail]);
+
+  // Manage Main Audio elements & event listeners
   useEffect(() => {
     audioRef.current = new Audio();
     ambientAudioRef.current = new Audio();
@@ -133,19 +175,85 @@ export function AudiobooksPage() {
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration || 0);
     const handleEnded = () => handleNextTrack();
+    const handleWaiting = () => setIsBuffering(true);
+    const handleCanPlay = () => setIsBuffering(false);
+    const handleError = () => {
+      setIsBuffering(false);
+      setAudioError('Não foi possível carregar o arquivo de áudio. Verifique sua conexão ou a URL.');
+    };
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', updateDuration);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', updateDuration);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('error', handleError);
       audio.pause();
       ambient.pause();
     };
   }, []);
+
+  // Keyboard Shortcuts (Space play/pause, ArrowLeft/Right seek 10s)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!currentBook) return;
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        handleTogglePlay();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        handleSeek(Math.max(0, currentTime - 10));
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        handleSeek(Math.min(duration, currentTime + 10));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentBook, isPlaying, currentTime, duration]);
+
+  // Save Progress to Firestore bookmark when audio plays/pauses/progresses
+  const saveProgressDebounced = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (!currentBook) return;
+
+    if (saveProgressDebounced.current) clearTimeout(saveProgressDebounced.current);
+
+    saveProgressDebounced.current = setTimeout(() => {
+      const totalTracks = currentBook.tracks.length || 1;
+      const percent = Math.min(100, Math.round(((currentTrackIndex + (currentTime / (duration || 1))) / totalTracks) * 100));
+
+      dataService.saveAudiobookProgress({
+        id: `prog_${userEmail}_${currentBook.id}`,
+        userEmail,
+        audiobookId: currentBook.id,
+        currentTrackIndex,
+        currentSeconds: Math.round(currentTime),
+        completedPercent: percent,
+        lastListenedAt: new Date().toISOString()
+      }).catch(err => {
+        console.warn('Failed to save progress to Firestore:', err);
+      });
+    }, 3000);
+
+    return () => {
+      if (saveProgressDebounced.current) clearTimeout(saveProgressDebounced.current);
+    };
+  }, [currentTime, currentTrackIndex, currentBook, userEmail]);
 
   // Sync ambient sound url dynamically
   useEffect(() => {
@@ -156,9 +264,9 @@ export function AudiobooksPage() {
       ambient.pause();
     } else {
       let url = '';
-      if (ambientSound === 'rain') url = 'https://assets.mixkit.co/active_storage/sfx/2533/2533-84.wav'; // Soft rain loop
-      if (ambientSound === 'forest') url = 'https://assets.mixkit.co/active_storage/sfx/1250/1250-84.wav'; // Forest atmosphere
-      if (ambientSound === 'waves') url = 'https://assets.mixkit.co/active_storage/sfx/2507/2507-84.wav'; // Ocean shore waves
+      if (ambientSound === 'rain') url = 'https://assets.mixkit.co/active_storage/sfx/2533/2533-84.wav';
+      if (ambientSound === 'forest') url = 'https://assets.mixkit.co/active_storage/sfx/1250/1250-84.wav';
+      if (ambientSound === 'waves') url = 'https://assets.mixkit.co/active_storage/sfx/2507/2507-84.wav';
 
       ambient.src = url;
       ambient.loop = true;
@@ -185,13 +293,16 @@ export function AudiobooksPage() {
   // Handle Play/Pause
   const handleTogglePlay = () => {
     if (!audioRef.current || !currentBook) return;
+    setAudioError(null);
 
     if (isPlaying) {
       audioRef.current.pause();
       ambientAudioRef.current?.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().catch(() => {});
+      audioRef.current.play().catch(() => {
+        setAudioError('Não foi possível tocar o áudio. Clique novamente para habilitar o reprodutor.');
+      });
       if (ambientSound !== 'none') {
         ambientAudioRef.current?.play().catch(() => {});
       }
@@ -202,13 +313,16 @@ export function AudiobooksPage() {
   // Change Track
   useEffect(() => {
     if (!audioRef.current || !currentBook) return;
+    setAudioError(null);
 
     const activeTrack = currentBook.tracks[currentTrackIndex];
     if (activeTrack) {
       audioRef.current.src = activeTrack.audioUrl;
       audioRef.current.playbackRate = playbackSpeed;
       if (isPlaying) {
-        audioRef.current.play().catch(() => {});
+        audioRef.current.play().catch(() => {
+          setAudioError('Erro ao iniciar faixa de áudio.');
+        });
         if (ambientSound !== 'none') {
           ambientAudioRef.current?.play().catch(() => {});
         }
@@ -217,6 +331,27 @@ export function AudiobooksPage() {
       }
     }
   }, [currentBook, currentTrackIndex]);
+
+  // Select audiobook to play and resume bookmark position if available
+  const handlePlayBook = (book: Audiobook, startFromTrack: number = 0) => {
+    setCurrentBook(book);
+    setAudioError(null);
+
+    const savedProgress = userProgressMap[book.id];
+    if (savedProgress) {
+      const trackIdx = savedProgress.currentTrackIndex < book.tracks.length ? savedProgress.currentTrackIndex : 0;
+      setCurrentTrackIndex(trackIdx);
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.currentTime = savedProgress.currentSeconds || 0;
+        }
+      }, 200);
+    } else {
+      setCurrentTrackIndex(startFromTrack);
+    }
+
+    setIsPlaying(true);
+  };
 
   // Adjust playback speed
   const handleChangeSpeed = (speed: number) => {
@@ -231,7 +366,6 @@ export function AudiobooksPage() {
     if (currentTrackIndex < currentBook.tracks.length - 1) {
       setCurrentTrackIndex(prev => prev + 1);
     } else {
-      // Loop to beginning if last track
       setCurrentTrackIndex(0);
     }
   };
@@ -266,7 +400,7 @@ export function AudiobooksPage() {
   });
 
   const myUnlockedBooks = audiobooks.filter(book => 
-    audiobooksService.isPurchased(userEmail, book.id) || isAdminOrSecretary
+    audiobooksService.isPurchased(userEmail, book.id, purchases) || isAdminOrSecretary
   );
 
   // Pre-configured tags/categories
@@ -284,23 +418,20 @@ export function AudiobooksPage() {
     setIsProcessingPayment(true);
 
     setTimeout(() => {
-      // Generate purchase in dataService
       const pur = audiobooksService.createPurchase(userEmail, checkoutBook.id, checkoutBook.price, paymentMethod);
       setActivePurchase(pur);
       setIsProcessingPayment(false);
-    }, 1200);
+    }, 1000);
   };
 
   const handleSimulatePaymentApproval = () => {
     if (!activePurchase) return;
-    audiobooksService.approvePurchase(activePurchase.id);
-    loadAllData();
+    audiobooksService.approvePurchase(activePurchase.id, purchases, audiobooks);
     
-    // Close modal and show success alert/toast
+    // Close modal and navigate to library
     setActivePurchase(null);
     setCheckoutBook(null);
     setActiveTab('library');
-    alert(`Pagamento aprovado com Sucesso! O Audiobook foi adicionado e já está disponível em sua biblioteca particular "Meus Áudios".`);
   };
 
   // Admin Handlers
@@ -344,7 +475,7 @@ export function AudiobooksPage() {
     setTempTracksList(tempTracksList.filter(t => t.id !== id));
   };
 
-  const handleAdminFormSubmit = (e: React.FormEvent) => {
+  const handleAdminFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminModalOpen) return;
     const { mode, item } = adminModalOpen;
@@ -356,23 +487,23 @@ export function AudiobooksPage() {
       tracks: tempTracksList
     };
 
-    let updatedList = [];
-    if (mode === 'add') {
-      updatedList = [...audiobooks, readyItem];
-    } else {
-      updatedList = audiobooks.map(x => x.id === item?.id ? readyItem : x);
+    try {
+      await dataService.saveAudiobook(readyItem);
+      setAdminModalOpen(null);
+    } catch (err) {
+      console.error('Failed to save audiobook:', err);
+      alert('Ocorreu um erro ao salvar o audiobook no banco Firestore.');
     }
-
-    audiobooksService.saveAudiobooks(updatedList);
-    setAudiobooks(updatedList);
-    setAdminModalOpen(null);
   };
 
-  const handleDeleteAudiobook = (id: string, name: string) => {
+  const handleDeleteAudiobook = async (id: string, name: string) => {
     if (window.confirm(`Tem certeza de que deseja remover o audiobook "${name}" do catálogo permanentemente?`)) {
-      const updated = audiobooks.filter(b => b.id !== id);
-      audiobooksService.saveAudiobooks(updated);
-      setAudiobooks(updated);
+      try {
+        await dataService.deleteAudiobook(id);
+      } catch (err) {
+        console.error('Failed to delete audiobook:', err);
+        alert('Erro ao excluir audiobook.');
+      }
     }
   };
 
@@ -422,11 +553,20 @@ export function AudiobooksPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => {
-              if (window.confirm('Desitir de todas as compras simuladas e resetar catálogo padrão?')) {
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-2xl text-xs font-bold transition-all cursor-pointer border border-slate-200/80 shadow-xs active:scale-95 group"
+          >
+            <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform text-indigo-600" />
+            <span>Voltar ao Início</span>
+          </button>
+          <button
+            onClick={async () => {
+              if (window.confirm('Deseja resetar o catálogo para o padrão de fábrica?')) {
                 localStorage.removeItem('cemil_audiobooks');
                 localStorage.removeItem('cemil_audio_purchases');
-                loadAllData();
+                for (const book of DEFAULT_AUDIOBOOKS) {
+                  await dataService.saveAudiobook(book);
+                }
               }
             }}
             className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-2xl text-xs font-bold transition-all"
@@ -613,31 +753,55 @@ export function AudiobooksPage() {
               
               {myUnlockedBooks.length > 0 ? myUnlockedBooks.map((book) => {
                 const isSelected = currentBook?.id === book.id;
+                const progress = userProgressMap[book.id];
+                const pct = progress?.completedPercent || 0;
+
                 return (
                   <div
                     key={book.id}
-                    onClick={() => {
-                      setCurrentBook(book);
-                      setCurrentTrackIndex(0);
-                    }}
+                    onClick={() => handlePlayBook(book)}
                     className={cn(
-                      "p-4 bg-white rounded-3xl border [cursor:pointer] hover:shadow-md transition-all flex gap-4 items-center",
+                      "p-4 bg-white rounded-3xl border [cursor:pointer] hover:shadow-md transition-all flex gap-4 items-center group",
                       isSelected ? "ring-2 ring-indigo-600 border-transparent bg-indigo-50/10" : "border-gray-100"
                     )}
                   >
-                    <img 
-                      src={book.coverUrl} 
-                      alt={book.title} 
-                      referrerPolicy="no-referrer"
-                      className="w-16 h-16 object-cover rounded-xl bg-gray-50" 
-                    />
+                    <div className="relative flex-shrink-0">
+                      <img 
+                        src={book.coverUrl} 
+                        alt={book.title} 
+                        referrerPolicy="no-referrer"
+                        className="w-16 h-16 object-cover rounded-xl bg-gray-50" 
+                      />
+                      <div className="absolute inset-0 bg-black/20 rounded-xl opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center text-white">
+                        <Play size={18} fill="currentColor" />
+                      </div>
+                    </div>
                     <div className="flex-1 min-w-0 space-y-1">
-                      <span className="text-[8px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full inline-block">
-                        {book.category}
-                      </span>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[8px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full inline-block">
+                          {book.category}
+                        </span>
+                        {pct > 0 && (
+                          <span className={cn(
+                            "text-[9px] font-extrabold px-2 py-0.5 rounded-full",
+                            pct >= 95 ? "bg-emerald-50 text-emerald-600" : "bg-indigo-50 text-indigo-600"
+                          )}>
+                            {pct >= 95 ? '✓ Concluído' : `⏳ ${pct}% ouvido`}
+                          </span>
+                        )}
+                      </div>
                       <h4 className="font-extrabold text-sm text-gray-800 tracking-tight leading-tight truncate">{book.title}</h4>
                       <p className="text-[10px] text-gray-400 font-medium truncate">Autor: {book.author}</p>
-                      <p className="text-[10px] text-gray-400 font-semibold italic">{book.tracks.length} capítulos</p>
+                      
+                      {/* Mini progress bar */}
+                      {pct > 0 && (
+                        <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden mt-1">
+                          <div 
+                            className="bg-indigo-600 h-full rounded-full transition-all duration-300" 
+                            style={{ width: `${pct}%` }} 
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -685,6 +849,14 @@ export function AudiobooksPage() {
                     </div>
                   </div>
 
+                  {/* Audio error alert if present */}
+                  {audioError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 font-medium flex items-center gap-2">
+                      <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+                      <span>{audioError}</span>
+                    </div>
+                  )}
+
                   {/* Active track bar and sound loops */}
                   <div className="bg-gray-50/50 p-4 rounded-2xl flex items-center justify-between border border-gray-100">
                     <div className="flex items-center gap-3">
@@ -692,7 +864,14 @@ export function AudiobooksPage() {
                         <Music size={16} />
                       </div>
                       <div>
-                        <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest block leading-none">FAIXA REPRODUZINDO</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest block leading-none">FAIXA REPRODUZINDO</span>
+                          {isBuffering && (
+                            <span className="text-[9px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded animate-pulse">
+                              Carregando...
+                            </span>
+                          )}
+                        </div>
                         <h4 className="font-extrabold text-sm text-gray-800 leading-tight pt-1">
                           {currentBook.tracks[currentTrackIndex]?.title || 'Carregando capítulo...'}
                         </h4>
@@ -725,16 +904,16 @@ export function AudiobooksPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                       {/* Playback speed dials */}
                       <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-100">
-                        {[1.0, 1.25, 1.5, 2.0].map(s => (
+                        {[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map(s => (
                           <button
                             key={s}
                             onClick={() => handleChangeSpeed(s)}
                             className={cn(
-                              "px-2.5 py-1 text-[10px] font-extrabold rounded-lg transition-all",
+                              "px-2 py-1 text-[10px] font-extrabold rounded-lg transition-all",
                               playbackSpeed === s ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400 hover:text-gray-800"
                             )}
                           >
-                            {s.toFixed(2)}x
+                            {s}x
                           </button>
                         ))}
                       </div>
@@ -1031,8 +1210,7 @@ export function AudiobooksPage() {
                                 <>
                                   <button
                                     onClick={() => {
-                                      audiobooksService.approvePurchase(p.id);
-                                      loadAllData();
+                                      audiobooksService.approvePurchase(p.id, purchases, audiobooks);
                                     }}
                                     className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-extrabold text-[9px] rounded-lg uppercase tracking-wider transition-all"
                                   >
@@ -1040,8 +1218,7 @@ export function AudiobooksPage() {
                                   </button>
                                   <button
                                     onClick={() => {
-                                      audiobooksService.cancelPurchase(p.id);
-                                      loadAllData();
+                                      audiobooksService.cancelPurchase(p.id, purchases);
                                     }}
                                     className="px-2.5 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 font-extrabold text-[9px] rounded-lg uppercase tracking-wider transition-all"
                                   >
@@ -1270,7 +1447,7 @@ export function AudiobooksPage() {
                       className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2"
                     >
                       <CheckCircle2 size={16} />
-                      Simular Aprovação Automática
+                      Confirmar e Aprovar Pagamento
                     </button>
                     <button
                       onClick={() => {

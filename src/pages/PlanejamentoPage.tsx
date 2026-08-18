@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Target,
@@ -33,7 +34,8 @@ import {
   Download,
   RefreshCw,
   Building2,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -59,11 +61,12 @@ import {
   COORDINATIONS
 } from '../services/planejamentoData';
 import { dataService } from '../services/dataService';
-import { FinancialEntry, SectorSchedule } from '../types';
+import { FinancialEntry, SectorSchedule, Worker } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 
 export function PlanejamentoPage() {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'estrategico' | 'metas' | 'projetos' | 'atividades' | 'calendario' | 'atas' | 'documentos' | 'integracao' | 'bi'>('dashboard');
 
@@ -76,6 +79,7 @@ export function PlanejamentoPage() {
   const [meetings, setMeetings] = useState<MeetingMinutes[]>([]);
   const [documents, setDocuments] = useState<PlanningDocument[]>([]);
   const [demands, setDemands] = useState<IntersectorDemand[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
 
   // Integrated Real Financial & Operational States
   const [financialEntries, setFinancialEntries] = useState<FinancialEntry[]>([]);
@@ -110,20 +114,37 @@ export function PlanejamentoPage() {
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadAllData();
+    // Active Real-time subscriptions to Firestore
+    const unsubPlans = planejamentoService.subscribeToPlans(setPlans);
+    const unsubGoals = planejamentoService.subscribeToGoals(setGoals);
+    const unsubProjects = planejamentoService.subscribeToProjects(setProjects);
+    const unsubActivities = planejamentoService.subscribeToActivities(setActivities);
+    const unsubEvents = planejamentoService.subscribeToEvents(setEvents);
+    const unsubMeetings = planejamentoService.subscribeToMeetings(setMeetings);
+    const unsubDocuments = planejamentoService.subscribeToDocuments(setDocuments);
+    const unsubDemands = planejamentoService.subscribeToDemands(setDemands);
+
+    const unsubWorkers = dataService.subscribeToWorkers((list) => {
+      setWorkers(list || []);
+    });
+
+    dataService.getFinancialEntries().then(fin => fin && setFinancialEntries(fin));
+    dataService.getSchedules().then(sch => sch && setHouseSchedules(sch));
+
+    return () => {
+      unsubPlans();
+      unsubGoals();
+      unsubProjects();
+      unsubActivities();
+      unsubEvents();
+      unsubMeetings();
+      unsubDocuments();
+      unsubDemands();
+      unsubWorkers();
+    };
   }, []);
 
   const loadAllData = async () => {
-    // Fast initial sync load from local cache
-    setPlans(planejamentoService.getPlans());
-    setGoals(planejamentoService.getGoals());
-    setProjects(planejamentoService.getProjects());
-    setActivities(planejamentoService.getActivities());
-    setEvents(planejamentoService.getEvents());
-    setMeetings(planejamentoService.getMeetings());
-    setDocuments(planejamentoService.getDocuments());
-    setDemands(planejamentoService.getDemands());
-
     setLoadingAsync(true);
     try {
       const [p, g, pr, ac, ev, me, doList, de, fin, sch] = await Promise.all([
@@ -155,64 +176,32 @@ export function PlanejamentoPage() {
     }
   };
 
-  const syncData = (type: string, updatedList: any[]) => {
-    switch (type) {
-      case 'plan':
-        setPlans(updatedList);
-        planejamentoService.savePlans(updatedList);
-        break;
-      case 'goal':
-        setGoals(updatedList);
-        planejamentoService.saveGoals(updatedList);
-        break;
-      case 'project':
-        setProjects(updatedList);
-        planejamentoService.saveProjects(updatedList);
-        break;
-      case 'activity':
-        setActivities(updatedList);
-        planejamentoService.saveActivities(updatedList);
-        break;
-      case 'event':
-        setEvents(updatedList);
-        planejamentoService.saveEvents(updatedList);
-        break;
-      case 'meeting':
-        setMeetings(updatedList);
-        planejamentoService.saveMeetings(updatedList);
-        break;
-      case 'document':
-        setDocuments(updatedList);
-        planejamentoService.saveDocuments(updatedList);
-        break;
-      case 'demand':
-        setDemands(updatedList);
-        planejamentoService.saveDemands(updatedList);
-        break;
+  const handleResetData = async () => {
+    if (window.confirm('Deseja resetar todas as informações do Planejamento para o padrão de demonstração da Secretaria?')) {
+      setLoadingAsync(true);
+      await planejamentoService.resetAllData();
+      setLoadingAsync(false);
     }
   };
 
-  // Safe deletion helper
+  // Safe deletion helper (explicit Firestore doc deletion)
   const triggerDelete = (type: any, id: string, label: string) => {
     setDeleteConfirm({ open: true, type, id, label });
   };
 
-  const confirmDeletion = () => {
+  const confirmDeletion = async () => {
     if (!deleteConfirm) return;
     const { type, id } = deleteConfirm;
-    let list: any[] = [];
-    switch (type) {
-      case 'plan': list = plans.filter(p => p.id !== id); break;
-      case 'goal': list = goals.filter(g => g.id !== id); break;
-      case 'project': list = projects.filter(p => p.id !== id); break;
-      case 'activity': list = activities.filter(a => a.id !== id); break;
-      case 'event': list = events.filter(e => e.id !== id); break;
-      case 'meeting': list = meetings.filter(m => m.id !== id); break;
-      case 'document': list = documents.filter(d => d.id !== id); break;
-      case 'demand': list = demands.filter(d => d.id !== id); break;
-    }
-    syncData(type, list);
+    await planejamentoService.deleteItem(type, id);
     setDeleteConfirm(null);
+  };
+
+  // Helper for overdue verification
+  const checkIsOverdue = (dateStr?: string, statusStr?: string) => {
+    if (!dateStr) return false;
+    const today = new Date().toISOString().split('T')[0];
+    const doneStatuses = ['Concluído', 'Concluída', 'Realizado', 'Cancelado', 'Cancelada'];
+    return dateStr < today && !doneStatuses.includes(statusStr || '');
   };
 
   // Open Form modal
@@ -220,8 +209,10 @@ export function PlanejamentoPage() {
     setModalOpen({ type, mode, item });
     if (mode === 'edit' && item) {
       setFormData({ ...item });
+    } else if (mode === 'add' && item) {
+      // Pre-filled custom defaults (e.g. from action item conversion)
+      setFormData({ ...item });
     } else {
-      // Set defaults depending on type
       let defaults: any = {};
       if (type === 'plan') {
         defaults = { title: '', year: '2026', type: 'Anual', objective: '', description: '', responsible: 'Planejamento', deadline: '', status: 'Planejado' };
@@ -244,110 +235,107 @@ export function PlanejamentoPage() {
     }
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  // File selection for documents
+  const handleDocumentFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const sizeKb = (file.size / 1024).toFixed(1);
+    const sizeStr = file.size > 1024 * 1024 ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : `${sizeKb} KB`;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormData((prev: any) => ({
+        ...prev,
+        name: file.name,
+        size: sizeStr,
+        fileData: event.target?.result as string
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalOpen) return;
     const { type, mode, item } = modalOpen;
 
-    let updatedList = [];
-    let currentList: any[] = [];
+    let idToUse = mode === 'add' ? `${type.substring(0, 2)}_${Date.now()}` : item.id;
+    let itemFormatted = { ...formData, id: idToUse };
+
+    if (type === 'project') {
+      if (typeof formData.team === 'string') {
+        itemFormatted.team = formData.team.split(',').map((s: string) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(formData.team)) {
+        itemFormatted.team = [];
+      }
+      if (!itemFormatted.tasks) itemFormatted.tasks = [];
+    }
+
+    if (type === 'meeting') {
+      if (typeof formData.participants === 'string') {
+        itemFormatted.participants = formData.participants.split(',').map((s: string) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(formData.participants)) {
+        itemFormatted.participants = [];
+      }
+      if (!itemFormatted.actions) itemFormatted.actions = [];
+    }
+
+    // Direct save to Firestore
     switch (type) {
-      case 'plan': currentList = plans; break;
-      case 'goal': currentList = goals; break;
-      case 'project': currentList = projects; break;
-      case 'activity': currentList = activities; break;
-      case 'event': currentList = events; break;
-      case 'meeting': currentList = meetings; break;
-      case 'document': currentList = documents; break;
-      case 'demand': currentList = demands; break;
+      case 'plan': await planejamentoService.savePlan(itemFormatted); break;
+      case 'goal': await planejamentoService.saveGoal(itemFormatted); break;
+      case 'project': await planejamentoService.saveProject(itemFormatted); break;
+      case 'activity': await planejamentoService.saveActivity(itemFormatted); break;
+      case 'event': await planejamentoService.saveEvent(itemFormatted); break;
+      case 'meeting': await planejamentoService.saveMeeting(itemFormatted); break;
+      case 'document': await planejamentoService.saveDocument(itemFormatted); break;
+      case 'demand': await planejamentoService.saveDemand(itemFormatted); break;
     }
 
-    if (mode === 'add') {
-      const newId = `${type.substring(0, 2)}_${Date.now()}`;
-      let itemFormatted = { ...formData, id: newId };
-      // Special sanitizations
-      if (type === 'project') {
-        itemFormatted.team = typeof formData.team === 'string' ? formData.team.split(',').map((s: string) => s.trim()) : [];
-        itemFormatted.tasks = [];
-      }
-      if (type === 'meeting') {
-        itemFormatted.participants = typeof formData.participants === 'string' ? formData.participants.split(',').map((s: string) => s.trim()) : [];
-        itemFormatted.actions = [];
-      }
-      updatedList = [...currentList, itemFormatted];
-    } else {
-      let itemFormatted = { ...formData };
-      if (type === 'project' && typeof formData.team === 'string') {
-        itemFormatted.team = formData.team.split(',').map((s: string) => s.trim());
-      }
-      if (type === 'meeting' && typeof formData.participants === 'string') {
-        itemFormatted.participants = formData.participants.split(',').map((s: string) => s.trim());
-      }
-      updatedList = currentList.map(x => x.id === item.id ? itemFormatted : x);
-    }
-
-    syncData(type, updatedList);
     setModalOpen(null);
   };
 
   // Project Task Helpers
-  const toggleProjectTask = (projectId: string, taskId: string) => {
-    const updated = projects.map(p => {
-      if (p.id === projectId) {
-        const updatedTasks = p.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
-        return { ...p, tasks: updatedTasks };
-      }
-      return p;
-    });
-    syncData('project', updated);
+  const toggleProjectTask = async (projectId: string, taskId: string) => {
+    const p = projects.find(x => x.id === projectId);
+    if (!p) return;
+    const updatedTasks = p.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
+    await planejamentoService.saveProject({ ...p, tasks: updatedTasks });
   };
 
-  const addProjectTask = (projectId: string, text: string, assigned: string, deadline: string) => {
+  const addProjectTask = async (projectId: string, text: string, assigned: string, deadline: string) => {
     if (!text) return;
-    const updated = projects.map(p => {
-      if (p.id === projectId) {
-        const newTask = {
-          id: `tk_${Date.now()}`,
-          text,
-          done: false,
-          assignedTo: assigned || 'Geral',
-          deadline: deadline || p.endDate
-        };
-        return { ...p, tasks: [...p.tasks, newTask] };
-      }
-      return p;
-    });
-    syncData('project', updated);
+    const p = projects.find(x => x.id === projectId);
+    if (!p) return;
+    const newTask = {
+      id: `tk_${Date.now()}`,
+      text,
+      done: false,
+      assignedTo: assigned || 'Geral',
+      deadline: deadline || p.endDate
+    };
+    await planejamentoService.saveProject({ ...p, tasks: [...p.tasks, newTask] });
   };
 
   // Meeting Action Helpers
-  const toggleMeetingActionDone = (meetingId: string, actionId: string) => {
-    const updated = meetings.map(m => {
-      if (m.id === meetingId) {
-        const updatedActions = m.actions.map(a => a.id === actionId ? { ...a, done: !a.done } : a);
-        return { ...m, actions: updatedActions };
-      }
-      return m;
-    });
-    syncData('meeting', updated);
+  const toggleMeetingActionDone = async (meetingId: string, actionId: string) => {
+    const m = meetings.find(x => x.id === meetingId);
+    if (!m) return;
+    const updatedActions = m.actions.map(a => a.id === actionId ? { ...a, done: !a.done } : a);
+    await planejamentoService.saveMeeting({ ...m, actions: updatedActions });
   };
 
-  const addMeetingAction = (meetingId: string, text: string, resp: string, dl: string) => {
+  const addMeetingAction = async (meetingId: string, text: string, resp: string, dl: string) => {
     if (!text) return;
-    const updated = meetings.map(m => {
-      if (m.id === meetingId) {
-        const newAct = {
-          id: `act_${Date.now()}`,
-          text,
-          responsible: resp || 'Secretário',
-          deadline: dl || m.date,
-          done: false
-        };
-        return { ...m, actions: [...m.actions, newAct] };
-      }
-      return m;
-    });
-    syncData('meeting', updated);
+    const m = meetings.find(x => x.id === meetingId);
+    if (!m) return;
+    const newAct = {
+      id: `act_${Date.now()}`,
+      text,
+      responsible: resp || 'Secretário',
+      deadline: dl || m.date,
+      done: false
+    };
+    await planejamentoService.saveMeeting({ ...m, actions: [...m.actions, newAct] });
   };
 
   // General Status Count Metrics
@@ -400,6 +388,13 @@ export function PlanejamentoPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-2xl text-xs font-bold transition-all cursor-pointer border border-slate-200/80 shadow-xs active:scale-95 group"
+          >
+            <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform text-indigo-600" />
+            <span>Voltar ao Início</span>
+          </button>
+          <button
             onClick={() => setShowReportModal(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs transition-all shadow-md shadow-indigo-100 cursor-pointer active:scale-95"
           >
@@ -416,20 +411,9 @@ export function PlanejamentoPage() {
             <span className="hidden sm:inline">Sincronizar</span>
           </button>
           <button
-            onClick={() => {
-              if (window.confirm('Deseja resetar as informações deste módulo para o padrão pre-configurado da Secretaria?')) {
-                localStorage.removeItem('plan_plans');
-                localStorage.removeItem('plan_goals');
-                localStorage.removeItem('plan_projects');
-                localStorage.removeItem('plan_activities');
-                localStorage.removeItem('plan_events');
-                localStorage.removeItem('plan_meetings');
-                localStorage.removeItem('plan_documents');
-                localStorage.removeItem('plan_demands');
-                loadAllData();
-              }
-            }}
-            className="px-3 py-2.5 border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-2xl text-xs font-bold transition-all"
+            onClick={handleResetData}
+            disabled={loadingAsync}
+            className="px-3 py-2.5 border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-2xl text-xs font-bold transition-all cursor-pointer"
           >
             Resetar
           </button>
@@ -1422,17 +1406,17 @@ export function PlanejamentoPage() {
 
                         <div className="space-y-2">
                           {m.actions?.map(act => (
-                            <div key={act.id} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:bg-gray-50/50">
-                              <div className="flex items-center gap-2.5">
+                            <div key={act.id} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:bg-gray-50/50 gap-2">
+                              <div className="flex items-center gap-2.5 flex-1 min-w-0">
                                 <input
                                   type="checkbox"
                                   checked={act.done}
                                   onChange={() => toggleMeetingActionDone(m.id, act.id)}
-                                  className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 accent-indigo-600 transition-all cursor-pointer"
+                                  className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 accent-indigo-600 transition-all cursor-pointer shrink-0"
                                 />
-                                <div className="space-y-0.5">
+                                <div className="space-y-0.5 truncate">
                                   <p className={cn(
-                                    "text-xs font-bold text-gray-700",
+                                    "text-xs font-bold text-gray-700 truncate",
                                     act.done ? "line-through text-gray-400 font-medium" : ""
                                   )}>{act.text}</p>
                                   <div className="flex gap-2 text-[9px] text-gray-400 font-bold uppercase tracking-wider">
@@ -1441,6 +1425,39 @@ export function PlanejamentoPage() {
                                     <span>Prazo: <strong className="text-gray-500">{act.deadline}</strong></span>
                                   </div>
                                 </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openModalFor('project', 'add', {
+                                    name: act.text,
+                                    coordinator: act.responsible || COORDINATIONS[0],
+                                    endDate: act.deadline || new Date().toISOString().split('T')[0],
+                                    description: `Projeto gerado a partir da ata: ${m.title}`,
+                                    budget: 0,
+                                    status: 'Planejamento'
+                                  })}
+                                  title="Converter este encaminhamento em Projeto Institucional"
+                                  className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1"
+                                >
+                                  + Projeto
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openModalFor('goal', 'add', {
+                                    name: act.text,
+                                    coordination: act.responsible || COORDINATIONS[0],
+                                    endDate: act.deadline || new Date().toISOString().split('T')[0],
+                                    description: `Meta originada da ata: ${m.title}`,
+                                    status: 'Planejada',
+                                    progress: 0
+                                  })}
+                                  title="Converter este encaminhamento em Meta Estratégica"
+                                  className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1"
+                                >
+                                  + Meta
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -1531,12 +1548,25 @@ export function PlanejamentoPage() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => triggerDelete('document', d.id, d.name)}
-                      className="p-1 px-2.5 rounded-lg border border-red-50 hover:bg-red-50 text-[10px] font-bold text-red-600 transition-all shrink-0"
-                    >
-                      Remover
-                    </button>
+                    <div className="flex flex-col gap-1.5 shrink-0 items-end">
+                      {(d.fileData || d.url) && (
+                        <a
+                          href={d.fileData || d.url}
+                          download={d.name}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-[10px] font-bold text-indigo-700 transition-all flex items-center gap-1 shadow-sm"
+                        >
+                          <Download size={12} /> Visualizar
+                        </a>
+                      )}
+                      <button
+                        onClick={() => triggerDelete('document', d.id, d.name)}
+                        className="px-2.5 py-1 rounded-lg border border-red-50 hover:bg-red-50 text-[10px] font-bold text-red-600 transition-all"
+                      >
+                        Remover
+                      </button>
+                    </div>
                   </div>
                 ))}
             </div>
@@ -1596,12 +1626,12 @@ export function PlanejamentoPage() {
                               const form = e.currentTarget;
                               const answer = (form.elements.namedItem('answerText') as HTMLInputElement).value;
                               const accept = (form.elements.namedItem('acceptRadio') as HTMLInputElement).checked;
-                              const updated = demands.map(item => item.id === d.id ? {
-                                ...item,
+                              const updatedDemand = {
+                                ...d,
                                 answer,
                                 status: accept ? 'Aceita' : 'Recusada'
-                              } as IntersectorDemand : item);
-                              syncData('demand', updated);
+                              } as IntersectorDemand;
+                              planejamentoService.saveDemand(updatedDemand);
                             }}
                             className="space-y-2"
                           >
@@ -1630,10 +1660,10 @@ export function PlanejamentoPage() {
                             {d.status === 'Aceita' && (
                               <button
                                 onClick={() => {
-                                  const updated = demands.map(item => item.id === d.id ? { ...item, status: 'Concluída' } as IntersectorDemand : item);
-                                  syncData('demand', updated);
+                                  const updatedDemand = { ...d, status: 'Concluída' } as IntersectorDemand;
+                                  planejamentoService.saveDemand(updatedDemand);
                                 }}
-                                className="px-2 py-0.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded text-[9px] font-bold uppercase transition-all"
+                                className="px-2 py-0.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded text-[9px] font-bold uppercase transition-all cursor-pointer"
                               >
                                 Concluir de Apoio
                               </button>
@@ -2285,7 +2315,21 @@ export function PlanejamentoPage() {
                 {modalOpen.type === 'document' && (
                   <>
                     <div className="space-y-1">
-                      <label className="font-bold text-gray-600">Nome do Arquivo PDF</label>
+                      <label className="font-bold text-gray-600">Anexar Documento PDF / Imagem</label>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                        onChange={handleDocumentFileSelect}
+                        className="w-full px-3 py-2 bg-gray-50 border border-dashed border-indigo-200 rounded-xl text-xs font-semibold cursor-pointer"
+                      />
+                      {formData.fileData && (
+                        <span className="text-[10px] text-emerald-600 font-bold block pt-0.5">
+                          ✓ Documento selecionado e processado ({formData.size})
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-gray-600">Nome de Exibição do Documento</label>
                       <input
                         type="text"
                         required
@@ -2643,6 +2687,12 @@ export function PlanejamentoPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <datalist id="workers-list">
+        {workers.map(w => (
+          <option key={w.id} value={w.name}>{w.position ? `${w.name} (${w.position})` : w.name}</option>
+        ))}
+      </datalist>
     </div>
   );
 }

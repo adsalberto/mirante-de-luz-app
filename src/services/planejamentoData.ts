@@ -3,7 +3,8 @@ import {
   getDocs, 
   doc, 
   setDoc, 
-  deleteDoc 
+  deleteDoc,
+  onSnapshot 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -99,6 +100,8 @@ export interface PlanningDocument {
   date: string;
   responsible: string;
   size: string;
+  url?: string;
+  fileData?: string;
 }
 
 export interface IntersectorDemand {
@@ -444,11 +447,43 @@ class PlanejamentoDataService {
       localStorage.setItem(`plan_${key}`, JSON.stringify(initial));
       return initial;
     }
-    return JSON.parse(data);
+    try {
+      return JSON.parse(data);
+    } catch {
+      return initial;
+    }
   }
 
   private saveStorage<T>(key: string, data: T[]) {
     localStorage.setItem(`plan_${key}`, JSON.stringify(data));
+  }
+
+  // Real-time Firestore Subscriber with automatic seeding & localStorage fallback
+  private subscribeCollection<T extends { id: string }>(colName: string, initialData: T[], callback: (items: T[]) => void) {
+    const firestoreCol = `plan_${colName}`;
+    try {
+      return onSnapshot(collection(db, firestoreCol), async (snap) => {
+        if (snap.empty) {
+          // Seed Firestore if empty
+          for (const item of initialData) {
+            await setDoc(doc(db, firestoreCol, item.id), item);
+          }
+          this.saveStorage(colName, initialData);
+          callback(initialData);
+        } else {
+          const list = snap.docs.map(d => ({ ...d.data(), id: d.id } as T));
+          this.saveStorage(colName, list);
+          callback(list);
+        }
+      }, (error) => {
+        console.warn(`Firestore snapshot error for ${firestoreCol}, using local storage:`, error);
+        callback(this.getStorage(colName, initialData));
+      });
+    } catch (error) {
+      console.warn(`Failed to set up listener for ${firestoreCol}:`, error);
+      callback(this.getStorage(colName, initialData));
+      return () => {};
+    }
   }
 
   // Firestore Helper
@@ -456,7 +491,6 @@ class PlanejamentoDataService {
     try {
       const snap = await getDocs(collection(db, `plan_${colName}`));
       if (snap.empty) {
-        // Seed Firestore
         for (const item of initialData) {
           await setDoc(doc(db, `plan_${colName}`, item.id), item);
         }
@@ -472,10 +506,30 @@ class PlanejamentoDataService {
     }
   }
 
+  private async saveFirestoreDoc<T extends { id: string }>(colName: string, item: T): Promise<void> {
+    // Update local storage
+    const current = this.getStorage<T>(colName, []);
+    const idx = current.findIndex(x => x.id === item.id);
+    let updated: T[];
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = item;
+    } else {
+      updated = [item, ...current];
+    }
+    this.saveStorage(colName, updated);
+
+    // Save to Firestore
+    try {
+      await setDoc(doc(db, `plan_${colName}`, item.id), item);
+    } catch (err) {
+      console.error(`Error saving doc ${item.id} to plan_${colName}:`, err);
+    }
+  }
+
   private async saveFirestoreCollection<T extends { id: string }>(colName: string, items: T[]): Promise<void> {
     this.saveStorage(colName, items);
     try {
-      // Overwrite/update items in Firestore
       for (const item of items) {
         await setDoc(doc(db, `plan_${colName}`, item.id), item);
       }
@@ -485,6 +539,12 @@ class PlanejamentoDataService {
   }
 
   private async deleteFirestoreDoc(colName: string, id: string): Promise<void> {
+    // Update local storage
+    const current = this.getStorage<{ id: string }>(colName, []);
+    const updated = current.filter(x => x.id !== id);
+    this.saveStorage(colName, updated);
+
+    // Delete doc in Firestore
     try {
       await deleteDoc(doc(db, `plan_${colName}`, id));
     } catch (err) {
@@ -492,7 +552,17 @@ class PlanejamentoDataService {
     }
   }
 
-  // Sync getters (fast cached access)
+  // Realtime Subscriptions
+  subscribeToPlans(callback: (items: StrategicPlan[]) => void) { return this.subscribeCollection('plans', initialPlans, callback); }
+  subscribeToGoals(callback: (items: Goal[]) => void) { return this.subscribeCollection('goals', initialGoals, callback); }
+  subscribeToProjects(callback: (items: Project[]) => void) { return this.subscribeCollection('projects', initialProjects, callback); }
+  subscribeToActivities(callback: (items: CoordActivity[]) => void) { return this.subscribeCollection('activities', initialActivities, callback); }
+  subscribeToEvents(callback: (items: PlanningEvent[]) => void) { return this.subscribeCollection('events', initialEvents, callback); }
+  subscribeToMeetings(callback: (items: MeetingMinutes[]) => void) { return this.subscribeCollection('meetings', initialMeetings, callback); }
+  subscribeToDocuments(callback: (items: PlanningDocument[]) => void) { return this.subscribeCollection('documents', initialDocuments, callback); }
+  subscribeToDemands(callback: (items: IntersectorDemand[]) => void) { return this.subscribeCollection('demands', initialDemands, callback); }
+
+  // Sync getters
   getPlans(): StrategicPlan[] { return this.getStorage('plans', initialPlans); }
   getGoals(): Goal[] { return this.getStorage('goals', initialGoals); }
   getProjects(): Project[] { return this.getStorage('projects', initialProjects); }
@@ -512,7 +582,17 @@ class PlanejamentoDataService {
   async getDocumentsAsync(): Promise<PlanningDocument[]> { return this.getFirestoreCollection('documents', initialDocuments); }
   async getDemandsAsync(): Promise<IntersectorDemand[]> { return this.getFirestoreCollection('demands', initialDemands); }
 
-  // Setters
+  // Item Saver methods
+  async savePlan(item: StrategicPlan) { await this.saveFirestoreDoc('plans', item); }
+  async saveGoal(item: Goal) { await this.saveFirestoreDoc('goals', item); }
+  async saveProject(item: Project) { await this.saveFirestoreDoc('projects', item); }
+  async saveActivity(item: CoordActivity) { await this.saveFirestoreDoc('activities', item); }
+  async saveEvent(item: PlanningEvent) { await this.saveFirestoreDoc('events', item); }
+  async saveMeeting(item: MeetingMinutes) { await this.saveFirestoreDoc('meetings', item); }
+  async saveDocument(item: PlanningDocument) { await this.saveFirestoreDoc('documents', item); }
+  async saveDemand(item: IntersectorDemand) { await this.saveFirestoreDoc('demands', item); }
+
+  // Collection Saver methods
   savePlans(data: StrategicPlan[]) { this.saveFirestoreCollection('plans', data); }
   saveGoals(data: Goal[]) { this.saveFirestoreCollection('goals', data); }
   saveProjects(data: Project[]) { this.saveFirestoreCollection('projects', data); }
@@ -522,8 +602,46 @@ class PlanejamentoDataService {
   saveDocuments(data: PlanningDocument[]) { this.saveFirestoreCollection('documents', data); }
   saveDemands(data: IntersectorDemand[]) { this.saveFirestoreCollection('demands', data); }
 
-  deleteItem(type: string, id: string) {
-    this.deleteFirestoreDoc(type === 'plan' ? 'plans' : `${type}s`, id);
+  // Explicit Deletion methods
+  async deleteItem(type: string, id: string) {
+    const colName = type === 'plan' ? 'plans' : `${type}s`;
+    await this.deleteFirestoreDoc(colName, id);
+  }
+
+  // Complete clean Reset method
+  async resetAllData(): Promise<void> {
+    const collections = ['plans', 'goals', 'projects', 'activities', 'events', 'meetings', 'documents', 'demands'];
+    const initialMap: Record<string, any[]> = {
+      plans: initialPlans,
+      goals: initialGoals,
+      projects: initialProjects,
+      activities: initialActivities,
+      events: initialEvents,
+      meetings: initialMeetings,
+      documents: initialDocuments,
+      demands: initialDemands,
+    };
+
+    for (const col of collections) {
+      // Clear localStorage
+      localStorage.removeItem(`plan_${col}`);
+      // Clear Firestore existing docs
+      try {
+        const snap = await getDocs(collection(db, `plan_${col}`));
+        for (const docSnap of snap.docs) {
+          await deleteDoc(docSnap.ref);
+        }
+        // Re-seed initial
+        const initial = initialMap[col] || [];
+        for (const item of initial) {
+          await setDoc(doc(db, `plan_${col}`, item.id), item);
+        }
+        this.saveStorage(col, initial);
+      } catch (err) {
+        console.error(`Error resetting collection plan_${col}:`, err);
+        this.saveStorage(col, initialMap[col] || []);
+      }
+    }
   }
 }
 

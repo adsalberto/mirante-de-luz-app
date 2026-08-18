@@ -1,12 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Tv, 
   Plus, Trash2, Pencil, Check, X, ShieldAlert, ArrowRight, ArrowLeft, 
-  Smile, Feather, Eye, HelpCircle, MonitorPlay, Sparkle, Heart, Sun, Activity
+  Smile, Feather, Eye, HelpCircle, MonitorPlay, Sparkle, Heart, Sun, Activity,
+  Radio, Mic, Bell, Droplets, Image as ImageIcon, RefreshCw, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
 import { dataService } from '../services/dataService';
+import { useAuth } from '../context/AuthContext';
+import { MascotConfig, MascotScheduleActivity } from '../types';
+import { LogosMascot } from '../components/LogosMascot';
+import { ImageUpload } from '../components/ImageUpload';
+import { AudioUpload } from '../components/AudioUpload';
 
 // Standard Interfaces for the Mascot Panel
 interface DailyActivity {
@@ -49,20 +56,23 @@ const PREDEFINED_QUOTES = [
 ];
 
 export const MascotPage: React.FC = () => {
-  // --- States ---
-  const [mascotName, setMascotName] = useState<string>(() => {
-    return localStorage.getItem('cemil_mascot_name') || 'Luminho';
-  });
-  
-  const [activities, setActivities] = useState<DailyActivity[]>(() => {
-    const saved = localStorage.getItem('cemil_mascot_activities');
-    return saved ? JSON.parse(saved) : DEFAULT_ACTIVITIES;
-  });
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isAdminOrSecretary = useMemo(() => {
+    if (!currentUser) return false;
+    const role = (currentUser.role || '').toUpperCase();
+    return ['ADMIN', 'ADM', 'COORDENADOR', 'SECRETARIO', 'RECEPCIONISTA'].includes(role);
+  }, [currentUser]);
 
-  const [announcements, setAnnouncements] = useState<MascotAnnouncement[]>(() => {
-    const saved = localStorage.getItem('cemil_mascot_announcements');
-    return saved ? JSON.parse(saved) : DEFAULT_ANNOUNCEMENTS;
-  });
+  // --- States ---
+  const [mascotName, setMascotName] = useState<string>('Logos');
+  const [customHouseName, setCustomHouseName] = useState<string>('Centro Espírita Mirante de Luz');
+  const [mascotType, setMascotType] = useState<'logos_robot' | 'custom_image'>('logos_robot');
+  const [customImageUrl, setCustomImageUrl] = useState<string>('');
+  const [customAudioUrl, setCustomAudioUrl] = useState<string>('');
+  const [customAudioName, setCustomAudioName] = useState<string>('');
+  const [activities, setActivities] = useState<DailyActivity[]>(DEFAULT_ACTIVITIES);
+  const [announcements, setAnnouncements] = useState<MascotAnnouncement[]>(DEFAULT_ANNOUNCEMENTS);
 
   const [activeTab, setActiveTab] = useState<'cronograma' | 'avisos' | 'config'>('cronograma');
   const [selectedQuote, setSelectedQuote] = useState(() => PREDEFINED_QUOTES[0]);
@@ -103,6 +113,7 @@ export const MascotPage: React.FC = () => {
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const autoPlayTimerRef = useRef<any>(null);
   const synthCleanupRef = useRef<any>(null);
+  const customAudioElementRef = useRef<HTMLAudioElement | null>(null);
 
   // --- Initialize TTS and Audio ---
   useEffect(() => {
@@ -111,13 +122,10 @@ export const MascotPage: React.FC = () => {
       
       const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
-        // Filter for Portuguese voices primarily or just all for settings
         const ptVoices = voices.filter(v => v.lang.startsWith('pt'));
         setAvailableVoices(ptVoices.length > 0 ? ptVoices : voices);
         
-        // Select a default friendly voice
         if (ptVoices.length > 0) {
-          // Look for "Google" of "Microsoft" pt-BR voices which sound fantastic
           const preferred = ptVoices.find(v => v.name.includes('Google') || v.name.includes('Maria') || v.name.includes('Francisca'));
           setSelectedVoiceName(preferred ? preferred.name : ptVoices[0].name);
         }
@@ -134,10 +142,53 @@ export const MascotPage: React.FC = () => {
     };
   }, []);
 
-  // Sync state to localstorage
+  // Subscribe to Mascot Config in Realtime from Firestore
   useEffect(() => {
-    localStorage.setItem('cemil_mascot_activities', JSON.stringify(activities));
-  }, [activities]);
+    const unsubConfig = dataService.subscribeMascotConfig((config) => {
+      if (config) {
+        if (config.mascotName) setMascotName(config.mascotName);
+        if (config.customHouseName) setCustomHouseName(config.customHouseName);
+        if (config.voicePitch) setSpeechPitch(config.voicePitch);
+        if (config.voiceRate) setSpeechRate(config.voiceRate);
+        if (config.mascotType) setMascotType(config.mascotType);
+        if (config.customImageUrl !== undefined) setCustomImageUrl(config.customImageUrl);
+        if (config.customAudioUrl !== undefined) setCustomAudioUrl(config.customAudioUrl);
+        if (config.customAudioName !== undefined) setCustomAudioName(config.customAudioName);
+      }
+    });
+    return () => unsubConfig();
+  }, []);
+
+  // Subscribe to Mascot Schedule in Realtime from Firestore
+  useEffect(() => {
+    const unsubSchedule = dataService.subscribeMascotSchedule((remoteSchedule) => {
+      if (remoteSchedule && remoteSchedule.length > 0) {
+        const mapped: DailyActivity[] = remoteSchedule.map(s => ({
+          id: s.id,
+          time: s.time,
+          title: s.title,
+          speaker: s.speakerOrWorker || 'Equipe CEMIL',
+          description: s.notes || '',
+          available: true
+        }));
+        setActivities(mapped);
+      } else {
+        // Initialize default activities in Firestore
+        DEFAULT_ACTIVITIES.forEach(a => {
+          dataService.saveMascotScheduleActivity({
+            id: 'act_' + a.id,
+            time: a.time,
+            title: a.title,
+            speakerOrWorker: a.speaker,
+            type: 'PALESTRA',
+            location: 'Auditório Principal',
+            notes: a.description
+          });
+        });
+      }
+    });
+    return () => unsubSchedule();
+  }, []);
 
   // Subscribe to real-time announcements from mural/dataService that are enabled for projection
   useEffect(() => {
@@ -150,20 +201,10 @@ export const MascotPage: React.FC = () => {
           content: a.content,
           priority: (a.priority === 'ALTA' ? 'alta' : 'normal') as 'normal' | 'alta'
         }));
-      if (projectionList.length > 0) {
-        setAnnouncements(projectionList);
-      }
+      setAnnouncements(projectionList);
     });
     return () => unsub();
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('cemil_mascot_announcements', JSON.stringify(announcements));
-  }, [announcements]);
-
-  useEffect(() => {
-    localStorage.setItem('cemil_mascot_name', mascotName);
-  }, [mascotName]);
 
   // --- Audio Synthesis Engine (Ambient sound loop) ---
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -337,9 +378,54 @@ export const MascotPage: React.FC = () => {
     synthRef.current.speak(utterance);
   };
 
+  // Play official recorded audio file if uploaded
+  const playOfficialAudio = (onEndCallback?: () => void) => {
+    if (!customAudioUrl) {
+      triggerTestSpeech();
+      return;
+    }
+
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+
+    if (!customAudioElementRef.current) {
+      customAudioElementRef.current = new Audio(customAudioUrl);
+    } else {
+      customAudioElementRef.current.src = customAudioUrl;
+    }
+
+    setMascotMood('happy');
+    setIsSpeaking(true);
+    setSubtitleText(`[Reproduzindo áudio original de ${mascotName}]`);
+
+    customAudioElementRef.current.onended = () => {
+      setIsSpeaking(false);
+      setMascotMood('serene');
+      if (onEndCallback) onEndCallback();
+    };
+
+    customAudioElementRef.current.onerror = () => {
+      setIsSpeaking(false);
+      setMascotMood('serene');
+      // Fallback to TTS if audio playback fails
+      triggerTestSpeech();
+    };
+
+    customAudioElementRef.current.play().catch((err) => {
+      console.warn("Audio play prevented:", err);
+      setIsSpeaking(false);
+      setMascotMood('serene');
+      triggerTestSpeech();
+    });
+  };
+
   const stopSpeaking = () => {
     if (synthRef.current) {
       synthRef.current.cancel();
+    }
+    if (customAudioElementRef.current) {
+      customAudioElementRef.current.pause();
     }
     setIsSpeaking(false);
     setMascotMood('serene');
@@ -347,7 +433,11 @@ export const MascotPage: React.FC = () => {
 
   // Generates greeting sentence for testing
   const triggerTestSpeech = () => {
-    const message = `Olá! Que a luz divina e as melhores energias iluminem a nossa jornada! Eu sou o ${mascotName}, o mascotinha virtual do Mirante de Luz. Estarei carregando e apresentando as atividades fraternas e os avisos do dia para nossa acolhedora casa espírita! Tudo pronto!`;
+    if (customAudioUrl) {
+      playOfficialAudio();
+      return;
+    }
+    const message = `Olá! Que a paz e as bênçãos de luz envolvam todos os corações! Eu sou o ${mascotName}, o assistente virtual e mascote do Mirante de Luz. Estarei apresentando as atividades doutrinárias e os comunicados fraternos do dia! Que tenhamos todos uma reunião edificante!`;
     speakText(message);
   };
 
@@ -374,7 +464,7 @@ export const MascotPage: React.FC = () => {
       const prompt = `Gere uma mensagem espírita curta, consoladora e inspiradora em português para ser lida no início das atividades de hoje da casa espírita "Mirante de Luz". Indique o autor espiritual (Ex: Emmanuel, André Luiz, Bezerra de Menezes, Joanna de Ângelis ou Chico Xavier). Responda estritamente no formato JSON: {"text": "conteúdo da mensagem", "author": "autor"}. Limite a mensagem a no máximo duas frases afetuosas.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -426,7 +516,7 @@ export const MascotPage: React.FC = () => {
     let readingDuration = 9000; // default duration to wait if speech fails
 
     if (slideIndex === 0) {
-      textToSpeak = `Sejam muitíssimo bem-vindos à Casa Espírita Mirante de Luz! Que a paz mansa de Jesus envolva as vossas mentes e propicie um ambiente de profundo equilíbrio físico e espiritual. Sou o ${mascotName}, estarei guiando as atividades e informes das nossas salas doutrinárias hoje.`;
+      textToSpeak = `Sejam muitíssimo bem-vindos à ${customHouseName}! Que a paz mansa de Jesus envolva as vossas mentes e propicie um ambiente de profundo equilíbrio físico e espiritual. Sou o ${mascotName}, estarei guiando as atividades e informes das nossas salas doutrinárias hoje.`;
       readingDuration = 18000;
     } else if (slideIndex === 1) {
       const activeActs = activities.filter(a => a.available);
@@ -478,6 +568,30 @@ export const MascotPage: React.FC = () => {
     return () => stopProjectionPlayer();
   }, [isLoopingAutomatically, isProjectionActive]);
 
+  // Keyboard navigation listener for wireless slide presenter remotes and keyboard controls
+  useEffect(() => {
+    if (!isProjectionActive) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['ArrowRight', ' ', 'PageDown'].includes(e.key)) {
+        e.preventDefault();
+        handleNextSlide();
+      } else if (['ArrowLeft', 'PageUp'].includes(e.key)) {
+        e.preventDefault();
+        handlePrevSlide();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeProjection();
+      } else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        stopSpeaking();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isProjectionActive, currentSlideIndex, activities, announcements]);
+
   const launchProjection = () => {
     setIsProjectionActive(true);
     setCurrentSlideIndex(0);
@@ -514,22 +628,62 @@ export const MascotPage: React.FC = () => {
     startProjectionPlayer(prevIndex);
   };
 
-  // --- CRUD Functions for Activities ---
-  const handleAddActivity = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newActivity.time || !newActivity.title) return;
-    
-    const activity: DailyActivity = {
-      ...newActivity,
-      id: Date.now().toString()
-    };
-    setActivities(prev => [...prev, activity].sort((a,b) => a.time.localeCompare(b.time)));
-    setNewActivity({ time: '', title: '', speaker: '', description: '', available: true });
-    speakText(`Nova palestra de ${activity.title} adicionada ao painel de atividades!`);
+  // Quick Action Triggers for Auditorium Operators (Mesa de Som)
+  const handleAuditoriumQuickTrigger = (title: string, text: string, mood: 'happy' | 'serene' | 'loving' | 'studious') => {
+    setMascotMood(mood);
+    speakText(text);
   };
 
-  const handleDeleteActivity = (id: string) => {
-    setActivities(prev => prev.filter(a => a.id !== id));
+  // Save Mascot Config to Firestore
+  const handleSaveMascotConfig = async () => {
+    if (!isAdminOrSecretary) {
+      speakText('Apenas administradores ou secretaria podem salvar as configurações do mascote.');
+      return;
+    }
+    const config: MascotConfig = {
+      mascotName,
+      customHouseName,
+      mascotType,
+      customImageUrl,
+      customAudioUrl,
+      customAudioName,
+      selectedVoiceIndex: availableVoices.findIndex(v => v.name === selectedVoiceName),
+      voicePitch: speechPitch,
+      voiceRate: speechRate,
+      autoSpeak: isLoopingAutomatically,
+      updatedAt: Date.now()
+    };
+    await dataService.saveMascotConfig(config);
+    speakText(`Configurações de ${mascotName} atualizadas no Firestore com sucesso!`);
+  };
+
+  // --- CRUD Functions for Activities ---
+  const handleAddActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdminOrSecretary) {
+      speakText('Apenas administradores ou a secretaria podem alterar o cronograma.');
+      return;
+    }
+    if (!newActivity.time || !newActivity.title) return;
+    
+    const activity: MascotScheduleActivity = {
+      id: 'act_' + Date.now(),
+      time: newActivity.time,
+      title: newActivity.title,
+      speakerOrWorker: newActivity.speaker || 'Equipe CEMIL',
+      type: 'PALESTRA',
+      location: 'Auditório Principal',
+      notes: newActivity.description
+    };
+
+    await dataService.saveMascotScheduleActivity(activity);
+    setNewActivity({ time: '', title: '', speaker: '', description: '', available: true });
+    speakText(`Atividade ${activity.title} adicionada ao cronograma em tempo real!`);
+  };
+
+  const handleDeleteActivity = async (id: string) => {
+    if (!isAdminOrSecretary) return;
+    await dataService.deleteMascotScheduleActivity(id);
   };
 
   const handleToggleActivityAvailability = (id: string) => {
@@ -537,21 +691,33 @@ export const MascotPage: React.FC = () => {
   };
 
   // --- CRUD Functions for Announcements ---
-  const handleAddAnnouncement = (e: React.FormEvent) => {
+  const handleAddAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdminOrSecretary) {
+      speakText('Apenas administradores ou a secretaria podem criar comunicados.');
+      return;
+    }
     if (!newAnnouncement.title || !newAnnouncement.content) return;
 
-    const ann: MascotAnnouncement = {
-      ...newAnnouncement,
-      id: Date.now().toString()
-    };
-    setAnnouncements(prev => [...prev, ann]);
+    await dataService.addAnnouncement({
+      title: newAnnouncement.title,
+      content: newAnnouncement.content,
+      category: newAnnouncement.priority === 'alta' ? 'URGENTE' : 'GERAL',
+      priority: newAnnouncement.priority === 'alta' ? 'ALTA' : 'MEDIA',
+      targetAudience: 'TODOS',
+      displayOnMascotProjection: true,
+      active: true,
+      authorName: currentUser?.name || 'Mascote Auditório',
+      createdAt: Date.now()
+    });
+
     setNewAnnouncement({ title: '', content: '', priority: 'normal' });
-    speakText(`Comunicado intitulado ${ann.title} foi incorporado na lousa eletrônica dária!`);
+    speakText(`Comunicado ${newAnnouncement.title} afixado na projeção e no mural de avisos!`);
   };
 
-  const handleDeleteAnnouncement = (id: string) => {
-    setAnnouncements(prev => prev.filter(a => a.id !== id));
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!isAdminOrSecretary) return;
+    await dataService.deleteAnnouncement(id);
   };
 
   // --- Render Custom Stylings for Glow Animations ---
@@ -648,8 +814,19 @@ export const MascotPage: React.FC = () => {
               </div>
             )}
 
+            {/* Floating Top-Right Exit Button */}
+            <button
+              onClick={closeProjection}
+              className="fixed top-4 right-4 z-[70] px-3.5 sm:px-4 py-2 sm:py-2.5 bg-red-600/90 hover:bg-red-600 active:scale-95 text-white font-bold text-xs uppercase tracking-wider rounded-2xl transition-all shadow-2xl border border-red-400/80 flex items-center gap-2 cursor-pointer backdrop-blur-md"
+              title="Sair da Projeção / Tela Cheia (ESC)"
+            >
+              <X size={16} />
+              <span className="font-black">Sair da Tela Cheia</span>
+              <span className="text-[10px] bg-red-950/80 px-1.5 py-0.5 rounded font-mono hidden md:inline">ESC</span>
+            </button>
+
             {/* Top Bar Status / Digital Signage details */}
-            <div className={`flex items-center justify-between border-b pb-4 z-10 ${
+            <div className={`flex items-center justify-between border-b pb-4 z-10 pr-36 sm:pr-48 ${
               projectionTheme === 'minimalist' ? 'border-neutral-200' : 'border-white/10'
             }`}>
               <div className="flex items-center gap-3">
@@ -660,7 +837,7 @@ export const MascotPage: React.FC = () => {
                   <h3 className={`font-semibold tracking-wide text-xs md:text-sm uppercase ${
                     projectionTheme === 'minimalist' ? 'text-neutral-500' : 'text-neutral-400'
                   }`}>
-                    Centro Espírita Mirante de Luz
+                    {customHouseName || 'Centro Espírita Mirante de Luz'}
                   </h3>
                   <p className={`text-[10px] uppercase font-bold tracking-widest ${
                     projectionTheme === 'minimalist' ? 'text-indigo-600' : 'text-amber-300'
@@ -690,127 +867,27 @@ export const MascotPage: React.FC = () => {
               
               {/* Mascot Visual Frame (Takes up substantial screen space on projector for high fidelity view) */}
               <div className="lg:col-span-5 flex flex-col items-center justify-center relative">
-                {/* Visual Aura */}
-                <div className={`absolute w-64 h-64 md:w-80 md:h-80 rounded-full blur-3xl opacity-30 ${
-                  isSpeaking ? 'bg-amber-400 animate-pulse-aurora' : 'bg-indigo-500 animate-pulse'
-                }`} />
-
-                <div className="relative animate-float">
-                  {/* Glowing Ring Base */}
-                  <div className={`absolute -inset-4 rounded-full blur-xl transition-all duration-1000 ${
-                    isSpeaking 
-                      ? 'bg-gradient-to-t from-amber-400/20 to-orange-400/30 ring-4 ring-amber-400/40 animate-pulse-ring' 
-                      : 'bg-indigo-500/10'
-                  }`} />
-                  
-                  {/* Encapsulated Responsive SVG Mascot */}
-                  <div className="w-56 h-56 md:w-72 md:h-72 flex items-center justify-center">
-                    <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-2xl">
-                      <defs>
-                        {/* Radiant Gradients based on emotional state */}
-                        <radialGradient id="grad-happy" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
-                          <stop offset="0%" stopColor="#fff176" />
-                          <stop offset="40%" stopColor="#fbc02d" />
-                          <stop offset="100%" stopColor="#ef6c00" />
-                        </radialGradient>
-                        <radialGradient id="grad-serene" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
-                          <stop offset="0%" stopColor="#e0f7fa" />
-                          <stop offset="45%" stopColor="#80deea" />
-                          <stop offset="100%" stopColor="#00acc1" />
-                        </radialGradient>
-                        <radialGradient id="grad-loving" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
-                          <stop offset="0%" stopColor="#fce4ec" />
-                          <stop offset="40%" stopColor="#f48fb1" />
-                          <stop offset="100%" stopColor="#c2185b" />
-                        </radialGradient>
-                        <radialGradient id="grad-studious" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
-                          <stop offset="0%" stopColor="#e8eaf6" />
-                          <stop offset="45%" stopColor="#9fa8da" />
-                          <stop offset="100%" stopColor="#3f51b5" />
-                        </radialGradient>
-                      </defs>
-
-                      {/* Backdrop Aura */}
-                      <circle cx="100" cy="100" r="75" fill={
-                        mascotMood === 'happy' ? 'rgba(239, 108, 0, 0.15)' :
-                        mascotMood === 'loving' ? 'rgba(194, 24, 91, 0.15)' :
-                        mascotMood === 'studious' ? 'rgba(63, 81, 181, 0.15)' :
-                        'rgba(0, 172, 193, 0.15)'
-                      } className="animate-pulse" />
-
-                      {/* Glowing Spiritual "Sparkle" Halo */}
-                      <path d="M100 0 L108 30 L138 38 L108 46 L100 76 L92 46 L62 38 L92 30 Z" fill="#ffd54f" className="animate-pulse" opacity="0.8" transform="translate(0, 5) scale(0.4) translate(150, 20)" />
-
-                      {/* Core Spark Body */}
-                      <circle cx="100" cy="105" r="50" fill={
-                        mascotMood === 'happy' ? 'url(#grad-happy)' :
-                        mascotMood === 'loving' ? 'url(#grad-loving)' :
-                        mascotMood === 'studious' ? 'url(#grad-studious)' :
-                        'url(#grad-serene)'
-                      } stroke="#ffffff" strokeWidth="2.5" />
-
-                      {/* Friendly Star Points (Spark of Light) */}
-                      <path d="M100 45 L112 105 L155 105 L118 130 L132 175 L100 148 L68 175 L82 130 L45 105 L88 105 Z" fill="none" stroke="#fff" strokeWidth="2" opacity="0.3" />
-
-                      {/* Eyes Component */}
-                      {mascotMood === 'serene' ? (
-                        // Peaceful Meditative Closed Eyes
-                        <g stroke="#ffffff" strokeWidth="4" fill="none" strokeLinecap="round">
-                          <path d="M72 105 Q80 115 88 105" />
-                          <path d="M112 105 Q120 115 128 105" />
-                        </g>
-                      ) : mascotMood === 'loving' ? (
-                        // Sweet Heart Eyes
-                        <g fill="#c2185b" stroke="#fff" strokeWidth="1">
-                          <path d="M70 95 C62 82 82 82 80 100 C78 100 75 97 70 95 Z" transform="scale(0.8) translate(18, 25)" />
-                          <path d="M120 95 C112 82 132 82 130 100 C128 100 125 97 120 95 Z" transform="scale(0.8) translate(48, 25)" />
-                        </g>
-                      ) : (
-                        // Expressive Shiny Bright Eyes (Blinking)
-                        <g className="eye-blinking">
-                          {/* Left Eye */}
-                          <ellipse cx="80" cy="100" rx="9" ry="14" fill="#1e293b" />
-                          <circle cx="77" cy="94" r="3.5" fill="#ffffff" />
-                          <circle cx="83" cy="104" r="1.5" fill="#ffffff" />
-
-                          {/* Right Eye */}
-                          <ellipse cx="120" cy="100" rx="9" ry="14" fill="#1e293b" />
-                          <circle cx="117" cy="94" r="3.5" fill="#ffffff" />
-                          <circle cx="123" cy="104" r="1.5" fill="#ffffff" />
-                        </g>
-                      )}
-
-                      {/* Cheerful Blush Rings */}
-                      <circle cx="68" cy="114" r="6" fill="#f87171" opacity="0.5" />
-                      <circle cx="132" cy="114" r="6" fill="#f87171" opacity="0.5" />
-
-                      {/* Interactive Mouth (talking keyframe) */}
-                      <g className={isSpeaking ? 'mouth-talking' : ''}>
-                        {isSpeaking ? (
-                          // Speaking Mouth: vertical ellipse scaling
-                          <ellipse cx="100" cy="120" rx="5" ry="7" fill="#881337" stroke="#fff" strokeWidth="1" />
-                        ) : mascotMood === 'happy' ? (
-                          // Cute Happy Smile shape
-                          <path d="M93 115 Q100 124 107 115" stroke="#ffffff" strokeWidth="4" fill="none" strokeLinecap="round" />
-                        ) : (
-                          // Neutral tiny line shape
-                          <path d="M95 118 L105 118" stroke="#ffffff" strokeWidth="3" fill="none" strokeLinecap="round" />
-                        )}
-                      </g>
-                    </svg>
-                  </div>
-                </div>
+                <LogosMascot 
+                  mood={mascotMood}
+                  isSpeaking={isSpeaking}
+                  size="projection"
+                  customImageUrl={customImageUrl}
+                  mascotName={mascotName}
+                  showHologramPad={true}
+                  showFloatingBadges={true}
+                  onClick={triggerTestSpeech}
+                />
 
                 {/* Floating Badge under Mascot */}
                 <span className={`mt-4 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest shadow-lg ${
                   projectionTheme === 'minimalist' 
                     ? 'bg-neutral-200 text-neutral-800' 
-                    : 'bg-white/10 text-amber-200 backdrop-blur-md border border-white/20'
+                    : 'bg-white/10 text-cyan-200 backdrop-blur-md border border-cyan-500/30'
                 }`}>
                   {mascotName.toUpperCase()}
                 </span>
-                <span className="text-[11px] mt-1.5 opacity-60 italic text-center px-10">
-                  {isSpeaking ? 'FALANDO..."' : 'EM HARMONIZAÇÃO...'}
+                <span className="text-[11px] mt-1.5 opacity-75 font-mono italic text-center px-10 text-cyan-300">
+                  {isSpeaking ? '🔊 FALANDO EM TEMPO REAL...' : '✨ EM HARMONIZAÇÃO ESPIRITUAL...'}
                 </span>
               </div>
 
@@ -1121,14 +1198,102 @@ export const MascotPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Core Action Button to Cast on project screen */}
-          <button 
-            onClick={launchProjection}
-            className="w-full md:w-auto flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-amber-500 via-orange-500 to-indigo-600 hover:opacity-90 active:scale-98 transition-all duration-300 text-white font-black text-sm uppercase rounded-2xl shadow-xl shadow-indigo-100 cursor-pointer"
-          >
-            <Tv size={18} className="animate-bounce" />
-            <span>Transmitir Projeção em Tela Cheia</span>
-          </button>
+          {/* Action Buttons */}
+          <div className="w-full md:w-auto flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 px-5 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-2xl text-xs font-bold transition-all cursor-pointer border border-slate-200/80 shadow-xs active:scale-95 group"
+            >
+              <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform text-indigo-600" />
+              <span>Voltar ao Início</span>
+            </button>
+
+            {/* Core Action Button to Cast on project screen */}
+            <button 
+              onClick={launchProjection}
+              className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-amber-500 via-orange-500 to-indigo-600 hover:opacity-90 active:scale-98 transition-all duration-300 text-white font-black text-sm uppercase rounded-2xl shadow-xl shadow-indigo-100 cursor-pointer"
+            >
+              <Tv size={18} className="animate-bounce" />
+              <span>Transmitir Projeção em Tela Cheia</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Auditorium Operator Quick Remote Control Triggers */}
+        <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-slate-950 p-5 rounded-3xl border border-indigo-800/50 shadow-xl text-white space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Radio size={18} className="text-amber-400 animate-pulse" />
+              <h2 className="text-xs font-black uppercase tracking-wider text-amber-200">
+                Controle Remoto Instantâneo do Auditório / Mesa de Som
+              </h2>
+            </div>
+            <span className="text-[10px] bg-indigo-800/60 text-indigo-200 px-2 py-0.5 rounded-full font-mono border border-indigo-700">
+              Disparo Imediato
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <button
+              onClick={() => handleAuditoriumQuickTrigger(
+                'Silêncio Fraterno',
+                'Amigos e companheiros, solicitamos a todos a gentileza de guardar silêncio fraterno para o início de nossas atividades espirituais. Muita paz a todos.',
+                'serene'
+              )}
+              className="p-3 bg-white/10 hover:bg-amber-500/20 hover:border-amber-400 border border-white/10 rounded-2xl text-left transition-all active:scale-95 group cursor-pointer"
+            >
+              <div className="flex items-center gap-2 text-amber-300 font-bold text-xs mb-1">
+                <Bell size={14} className="group-hover:rotate-12 transition-transform" />
+                <span>1. Silêncio Fraterno</span>
+              </div>
+              <p className="text-[10px] text-slate-300 leading-tight">Pedir preparação em silêncio no auditório.</p>
+            </button>
+
+            <button
+              onClick={() => handleAuditoriumQuickTrigger(
+                'Água Fluidificada',
+                'Lembramos aos frequentadores e amigos de colocar suas garrafas de água sobre a mesa central para a fluidificação durante as preces e passes de hoje.',
+                'studious'
+              )}
+              className="p-3 bg-white/10 hover:bg-cyan-500/20 hover:border-cyan-400 border border-white/10 rounded-2xl text-left transition-all active:scale-95 group cursor-pointer"
+            >
+              <div className="flex items-center gap-2 text-cyan-300 font-bold text-xs mb-1">
+                <Droplets size={14} className="group-hover:bounce transition-transform" />
+                <span>2. Água Fluidificada</span>
+              </div>
+              <p className="text-[10px] text-slate-300 leading-tight">Lembrete para garrafas na mesa fluídica.</p>
+            </button>
+
+            <button
+              onClick={() => handleAuditoriumQuickTrigger(
+                'Abertura dos Passes',
+                'Iniciaremos agora o momento fraterno dos passes regeneradores. Mantenham a mente elevada em oração e sintonia de paz.',
+                'loving'
+              )}
+              className="p-3 bg-white/10 hover:bg-emerald-500/20 hover:border-emerald-400 border border-white/10 rounded-2xl text-left transition-all active:scale-95 group cursor-pointer"
+            >
+              <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs mb-1">
+                <Heart size={14} className="group-hover:scale-110 transition-transform" />
+                <span>3. Abertura dos Passes</span>
+              </div>
+              <p className="text-[10px] text-slate-300 leading-tight">Anunciar transmissão de energias de passe.</p>
+            </button>
+
+            <button
+              onClick={() => handleAuditoriumQuickTrigger(
+                'Prece de Encerramento',
+                'Agradecemos de coração aos benfeitores espirituais por esta reunião de luz. Que a mensagem do Evangelho ilumine nossos lares e corações. Muita paz!',
+                'happy'
+              )}
+              className="p-3 bg-white/10 hover:bg-purple-500/20 hover:border-purple-400 border border-white/10 rounded-2xl text-left transition-all active:scale-95 group cursor-pointer"
+            >
+              <div className="flex items-center gap-2 text-purple-300 font-bold text-xs mb-1">
+                <Sun size={14} className="group-hover:rotate-45 transition-transform" />
+                <span>4. Prece de Encerramento</span>
+              </div>
+              <p className="text-[10px] text-slate-300 leading-tight">Mensagem de gratidão ao término do trabalho.</p>
+            </button>
+          </div>
         </div>
 
         {/* Mascot Face Interactive Sandbox on Dashboard */}
@@ -1141,66 +1306,35 @@ export const MascotPage: React.FC = () => {
               <p className="text-xs text-slate-500">Ajuste e clique no rostinho ou botões para testar as falas.</p>
             </div>
 
-            {/* Simulated Frame Preview with floating star */}
-            <div className="relative w-full aspect-square md:aspect-auto md:h-64 rounded-2xl bg-slate-950 flex flex-col items-center justify-center overflow-hidden border border-slate-800">
+            {/* Simulated Frame Preview with Logos Robot */}
+            <div 
+              onClick={triggerTestSpeech}
+              className="relative w-full aspect-square md:aspect-auto md:h-72 rounded-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center overflow-hidden border border-cyan-900/40 shadow-inner cursor-pointer group"
+            >
               {/* Stars particles overlay inside sandbox */}
-              <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-25">
+              <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className="absolute w-1 h-1 bg-white rounded-full" style={{ left: `${Math.random()*100}%`, top: `${Math.random()*100}%` }} />
+                  <div key={i} className="absolute w-1 h-1 bg-cyan-400 rounded-full" style={{ left: `${Math.random()*100}%`, top: `${Math.random()*100}%` }} />
                 ))}
               </div>
 
-              {/* Encapsulated Tiny Mascot */}
-              <div className="w-36 h-36 flex items-center justify-center animate-float">
-                <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-2xl">
-                  {/* Backdrop glowing sphere */}
-                  <circle cx="100" cy="105" r="50" fill={
-                    mascotMood === 'happy' ? 'url(#grad-happy)' :
-                    mascotMood === 'loving' ? 'url(#grad-loving)' :
-                    mascotMood === 'studious' ? 'url(#grad-studious)' :
-                    'url(#grad-serene)'
-                  } stroke="#ffffff" strokeWidth="2.5" />
-
-                  {/* Eyes Component */}
-                  {mascotMood === 'serene' ? (
-                    <g stroke="#ffffff" strokeWidth="4" fill="none" strokeLinecap="round">
-                      <path d="M72 105 Q80 115 88 105" />
-                      <path d="M112 105 Q120 115 128 105" />
-                    </g>
-                  ) : mascotMood === 'loving' ? (
-                    <g fill="#c2185b" stroke="#fff" strokeWidth="1">
-                      <path d="M70 95 C62 82 82 82 80 100" transform="scale(0.8) translate(18, 25)" />
-                      <path d="M120 95 C112 82 132 82 130 100" transform="scale(0.8) translate(48, 25)" />
-                    </g>
-                  ) : (
-                    <g className="eye-blinking">
-                      <ellipse cx="80" cy="100" rx="9" ry="14" fill="#1e293b" />
-                      <circle cx="77" cy="94" r="3.5" fill="#ffffff" />
-                      <ellipse cx="120" cy="100" rx="9" ry="14" fill="#1e293b" />
-                      <circle cx="117" cy="94" r="3.5" fill="#ffffff" />
-                    </g>
-                  )}
-
-                  <circle cx="68" cy="114" r="6" fill="#f87171" opacity="0.5" />
-                  <circle cx="132" cy="114" r="6" fill="#f87171" opacity="0.5" />
-
-                  {/* Mouth and talk oscillation */}
-                  <g className={isSpeaking ? 'mouth-talking' : ''}>
-                    {isSpeaking ? (
-                      <ellipse cx="100" cy="120" rx="5" ry="7" fill="#881337" stroke="#fff" strokeWidth="1" />
-                    ) : mascotMood === 'happy' ? (
-                      <path d="M93 115 Q100 124 107 115" stroke="#ffffff" strokeWidth="4" fill="none" strokeLinecap="round" />
-                    ) : (
-                      <path d="M95 118 L105 118" stroke="#ffffff" strokeWidth="3" fill="none" strokeLinecap="round" />
-                    )}
-                  </g>
-                </svg>
+              {/* Logos Mascot Interactive Miniature */}
+              <div className="transform scale-90 md:scale-95 transition-transform group-hover:scale-100">
+                <LogosMascot 
+                  mood={mascotMood}
+                  isSpeaking={isSpeaking}
+                  size="md"
+                  customImageUrl={customImageUrl}
+                  mascotName={mascotName}
+                  showHologramPad={true}
+                  showFloatingBadges={false}
+                />
               </div>
 
               {/* Status display overlay in preview */}
-              <div className="absolute bottom-3 left-3 right-3 bg-black/40 border border-white/5 p-2 rounded-xl text-center">
-                <p className="text-[10px] text-amber-200 truncate font-mono">
-                  {isSpeaking ? `🔊 Falando...` : `💤 Em paz. Toque para testar`}
+              <div className="absolute bottom-3 left-3 right-3 bg-slate-950/80 backdrop-blur-md border border-cyan-500/20 p-2 rounded-xl text-center shadow-lg">
+                <p className="text-[10px] text-cyan-300 truncate font-mono">
+                  {isSpeaking ? `🔊 Falando: ${mascotName}...` : `✨ ${mascotName} pronto! Clique para testar`}
                 </p>
               </div>
             </div>
@@ -1228,13 +1362,101 @@ export const MascotPage: React.FC = () => {
             {/* Voice Sound Control Settings */}
             <div className="space-y-4 pt-4 border-t border-slate-100">
               <div className="space-y-1">
-                <h3 className="text-xs font-bold text-slate-700">Configuração de Voz do Mascote</h3>
-                <p className="text-[10px] text-slate-500">Defina o tom amigável do sintetizador brasileirinho.</p>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Mic size={14} className="text-cyan-600" />
+                    Voz & Timbre de Logos
+                  </h3>
+                  <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+                    pt-BR
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Defina o estilo da fala do mascote ou escolha um perfil pré-configurado.
+                </p>
+              </div>
+
+              {/* Quick Voice Presets */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-600 block">Perfis Rápidos de Voz:</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpeechPitch(1.3);
+                      setSpeechRate(1.0);
+                    }}
+                    className={`p-2 rounded-xl border text-left transition-all text-[10px] flex flex-col gap-0.5 cursor-pointer ${
+                      Math.abs(speechPitch - 1.3) < 0.05 && Math.abs(speechRate - 1.0) < 0.05
+                        ? 'bg-cyan-50 border-cyan-400 text-cyan-900 font-bold shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1 font-bold text-cyan-700">
+                      <Sparkles size={11} /> Logos (Voz do Vídeo)
+                    </span>
+                    <span className="text-[9px] text-slate-400">Jovem, alegre & robótico</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpeechPitch(1.0);
+                      setSpeechRate(0.85);
+                    }}
+                    className={`p-2 rounded-xl border text-left transition-all text-[10px] flex flex-col gap-0.5 cursor-pointer ${
+                      Math.abs(speechPitch - 1.0) < 0.05 && Math.abs(speechRate - 0.85) < 0.05
+                        ? 'bg-indigo-50 border-indigo-400 text-indigo-900 font-bold shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1 font-bold text-indigo-700">
+                      <Heart size={11} /> Serena & Fraterna
+                    </span>
+                    <span className="text-[9px] text-slate-400">Calma e acolhedora</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpeechPitch(1.5);
+                      setSpeechRate(1.1);
+                    }}
+                    className={`p-2 rounded-xl border text-left transition-all text-[10px] flex flex-col gap-0.5 cursor-pointer ${
+                      Math.abs(speechPitch - 1.5) < 0.05 && Math.abs(speechRate - 1.1) < 0.05
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1 font-bold text-emerald-700">
+                      <Smile size={11} /> Entusiasta / Infantil
+                    </span>
+                    <span className="text-[9px] text-slate-400">Aguda e animada</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSpeechPitch(0.95);
+                      setSpeechRate(0.95);
+                    }}
+                    className={`p-2 rounded-xl border text-left transition-all text-[10px] flex flex-col gap-0.5 cursor-pointer ${
+                      Math.abs(speechPitch - 0.95) < 0.05 && Math.abs(speechRate - 0.95) < 0.05
+                        ? 'bg-amber-50 border-amber-400 text-amber-900 font-bold shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1 font-bold text-amber-700">
+                      <Feather size={11} /> Natural / Formal
+                    </span>
+                    <span className="text-[9px] text-slate-400">Tom de orador neutro</span>
+                  </button>
+                </div>
               </div>
 
               {/* TTS Voices Listing Selection strictly pt-BR */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500">Selecione o sintetizador</span>
+                <span className="text-[10px] font-bold text-slate-500">Sintetizador do Sistema (Voz):</span>
                 <select
                   value={selectedVoiceName}
                   onChange={(e) => setSelectedVoiceName(e.target.value)}
@@ -1246,29 +1468,38 @@ export const MascotPage: React.FC = () => {
                     </option>
                   ))}
                   {availableVoices.length === 0 && (
-                    <option value="">Sintetizador Padrão de Fábrica</option>
+                    <option value="">Sintetizador Padrão pt-BR</option>
                   )}
                 </select>
               </div>
 
               {/* Pitch and Speed Tuning Sliders */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-slate-500 block">Tom da Voz</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-600">Tom (Pitch)</span>
+                    <span className="text-[9px] font-mono font-bold text-indigo-600">{speechPitch}x</span>
+                  </div>
                   <input
                     type="range"
                     min="0.5"
                     max="1.8"
-                    step="0.1"
+                    step="0.05"
                     value={speechPitch}
                     onChange={(e) => setSpeechPitch(parseFloat(e.target.value))}
-                    className="w-full accent-indigo-600"
+                    className="w-full accent-indigo-600 cursor-pointer"
                   />
-                  <span className="text-[9px] font-mono text-slate-400">Tom: {speechPitch}x (Fino)</span>
+                  <div className="flex justify-between text-[8px] text-slate-400">
+                    <span>Grave</span>
+                    <span>Agudo (Robô)</span>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-slate-500 block">Velocidade</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-600">Velocidade</span>
+                    <span className="text-[9px] font-mono font-bold text-indigo-600">{speechRate}x</span>
+                  </div>
                   <input
                     type="range"
                     min="0.5"
@@ -1276,29 +1507,60 @@ export const MascotPage: React.FC = () => {
                     step="0.05"
                     value={speechRate}
                     onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-                    className="w-full accent-indigo-600"
+                    className="w-full accent-indigo-600 cursor-pointer"
                   />
-                  <span className="text-[9px] font-mono text-slate-400">Vel: {speechRate}x</span>
+                  <div className="flex justify-between text-[8px] text-slate-400">
+                    <span>Lento</span>
+                    <span>Rápido</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Action test triggers */}
-              <div className="flex gap-2">
-                <button
-                  onClick={triggerTestSpeech}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 active:scale-95 transition-all"
-                >
-                  <Volume2 size={14} />
-                  <span>Testar Fala Audível</span>
-                </button>
-                {isSpeaking && (
-                  <button
-                    onClick={stopSpeaking}
-                    className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 active:scale-95 transition-all animate-pulse"
-                  >
-                    Mute
-                  </button>
+              {/* Action test triggers & Save button */}
+              <div className="space-y-2">
+                {customAudioUrl && (
+                  <div className="p-2 bg-cyan-950/20 border border-cyan-500/40 rounded-xl flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Sparkles size={12} className="text-cyan-400 shrink-0" />
+                      <span className="text-[10px] font-bold text-slate-700 truncate font-mono">
+                        {customAudioName || 'Áudio Oficial do Vídeo'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => playOfficialAudio()}
+                      className="px-2 py-0.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[10px] font-bold rounded-md shrink-0 cursor-pointer"
+                    >
+                      Tocar
+                    </button>
+                  </div>
                 )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={triggerTestSpeech}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Volume2 size={14} />
+                    <span>{customAudioUrl ? 'Ouvir Áudio Oficial' : 'Ouvir Voz do Logos'}</span>
+                  </button>
+                  {isSpeaking && (
+                    <button
+                      onClick={stopSpeaking}
+                      className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 active:scale-95 transition-all animate-pulse cursor-pointer"
+                    >
+                      Parar
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleSaveMascotConfig}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Check size={13} className="text-cyan-400" />
+                  <span>Salvar Voz como Padrão no Telão</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1536,28 +1798,137 @@ export const MascotPage: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Mascot Character naming */}
-                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3">
-                      <h4 className="text-xs font-bold text-slate-700">Nome do Mascote da Projeção</h4>
-                      <div className="flex gap-2">
+                    {/* Mascot Visual & Character Selection */}
+                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <Layers size={14} className="text-cyan-600" />
+                          Visual do Mascote & Holograma
+                        </h4>
+                        <span className="text-[10px] bg-cyan-100 text-cyan-800 font-bold px-2 py-0.5 rounded-full uppercase">
+                          {customImageUrl ? 'Foto Customizada' : 'Robô Logos'}
+                        </span>
+                      </div>
+
+                      {/* Mascot Type Selector */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMascotType('logos_robot');
+                            setCustomImageUrl('');
+                          }}
+                          className={`p-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center gap-1.5 cursor-pointer ${
+                            !customImageUrl 
+                              ? 'bg-cyan-50 border-cyan-400 text-cyan-800 shadow-sm' 
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-600">
+                            <Sparkles size={16} />
+                          </div>
+                          <span>Robô Logos Oficial</span>
+                          <span className="text-[9px] font-normal text-slate-400">Vetor 3D & Holograma</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setMascotType('custom_image')}
+                          className={`p-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center gap-1.5 cursor-pointer ${
+                            customImageUrl 
+                              ? 'bg-cyan-50 border-cyan-400 text-cyan-800 shadow-sm' 
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-600">
+                            <ImageIcon size={16} />
+                          </div>
+                          <span>Foto/Arte Customizada</span>
+                          <span className="text-[9px] font-normal text-slate-400">Upload de Arquivo</span>
+                        </button>
+                      </div>
+
+                      {/* Image Upload Component */}
+                      <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                        <label className="text-[11px] font-bold text-slate-600 block">
+                          Upload da Imagem do Mascote (Opcional)
+                        </label>
+                        <ImageUpload 
+                          value={customImageUrl}
+                          onChange={(url) => {
+                            setCustomImageUrl(url);
+                            setMascotType(url ? 'custom_image' : 'logos_robot');
+                          }}
+                          label="Foto ou Arte de Logos"
+                          aspectRatio="square"
+                        />
+                        {customImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomImageUrl('');
+                              setMascotType('logos_robot');
+                            }}
+                            className="w-full py-1.5 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition-all flex items-center justify-center gap-1 font-semibold cursor-pointer"
+                          >
+                            <RotateCcw size={12} />
+                            <span>Restaurar Robô Logos Original</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Audio / Voice Upload Component */}
+                      <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                        <AudioUpload
+                          value={customAudioUrl}
+                          audioName={customAudioName}
+                          onChange={(audioBase64, filename) => {
+                            setCustomAudioUrl(audioBase64);
+                            if (filename) setCustomAudioName(filename);
+                          }}
+                          onRemove={() => {
+                            setCustomAudioUrl('');
+                            setCustomAudioName('');
+                          }}
+                          label="Áudio Original da Voz do Vídeo (Opcional)"
+                        />
+                        <p className="text-[10px] text-slate-400">
+                          Ao carregar o áudio extraído do vídeo, o mascote tocará a voz real oficial do Logos e sincronizará a animação labial.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1 pt-2 border-t border-slate-200/60">
+                        <h4 className="text-xs font-bold text-slate-700">Nome da Casa Espírita no Telão</h4>
+                        <input
+                          type="text"
+                          value={customHouseName}
+                          onChange={(e) => setCustomHouseName(e.target.value)}
+                          className="w-full bg-white border border-slate-200 p-2 text-xs rounded-xl outline-none font-bold"
+                          placeholder="Ex: Centro Espírita Mirante de Luz"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-slate-700">Nome do Mascote</h4>
                         <input
                           type="text"
                           value={mascotName}
                           onChange={(e) => setMascotName(e.target.value)}
-                          className="flex-1 bg-white border border-slate-200 p-2 text-xs rounded-xl outline-none font-bold"
-                          placeholder="Ex: Luminho"
+                          className="w-full bg-white border border-slate-200 p-2 text-xs rounded-xl outline-none font-bold"
+                          placeholder="Ex: Logos"
                         />
-                        <button
-                          onClick={() => {
-                            speakText(`Maravilha! Agora meu nome oficial é ${mascotName}. Fico muito feliz em adotar esta identidade luminosa!`);
-                          }}
-                          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl"
-                        >
-                          Salvar
-                        </button>
                       </div>
+
+                      <button
+                        onClick={handleSaveMascotConfig}
+                        className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-700 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <Check size={14} />
+                        <span>Salvar Configurações no Firestore</span>
+                      </button>
+
                       <p className="text-[10px] text-slate-500 italic">
-                        Por padrão chamamos ele de <strong>Luminho</strong>, mas você pode mudar para algo que sintonize com sua comunidade local.
+                        O mascote oficial é o <strong>Logos</strong>, robô assistente e fraterno com capacete acústico e visor inteligente. As alterações salvas serão sincronizadas em tempo real com todos os projetores e computadores conectados.
                       </p>
                     </div>
 

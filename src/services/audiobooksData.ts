@@ -1,38 +1,10 @@
-export interface AudioTrack {
-  id: string;
-  title: string;
-  duration: string; // e.g. "12:34"
-  audioUrl: string; // Actual working audio link
-}
+import { dataService } from './dataService';
+import { Audiobook, AudioPurchase, AudiobookProgress, AudioTrack } from '../types';
 
-export interface Audiobook {
-  id: string;
-  title: string;
-  author: string;
-  description: string;
-  narrator: string;
-  coverUrl: string;
-  price: number; // e.g. 29.90
-  category: 'Espiritualidade' | 'Filosofia' | 'Autoconhecimento' | 'Meditação' | 'Infantil';
-  duration: string; // e.g. "4h 15m"
-  rating: number; // e.g. 4.8
-  tracks: AudioTrack[];
-}
-
-export interface AudioPurchase {
-  id: string;
-  audiobookId: string;
-  userEmail: string;
-  purchaseDate: string;
-  amountPaid: number;
-  paymentMethod: 'PIX' | 'CREDIT_CARD';
-  status: 'PENDENTE' | 'APROVADO' | 'CANCELADO';
-  pixCode?: string;
-  pixQrCode?: string;
-}
+export type { Audiobook, AudioPurchase, AudiobookProgress, AudioTrack };
 
 // Initial high-quality pre-seeded audiobooks
-const DEFAULT_AUDIOBOOKS: Audiobook[] = [
+export const DEFAULT_AUDIOBOOKS: Audiobook[] = [
   {
     id: 'ab_01',
     title: 'O Caminho do Autoconhecimento e Reforma Íntima',
@@ -130,8 +102,8 @@ class AudiobooksService {
   }
 
   // Check if a user has purchased an audiobook
-  isPurchased(userEmail: string, audiobookId: string): boolean {
-    const list = this.getPurchases();
+  isPurchased(userEmail: string, audiobookId: string, purchasesList?: AudioPurchase[]): boolean {
+    const list = purchasesList || this.getPurchases();
     return list.some(p => p.userEmail === userEmail && p.audiobookId === audiobookId && p.status === 'APROVADO');
   }
 
@@ -161,26 +133,43 @@ class AudiobooksService {
 
     list.push(purchase);
     this.savePurchases(list);
+
+    // Save to Firestore asynchronously
+    dataService.createAudioPurchase(purchase).catch(err => {
+      console.warn('Failed to sync audio purchase to Firestore:', err);
+    });
+
     return purchase;
   }
 
   // Approve a payment (Simulates webhook or real-time check)
-  approvePurchase(purchaseId: string) {
-    const list = this.getPurchases();
-    const idx = list.findIndex(p => p.id === purchaseId);
-    if (idx !== -1) {
-      list[idx].status = 'APROVADO';
+  approvePurchase(purchaseId: string, purchasesList?: AudioPurchase[], audiobooksList?: Audiobook[]) {
+    const list = purchasesList || this.getPurchases();
+    const purchase = list.find(p => p.id === purchaseId);
+    if (purchase) {
+      purchase.status = 'APROVADO';
       this.savePurchases(list);
+
+      const book = (audiobooksList || DEFAULT_AUDIOBOOKS).find(b => b.id === purchase.audiobookId);
+
+      // Sync to Firestore and register Financial Entry
+      dataService.updateAudioPurchaseStatus(purchaseId, 'APROVADO', purchase, book?.title).catch(err => {
+        console.warn('Failed to update purchase status in Firestore:', err);
+      });
     }
   }
 
   // Delete/Cancel purchase
-  cancelPurchase(purchaseId: string) {
-    const list = this.getPurchases();
-    const idx = list.findIndex(p => p.id === purchaseId);
-    if (idx !== -1) {
-      list[idx].status = 'CANCELADO';
+  cancelPurchase(purchaseId: string, purchasesList?: AudioPurchase[]) {
+    const list = purchasesList || this.getPurchases();
+    const purchase = list.find(p => p.id === purchaseId);
+    if (purchase) {
+      purchase.status = 'CANCELADO';
       this.savePurchases(list);
+
+      dataService.updateAudioPurchaseStatus(purchaseId, 'CANCELADO').catch(err => {
+        console.warn('Failed to cancel purchase in Firestore:', err);
+      });
     }
   }
 }

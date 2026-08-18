@@ -16,6 +16,7 @@ import {
   Check, 
   Clock, 
   ArrowRight, 
+  ArrowLeft,
   User, 
   Compass, 
   Award, 
@@ -639,28 +640,43 @@ export const DoutrinarioDashboard: React.FC = () => {
       </div>
 
       {/* Sub tabs navigation */}
-      <div className="flex flex-wrap gap-2 mb-10 border-b border-gray-100 pb-5">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveTab(item.id);
-                setSearchText('');
-              }}
-              className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs font-semibold tracking-wide transition-all ${
-                active 
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/15' 
-                  : 'bg-white border border-gray-200/80 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Icon size={16} className={active ? 'text-white' : 'text-indigo-500'} />
-              {item.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-10 border-b border-gray-100 pb-5">
+        <div className="flex flex-wrap gap-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setSearchText('');
+                }}
+                className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                  active 
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/15' 
+                    : 'bg-white border border-gray-200/80 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Icon size={16} className={active ? 'text-white' : 'text-indigo-500'} />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab !== 'EXPOSITORES' && (
+          <button
+            onClick={() => {
+              setActiveTab('EXPOSITORES');
+              setSearchText('');
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl text-xs font-bold transition-all border border-indigo-100 cursor-pointer"
+          >
+            <ArrowLeft size={14} />
+            <span>Voltar a Expositores</span>
+          </button>
+        )}
       </div>
 
       {loading && (

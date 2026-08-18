@@ -307,10 +307,14 @@ export default function VolunteerRegistration() {
                 >
                   <option value="OUTROS">Selecione...</option>
                   <option value="FRATERNO">Atendimento Fraterno</option>
+                  <option value="PASSE">Passe & Fluidoterapia</option>
+                  <option value="ARTE">Arte Espírita (Coral & Teatro)</option>
+                  <option value="COMUNICACAO">Comunicação Social</option>
                   <option value="ESTUDO">Estudos</option>
                   <option value="INFANCIA">Infância & Juventude</option>
                   <option value="SOCIAL">Ação Social</option>
                   <option value="ADMINISTRATIVO">Administrativo</option>
+                  <option value="MEDIUNICO">Trabalho Mediúnico</option>
                 </select>
               </div>
 

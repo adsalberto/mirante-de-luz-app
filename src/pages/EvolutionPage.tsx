@@ -34,6 +34,8 @@ import {
   Plus,
   Info,
   Check,
+  Filter,
+  FileText,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -50,10 +52,11 @@ import { cn } from "../lib/utils";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export const EvolutionPage: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const isAdmin =
     currentUser?.role === "ADMIN" ||
@@ -75,6 +78,10 @@ export const EvolutionPage: React.FC = () => {
   const [activeServices, setActiveServices] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingEvo, setEditingEvo] = useState<Evolution | null>(null);
+
+  const [historySectorFilter, setHistorySectorFilter] = useState<string>("ALL");
+  const [queueFinishOption, setQueueFinishOption] = useState<"FINISH" | "KEEP_IN_PROGRESS">("FINISH");
+  const [isConfidentialityAccepted, setIsConfidentialityAccepted] = useState(false);
 
   const [isExporting, setIsExporting] = useState(false);
   const [isImprovingNotes, setIsImprovingNotes] = useState(false);
@@ -115,12 +122,16 @@ export const EvolutionPage: React.FC = () => {
     }
   }, [sectors, currentUser]);
 
+  // Real-time listener for evolutions of selected participant
   useEffect(() => {
     if (selectedP) {
-      loadHistory(selectedP.id);
+      const unsubscribe = dataService.subscribeToEvolutions(selectedP.id, (evos) => {
+        const sorted = [...evos].sort((a, b) => (b.date || 0) - (a.date || 0));
+        setHistory(sorted);
+      });
+
       loadActiveServices(selectedP.id);
 
-      // On desktop, scroll to top of page. On mobile, scroll to details.
       if (window.innerWidth < 1024) {
         detailsRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -129,6 +140,12 @@ export const EvolutionPage: React.FC = () => {
       } else {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
+
+      return () => {
+        unsubscribe();
+      };
+    } else {
+      setHistory([]);
     }
   }, [selectedP]);
 
@@ -164,7 +181,6 @@ export const EvolutionPage: React.FC = () => {
           spirituality: editingEvo.aspectsReports?.spirituality || "",
         },
       });
-      // Scroll to form
       const formElement = document.getElementById("evolution-form");
       if (formElement) formElement.scrollIntoView({ behavior: "smooth" });
     }
@@ -185,7 +201,6 @@ export const EvolutionPage: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      console.log("Fetching base data for EvolutionPage...");
       const [p, s] = await Promise.all([
         dataService.getParticipants(),
         dataService.getSectors(),
@@ -206,23 +221,17 @@ export const EvolutionPage: React.FC = () => {
       setParticipants(fetchedParticipants);
       setSectors(uniqueSectors);
 
-      // Auto-select from navigation state
       const state = location.state as { participantId?: string };
       const searchParams = new URLSearchParams(location.search);
       const participantId =
         state?.participantId || searchParams.get("participantId");
-
-      console.log("Detected participantId:", participantId);
 
       if (participantId && fetchedParticipants.length > 0) {
         const found = fetchedParticipants.find(
           (x) => x && String(x.id) === String(participantId),
         );
         if (found) {
-          console.log("Auto-selecting participant:", found.name);
           setSelectedP(found);
-        } else {
-          console.warn("Participant not found in list:", participantId);
         }
       }
     } catch (err) {
@@ -230,23 +239,6 @@ export const EvolutionPage: React.FC = () => {
       setError("Erro ao carregar dados do prontuário.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadHistory = async (pid: string) => {
-    try {
-      console.log("Loading history for:", pid);
-      const h = await dataService.getEvolutions(pid);
-      if (h) {
-        // Create a copy before sorting to avoid potential issues
-        const sorted = [...h].sort((a, b) => (b.date || 0) - (a.date || 0));
-        setHistory(sorted);
-      } else {
-        setHistory([]);
-      }
-    } catch (err) {
-      console.error("Error loading history:", err);
-      setHistory([]);
     }
   };
 
@@ -284,6 +276,7 @@ export const EvolutionPage: React.FC = () => {
     }
   };
 
+  // Safe Export with LGPD Confidentiality Masking
   const exportToPDF = async () => {
     if (!selectedP) return;
     setIsExporting(true);
@@ -294,7 +287,7 @@ export const EvolutionPage: React.FC = () => {
 
       // Header
       doc.setFontSize(20);
-      doc.setTextColor(79, 70, 229); // Indigo 600
+      doc.setTextColor(79, 70, 229);
       doc.text("CENTRO ESPÍRITA MIRANTE DE LUZ", 105, 20, { align: "center" });
 
       doc.setFontSize(10);
@@ -323,6 +316,7 @@ export const EvolutionPage: React.FC = () => {
         52,
       );
       doc.text(`Telefone: ${p.phone || "N/I"}`, 20, 58);
+      doc.text(`CPF: ${p.cpf || "N/I"}`, 80, 58);
       doc.text(`Endereço: ${p.address || "N/I"}`, 20, 64);
 
       doc.setTextColor(150);
@@ -330,36 +324,78 @@ export const EvolutionPage: React.FC = () => {
 
       // History Table
       const tableData = history.map((evo) => {
-        let obsTxt = (evo.notesEncrypted || "").replace(/<[^>]*>?/gm, "");
-        
-        // Append fraternal multidimensional evaluation if any exists
-        const aspects = [];
-        if (evo.emotionalStatus) {
-          aspects.push(`Emocional: ${evo.emotionalStatus}${evo.aspectsReports?.emotionalStatus ? ` ("${evo.aspectsReports.emotionalStatus}")` : ""}`);
-        }
-        if (evo.physicalHealth) {
-          aspects.push(`Física: ${evo.physicalHealth}${evo.aspectsReports?.physicalHealth ? ` ("${evo.aspectsReports.physicalHealth}")` : ""}`);
-        }
-        if (evo.familyRelationship) {
-          aspects.push(`Familiar: ${evo.familyRelationship}${evo.aspectsReports?.familyRelationship ? ` ("${evo.aspectsReports.familyRelationship}")` : ""}`);
-        }
-        if (evo.spirituality) {
-          aspects.push(`Espiritual: ${evo.spirituality}${evo.aspectsReports?.spirituality ? ` ("${evo.aspectsReports.spirituality}")` : ""}`);
-        }
-        
-        if (aspects.length > 0) {
-          obsTxt += `\n\n[Avaliação de Aspectos]:\n- ` + aspects.join("\n- ");
-        }
-        
-        if (evo.observations) {
-          obsTxt += `\n\n[Observações do Atendente]:\n${evo.observations}`;
+        const hasSectorPermission =
+          isAdmin ||
+          (currentUser?.role === "COORDENADOR" &&
+            evo.sectorId === currentUser?.sectorId);
+
+        let obsTxt = "";
+        let recTxt = "";
+
+        if (hasSectorPermission) {
+          obsTxt = (evo.notesEncrypted || "").replace(/<[^>]*>?/gm, "");
+
+          const aspects = [];
+          if (evo.emotionalStatus) {
+            aspects.push(
+              `Emocional: ${evo.emotionalStatus}${
+                evo.aspectsReports?.emotionalStatus
+                  ? ` ("${evo.aspectsReports.emotionalStatus}")`
+                  : ""
+              }`
+            );
+          }
+          if (evo.physicalHealth) {
+            aspects.push(
+              `Física: ${evo.physicalHealth}${
+                evo.aspectsReports?.physicalHealth
+                  ? ` ("${evo.aspectsReports.physicalHealth}")`
+                  : ""
+              }`
+            );
+          }
+          if (evo.familyRelationship) {
+            aspects.push(
+              `Familiar: ${evo.familyRelationship}${
+                evo.aspectsReports?.familyRelationship
+                  ? ` ("${evo.aspectsReports.familyRelationship}")`
+                  : ""
+              }`
+            );
+          }
+          if (evo.spirituality) {
+            aspects.push(
+              `Espiritual: ${evo.spirituality}${
+                evo.aspectsReports?.spirituality
+                  ? ` ("${evo.aspectsReports.spirituality}")`
+                  : ""
+              }`
+            );
+          }
+
+          if (aspects.length > 0) {
+            obsTxt +=
+              (obsTxt ? "\n\n" : "") +
+              `[Avaliação Multidimensional]:\n- ` +
+              aspects.join("\n- ");
+          }
+
+          if (evo.observations) {
+            obsTxt +=
+              (obsTxt ? "\n\n" : "") + `[Observações Internas]:\n${evo.observations}`;
+          }
+
+          recTxt = (evo.recommendations || "").replace(/<[^>]*>?/gm, "");
+        } else {
+          obsTxt = "[MANTIDO EM SIGILO FRATERNAL PELO SETOR DE ORIGEM]";
+          recTxt = "[Conteúdo sob sigilo fraternal]";
         }
 
         return [
           safeFormat(evo.date, "dd/MM/yyyy HH:mm"),
           sectors.find((s) => s.id === evo.sectorId)?.name || "Setor",
           obsTxt,
-          (evo.recommendations || "").replace(/<[^>]*>?/gm, ""),
+          recTxt,
         ];
       });
 
@@ -405,6 +441,95 @@ export const EvolutionPage: React.FC = () => {
     }
   };
 
+  // Participant Receipt / Prescrição Fluídica PDF Generator
+  const exportParticipantReceipt = async (customRec?: string, customRef?: string) => {
+    if (!selectedP) return;
+
+    try {
+      const doc = new jsPDF();
+      const p = selectedP;
+
+      // Header
+      doc.setFontSize(18);
+      doc.setTextColor(79, 70, 229);
+      doc.text("CENTRO ESPÍRITA MIRANTE DE LUZ", 105, 22, { align: "center" });
+
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      doc.setFont("helvetica", "bold");
+      doc.text("ORIENTAÇÕES DE ASSISTÊNCIA FRATERNA", 105, 29, { align: "center" });
+
+      doc.setDrawColor(220);
+      doc.line(20, 34, 190, 34);
+
+      // Patient Info
+      doc.setFontSize(11);
+      doc.setTextColor(0);
+      doc.text(`Atendido(a): ${p.name.toUpperCase()}`, 20, 43);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text(`Data do Atendimento: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })}`, 20, 49);
+
+      // Recommendations Box
+      doc.setDrawColor(224, 231, 255);
+      doc.setFillColor(245, 247, 255);
+      doc.roundedRect(18, 56, 174, 90, 4, 4, "FD");
+
+      doc.setFontSize(12);
+      doc.setTextColor(67, 56, 202);
+      doc.setFont("helvetica", "bold");
+      doc.text("PRESCRIÇÕES FLUÍDICAS & RECOMENDAÇÕES", 25, 66);
+
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "normal");
+
+      const rawRec = customRec || formData.recommendations || "Assiduidade nas Reuniões Doutrinárias, Água Fluidificada, Oração e Culto do Evangelho no Lar.";
+      const cleanRec = rawRec.replace(/<[^>]*>?/gm, "");
+      const recLines = doc.splitTextToSize(cleanRec, 160);
+      doc.text(recLines, 25, 76);
+
+      // Referrals / Encaminhamentos Box
+      doc.setDrawColor(209, 250, 229);
+      doc.setFillColor(240, 253, 244);
+      doc.roundedRect(18, 154, 174, 45, 4, 4, "FD");
+
+      doc.setFontSize(11);
+      doc.setTextColor(4, 120, 87);
+      doc.setFont("helvetica", "bold");
+      doc.text("ENCAMINHAMENTO ESPIRITUAL", 25, 164);
+
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "normal");
+
+      const validReferralSectors = sectors.filter(s => formData.referralSectors.includes(s.id)).map(s => s.name);
+      let refSummary = customRef || formData.encaminhamento || "";
+      if (validReferralSectors.length > 0) {
+        refSummary += (refSummary ? " | Encaminhado para: " : "Encaminhado para: ") + validReferralSectors.join(", ");
+      }
+      if (!refSummary) refSummary = "Continuar em acompanhamento na Assistência Espiritual.";
+
+      const refLines = doc.splitTextToSize(refSummary, 160);
+      doc.text(refLines, 25, 174);
+
+      // Fraternal message / footer
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.setFont("helvetica", "italic");
+      doc.text('"Buscai e achareis; pedi e dar-se-vos-á." (Mateus 7:7)', 105, 215, { align: "center" });
+
+      doc.setFontSize(8);
+      doc.text("Fraternalmente, Equipe de Atendimento Fraterno - CEMIL", 105, 222, { align: "center" });
+
+      doc.save(`Orientacao_Fraterna_${p.name.replace(/\s+/g, "_")}.pdf`);
+    } catch (err) {
+      console.error("Erro ao gerar comprovante:", err);
+      alert("Erro ao gerar orientações fraternas.");
+    }
+  };
+
   const improveText = async (field: "notes" | "recommendations") => {
     const text = formData[field];
     if (!text || text.length < 5) return;
@@ -440,13 +565,19 @@ export const EvolutionPage: React.FC = () => {
     if (!selectedP) return;
 
     try {
+      // Filter out invalid/phantom sector IDs like "confidentiality-accepted"
+      const validSectorIds = new Set(sectors.map((s) => s.id));
+      const cleanReferralSectors = (formData.referralSectors || []).filter((sid) =>
+        validSectorIds.has(sid)
+      );
+
       if (editingEvo) {
         const updatedEvo = {
           ...editingEvo,
           sectorId: formData.recordingSectorId,
           notesEncrypted: formData.notes,
           recommendations: formData.recommendations,
-          nextStepSectorIds: formData.referralSectors,
+          nextStepSectorIds: cleanReferralSectors,
           encaminhamento: formData.encaminhamento,
           attachments: formData.attachments,
           emotionalStatus: formData.emotionalStatus,
@@ -469,7 +600,7 @@ export const EvolutionPage: React.FC = () => {
           sectorId: formData.recordingSectorId || "sec-fraterno",
           notesEncrypted: formData.notes,
           recommendations: formData.recommendations,
-          nextStepSectorIds: formData.referralSectors,
+          nextStepSectorIds: cleanReferralSectors,
           encaminhamento: formData.encaminhamento,
           attachments: formData.attachments,
           emotionalStatus: formData.emotionalStatus,
@@ -480,23 +611,26 @@ export const EvolutionPage: React.FC = () => {
           aspectsReports: formData.aspectsReports,
         });
 
-        // CRITICAL: Add to Queue for each referral
-        if (formData.referralSectors && formData.referralSectors.length > 0) {
-          console.log("Processing queue referrals:", formData.referralSectors);
-          for (const sectorId of formData.referralSectors) {
+        // Add to Queue for each valid referral sector
+        if (cleanReferralSectors.length > 0) {
+          for (const sectorId of cleanReferralSectors) {
             await dataService.addToQueue({
               participantId: selectedP.id,
               sectorId: sectorId,
-              priority: false, // Default to false, can be improved later
+              priority: false,
             });
           }
         }
       }
 
-      // Complete all active queue services (WAITING or IN_PROGRESS) for this participant
-      const activeToFinish = activeServices.filter(s => s.status === 'IN_PROGRESS' || s.status === 'WAITING');
-      for (const s of activeToFinish) {
-        await dataService.updateQueueStatus(s.id, 'FINISHED', currentUser?.id);
+      // Finish active services if configured
+      if (queueFinishOption === "FINISH") {
+        const activeToFinish = activeServices.filter(
+          (s) => s.status === "IN_PROGRESS" || s.status === "WAITING"
+        );
+        for (const s of activeToFinish) {
+          await dataService.updateQueueStatus(s.id, "FINISHED", currentUser?.id);
+        }
       }
 
       setFormData((prev) => ({
@@ -518,19 +652,57 @@ export const EvolutionPage: React.FC = () => {
           spirituality: "",
         },
       }));
-      await loadHistory(selectedP.id);
+      setIsConfidentialityAccepted(false);
       await loadActiveServices(selectedP.id);
       setActiveTab("HISTORY");
 
       alert(
         editingEvo
           ? "Registro atualizado com sucesso!"
-          : "Registro salvo, atendimento finalizado com sucesso!",
+          : "Registro salvo com sucesso!",
       );
     } catch (err) {
       console.error("Error saving evolution:", err);
       alert("Erro ao salvar evolução.");
     }
+  };
+
+  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      alert("Apenas arquivos no formato PDF são permitidos.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("O arquivo PDF deve ter no máximo 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Url = reader.result as string;
+      const newAttachment = {
+        id: Math.random().toString(36).substring(7),
+        name: file.name,
+        size: file.size,
+        type: file.type || "application/pdf",
+        url: base64Url,
+        uploadDate: Date.now(),
+        uploadedBy: currentUser?.name || currentUser?.email || "Sistema",
+      };
+      setFormData((prev) => ({
+        ...prev,
+        attachments: [...prev.attachments, newAttachment],
+      }));
+    };
+    reader.onerror = () => {
+      alert("Erro ao ler o arquivo PDF.");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const toggleSector = (id: string) => {
@@ -560,11 +732,27 @@ export const EvolutionPage: React.FC = () => {
     return activeServices.find((s) => s.participantId === pid);
   };
 
-  const filteredParticipants = (participants || []).filter(
-    (p) =>
-      p &&
-      p.name &&
-      p.name.toLowerCase().includes((searchTerm || "").toLowerCase()),
+  // Expanded search (Name, CPF, Phone, ID)
+  const filteredParticipants = (participants || []).filter((p) => {
+    if (!p) return false;
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
+    const cleanDigits = term.replace(/\D/g, "");
+
+    const nameMatch = p.name ? p.name.toLowerCase().includes(term) : false;
+    const phoneMatch = p.phone ? p.phone.toLowerCase().includes(term) : false;
+    const idMatch = p.id ? String(p.id).toLowerCase().includes(term) : false;
+    const cpfMatch = p.cpf
+      ? p.cpf.toLowerCase().includes(term) ||
+        (cleanDigits.length > 0 && p.cpf.replace(/\D/g, "").includes(cleanDigits))
+      : false;
+
+    return nameMatch || phoneMatch || idMatch || cpfMatch;
+  });
+
+  // Filter history timeline by sector
+  const filteredHistory = (history || []).filter(
+    (evo) => historySectorFilter === "ALL" || evo.sectorId === historySectorFilter
   );
 
   if (isLoading && (!participants || participants.length === 0)) {
@@ -612,13 +800,24 @@ export const EvolutionPage: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-8 min-h-screen lg:h-full flex flex-col gap-4 sm:gap-8">
-      <header>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
-          Evolução & Encaminhamento
-        </h1>
-        <p className="text-sm sm:text-base text-gray-500 font-medium">
-          Acompanhe a jornada espiritual e direcione os próximos passos.
-        </p>
+      <header className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+              Evolução & Encaminhamento
+            </h1>
+            <p className="text-sm sm:text-base text-gray-500 font-medium">
+              Acompanhe a jornada espiritual e direcione os próximos passos.
+            </p>
+          </div>
+        </div>
       </header>
 
       <div className="lg:flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 min-h-0">
@@ -631,10 +830,10 @@ export const EvolutionPage: React.FC = () => {
             />
             <input
               type="text"
-              placeholder="Localizar atendido..."
+              placeholder="Buscar por nome, CPF, telefone ou ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-gray-100 py-4 pl-12 pr-4 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 outline-none transition-all"
+              className="w-full bg-white border border-gray-100 py-4 pl-12 pr-4 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 outline-none transition-all text-sm font-medium"
             />
           </div>
 
@@ -656,7 +855,6 @@ export const EvolutionPage: React.FC = () => {
                         : "bg-white border-gray-100/80 text-gray-900 hover:border-indigo-200 shadow-sm hover:shadow-lg",
                     )}
                   >
-                    {/* Active Indicator Bar */}
                     {isSelected && (
                       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-white shadow-[2px_0_10px_rgba(255,255,255,0.5)]" />
                     )}
@@ -764,9 +962,7 @@ export const EvolutionPage: React.FC = () => {
               <div className="bg-white/50 border-2 border-dashed border-gray-200 p-8 rounded-3xl text-center">
                 <Users className="mx-auto text-gray-300 mb-2" size={32} />
                 <p className="text-gray-400 text-sm font-medium">
-                  Nenhum atendido
-                  <br />
-                  encontrado
+                  Nenhum atendido encontrado
                 </p>
               </div>
             )}
@@ -783,7 +979,7 @@ export const EvolutionPage: React.FC = () => {
               key={selectedP.id}
               className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-20"
             >
-              {/* Back button to search list / main directory */}
+              {/* Back button */}
               <div className="flex items-center">
                 <button
                   onClick={() => setSelectedP(null)}
@@ -793,14 +989,12 @@ export const EvolutionPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Main Dashboard Header for Participant - Enhanced Version */}
+              {/* Main Dashboard Header for Participant */}
               <div className="bg-white rounded-[40px] border border-indigo-100 shadow-2xl shadow-indigo-500/5 overflow-hidden group relative">
-                {/* Decorative background element */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full translate-x-32 -translate-y-32 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
 
                 <div className="px-6 py-8 sm:px-10 relative z-10">
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
-                    {/* Avatar - More prominent */}
                     <div className="relative group/avatar">
                       <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-[32px] bg-gradient-to-br from-indigo-600 to-indigo-800 flex items-center justify-center text-4xl sm:text-5xl font-black text-white border-4 border-white shadow-2xl shadow-indigo-200 shrink-0 leading-none group-hover/avatar:scale-105 transition-transform duration-500">
                         {(selectedP?.name || "?").charAt(0)}
@@ -835,7 +1029,7 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-center gap-3">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
                           <AnimatePresence mode="wait">
                             {activeServices.find(
                               (s) => s.status === "WAITING",
@@ -869,34 +1063,39 @@ export const EvolutionPage: React.FC = () => {
                           {activeServices.find(
                             (s) => s.status === "IN_PROGRESS",
                           ) && (
-                            <div className="flex items-center gap-3 bg-indigo-100 text-indigo-700 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-indigo-200 shadow-inner">
+                            <div className="flex items-center gap-3 bg-indigo-100 text-indigo-700 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-indigo-200 shadow-inner">
                               <Activity size={16} className="animate-pulse" />
                               Em Atendimento
                             </div>
                           )}
 
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={exportToPDF}
-                              disabled={isExporting}
-                              className={cn(
-                                "flex items-center justify-center w-12 h-12 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-black text-[10px] uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-90 group",
-                                isExporting && "opacity-50 cursor-not-allowed",
-                              )}
-                              title="Exportar PDF"
-                            >
-                              <Printer
-                                size={20}
-                                className="group-hover:scale-110 transition-transform"
-                              />
-                            </button>
-                          </div>
+                          <button
+                            onClick={exportToPDF}
+                            disabled={isExporting}
+                            className={cn(
+                              "flex items-center gap-2 px-4 py-3 bg-white text-indigo-600 border-2 border-indigo-50 rounded-2xl font-bold text-xs uppercase transition-all shadow-sm hover:shadow-md hover:border-indigo-100 active:scale-95",
+                              isExporting && "opacity-50 cursor-not-allowed",
+                            )}
+                            title="Exportar Prontuário Completo em PDF"
+                          >
+                            <Printer size={16} />
+                            <span>Prontuário PDF</span>
+                          </button>
+
+                          <button
+                            onClick={() => exportParticipantReceipt()}
+                            className="flex items-center gap-2 px-4 py-3 bg-indigo-50 text-indigo-700 border-2 border-indigo-100 rounded-2xl font-bold text-xs uppercase transition-all shadow-sm hover:bg-indigo-600 hover:text-white active:scale-95"
+                            title="Imprimir Orientações e Prescrições para o Atendido"
+                          >
+                            <ScrollText size={16} />
+                            <span>Orientações Atendido</span>
+                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Distributed Info Section to fill space and avoid left gap - Now full width sibling */}
+                  {/* Distributed Info Section */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 pt-8 border-t border-indigo-50">
                     <div className="flex items-center gap-3 p-4 bg-gray-50/50 rounded-[24px] border border-transparent hover:border-indigo-100 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-300 group/item">
                       <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-400 group-hover/item:text-indigo-600 transition-colors">
@@ -953,7 +1152,7 @@ export const EvolutionPage: React.FC = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[8px] font-black uppercase tracking-wider opacity-60 mb-0.5">
-                          Status do Irmão
+                          Status na Casa
                         </p>
                         <p className="text-[10px] font-black italic truncate">
                           {activeServices.length > 0
@@ -1014,17 +1213,33 @@ export const EvolutionPage: React.FC = () => {
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
                   {/* Timeline Column */}
                   <div className="xl:col-span-7 space-y-6">
-                    <div className="flex items-center justify-between px-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-2">
                       <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                         <History size={18} className="text-indigo-400" />{" "}
                         Histórico Evolutivo
                       </h3>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5">
+                          <Filter size={14} className="text-indigo-500" />
+                          <select
+                            value={historySectorFilter}
+                            onChange={(e) => setHistorySectorFilter(e.target.value)}
+                            className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer"
+                          >
+                            <option value="ALL">Todos os Setores</option>
+                            {sectors.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-tighter shadow-inner border border-indigo-100">
-                          {history.length} Registros
+                          {filteredHistory.length} Registros
                         </span>
                       </div>
                     </div>
+
                     {/* Participant Original Observation */}
                     {selectedP && selectedP.observation && (
                       <div className="relative pl-8">
@@ -1058,249 +1273,239 @@ export const EvolutionPage: React.FC = () => {
                       </div>
                     )}
 
-                    {history.length > 0 ? (
-                      [...history]
-                        .sort(
-                          (a, b) =>
-                            new Date(b.date).getTime() -
-                            new Date(a.date).getTime(),
-                        )
-                        .map((evo, idx) => (
-                          <div
-                            key={evo.id || idx}
-                            className="relative pl-8 group/timeline"
+                    {filteredHistory.length > 0 ? (
+                      filteredHistory.map((evo, idx) => (
+                        <div
+                          key={evo.id || idx}
+                          className="relative pl-8 group/timeline"
+                        >
+                          <div className="absolute left-0 top-2 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white shadow-md z-10 group-hover/timeline:scale-125 transition-transform" />
+
+                          <motion.div
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 group/card overflow-hidden relative"
                           >
-                            <div className="absolute left-0 top-2 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white shadow-md z-10 group-hover/timeline:scale-125 transition-transform" />
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/20 rounded-full translate-x-12 -translate-y-12 blur-2xl group-hover/card:scale-150 transition-transform duration-700" />
 
-                            <motion.div
-                              initial={{ opacity: 0, x: 10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 group/card overflow-hidden relative"
-                            >
-                              {/* Card Background Decoration */}
-                              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50/20 rounded-full translate-x-12 -translate-y-12 blur-2xl group-hover/card:scale-150 transition-transform duration-700" />
-
-                              <div className="flex items-center justify-between mb-8 relative z-10">
-                                <div className="flex items-center gap-5">
-                                  <div className="w-14 h-14 rounded-[20px] bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-100 group-hover/card:scale-110 transition-transform">
-                                    {sectors
-                                      .find((s) => s.id === evo.sectorId)
-                                      ?.name?.charAt(0) || "S"}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-black tracking-[0.25em] text-indigo-600 uppercase block mb-1 truncate">
-                                      {sectors.find(
-                                        (s) => s.id === evo.sectorId,
-                                      )?.name || "Setor Indefinido"}
-                                    </span>
-                                    <span className="text-sm text-gray-400 font-bold flex items-center gap-2">
-                                      <Calendar size={14} />
-                                      {safeFormat(
-                                        evo.date,
-                                        "dd 'de' MMMM 'às' HH:mm",
-                                      )}
-                                    </span>
-                                  </div>
+                            <div className="flex items-center justify-between mb-8 relative z-10">
+                              <div className="flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-[20px] bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-100 group-hover/card:scale-110 transition-transform">
+                                  {sectors
+                                    .find((s) => s.id === evo.sectorId)
+                                    ?.name?.charAt(0) || "S"}
                                 </div>
-
-                                <div className="flex items-center gap-1">
-                                  {isAdmin && (
-                                    <>
-                                      <button
-                                        onClick={() => setEditingEvo(evo)}
-                                        className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                                      >
-                                        <Pencil size={18} />
-                                      </button>
-                                      <button
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          if (
-                                            confirm(
-                                              "Excluir este registro permanentemente?",
-                                            )
-                                          ) {
-                                            try {
-                                              await dataService.deleteEvolution(
-                                                evo.id,
-                                              );
-                                              if (selectedP)
-                                                loadHistory(selectedP.id);
-                                            } catch (err) {
-                                              console.error(
-                                                "Error deleting evolution:",
-                                                err,
-                                              );
-                                            }
-                                          }
-                                        }}
-                                        className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                      >
-                                        <X size={20} />
-                                      </button>
-                                    </>
-                                  )}
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-black tracking-[0.25em] text-indigo-600 uppercase block mb-1 truncate">
+                                    {sectors.find(
+                                      (s) => s.id === evo.sectorId,
+                                    )?.name || "Setor Indefinido"}
+                                  </span>
+                                  <span className="text-sm text-gray-400 font-bold flex items-center gap-2">
+                                    <Calendar size={14} />
+                                    {safeFormat(
+                                      evo.date,
+                                      "dd 'de' MMMM 'às' HH:mm",
+                                    )}
+                                  </span>
                                 </div>
                               </div>
 
-                              <div className="space-y-8 relative z-10">
-                                <div className="space-y-3">
-                                  <div className="flex items-center gap-2 mb-1 pl-1">
-                                    <div className="w-1 h-3 bg-indigo-200 rounded-full" />
-                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">
-                                      Registro Evolutivo
-                                    </p>
-                                  </div>
-                                  {isAdmin ||
-                                  (currentUser?.role === "COORDENADOR" &&
-                                    evo.sectorId === currentUser?.sectorId) ? (
-                                    <>
-                                      <div
-                                        className="text-lg text-indigo-950 font-medium leading-relaxed prose prose-indigo max-w-none pl-1"
-                                        dangerouslySetInnerHTML={{
-                                          __html:
-                                            evo.notesEncrypted ||
-                                            "<i>Sem observações detalhadas.</i>",
-                                        }}
-                                      />
+                              <div className="flex items-center gap-1">
+                                {isAdmin && (
+                                  <>
+                                    <button
+                                      onClick={() => setEditingEvo(evo)}
+                                      className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                      title="Editar registro"
+                                    >
+                                      <Pencil size={18} />
+                                    </button>
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (
+                                          confirm(
+                                            "Excluir este registro permanentemente?",
+                                          )
+                                        ) {
+                                          try {
+                                            await dataService.deleteEvolution(
+                                              evo.id,
+                                            );
+                                          } catch (err) {
+                                            console.error(
+                                              "Error deleting evolution:",
+                                              err,
+                                            );
+                                          }
+                                        }
+                                      }}
+                                      className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                      title="Excluir registro"
+                                    >
+                                      <X size={20} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
 
-                                      {/* New Fraternal Aspects & Reports Display (Solicitado pelo Usuário) */}
-                                      {(evo.emotionalStatus || evo.physicalHealth || evo.familyRelationship || evo.spirituality || evo.observations) && (
-                                        <div className="mt-6 p-6 bg-slate-50 rounded-[28px] border border-slate-100 space-y-4">
-                                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider pl-1 font-sans">
-                                            Acompanhamento Multidimensional
-                                          </p>
-                                          
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            {evo.emotionalStatus && (
-                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                  <Smile size={14} className="text-indigo-500" />
-                                                  <span className="text-[10px] font-bold text-slate-500">Emocional</span>
-                                                </div>
-                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
-                                                  {evo.emotionalStatus}
-                                                </span>
-                                                {evo.aspectsReports?.emotionalStatus && (
-                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
-                                                    "{evo.aspectsReports.emotionalStatus}"
-                                                  </p>
-                                                )}
-                                              </div>
-                                            )}
+                            <div className="space-y-8 relative z-10">
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2 mb-1 pl-1">
+                                  <div className="w-1 h-3 bg-indigo-200 rounded-full" />
+                                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">
+                                    Registro Evolutivo
+                                  </p>
+                                </div>
+                                {isAdmin ||
+                                (currentUser?.role === "COORDENADOR" &&
+                                  evo.sectorId === currentUser?.sectorId) ? (
+                                  <>
+                                    <div
+                                      className="text-lg text-indigo-950 font-medium leading-relaxed prose prose-indigo max-w-none pl-1"
+                                      dangerouslySetInnerHTML={{
+                                        __html:
+                                          evo.notesEncrypted ||
+                                          "<i>Sem observações detalhadas.</i>",
+                                      }}
+                                    />
 
-                                            {evo.physicalHealth && (
-                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                  <Activity size={14} className="text-indigo-500" />
-                                                  <span className="text-[10px] font-bold text-slate-500">Saúde Física</span>
-                                                </div>
-                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
-                                                  {evo.physicalHealth}
-                                                </span>
-                                                {evo.aspectsReports?.physicalHealth && (
-                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
-                                                    "{evo.aspectsReports.physicalHealth}"
-                                                  </p>
-                                                )}
+                                    {/* Fraternal Aspects & Reports Display */}
+                                    {(evo.emotionalStatus || evo.physicalHealth || evo.familyRelationship || evo.spirituality || evo.observations) && (
+                                      <div className="mt-6 p-6 bg-slate-50 rounded-[28px] border border-slate-100 space-y-4">
+                                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider pl-1 font-sans">
+                                          Acompanhamento Multidimensional
+                                        </p>
+                                        
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                          {evo.emotionalStatus && (
+                                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <Smile size={14} className="text-indigo-500" />
+                                                <span className="text-[10px] font-bold text-slate-500">Emocional</span>
                                               </div>
-                                            )}
+                                              <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                {evo.emotionalStatus}
+                                              </span>
+                                              {evo.aspectsReports?.emotionalStatus && (
+                                                <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                  "{evo.aspectsReports.emotionalStatus}"
+                                                </p>
+                                              )}
+                                            </div>
+                                          )}
 
-                                            {evo.familyRelationship && (
-                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                  <Home size={14} className="text-indigo-500" />
-                                                  <span className="text-[10px] font-bold text-slate-500">Familiar / Social</span>
-                                                </div>
-                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
-                                                  {evo.familyRelationship}
-                                                </span>
-                                                {evo.aspectsReports?.familyRelationship && (
-                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
-                                                    "{evo.aspectsReports.familyRelationship}"
-                                                  </p>
-                                                )}
+                                          {evo.physicalHealth && (
+                                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <Activity size={14} className="text-indigo-500" />
+                                                <span className="text-[10px] font-bold text-slate-500">Saúde Física</span>
                                               </div>
-                                            )}
+                                              <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                {evo.physicalHealth}
+                                              </span>
+                                              {evo.aspectsReports?.physicalHealth && (
+                                                <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                  "{evo.aspectsReports.physicalHealth}"
+                                                </p>
+                                              )}
+                                            </div>
+                                          )}
 
-                                            {evo.spirituality && (
-                                              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                  <Brain size={14} className="text-indigo-500" />
-                                                  <span className="text-[10px] font-bold text-slate-500">Espiritual</span>
-                                                </div>
-                                                <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
-                                                  {evo.spirituality}
-                                                </span>
-                                                {evo.aspectsReports?.spirituality && (
-                                                  <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
-                                                    "{evo.aspectsReports.spirituality}"
-                                                  </p>
-                                                )}
+                                          {evo.familyRelationship && (
+                                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <Home size={14} className="text-indigo-500" />
+                                                <span className="text-[10px] font-bold text-slate-500">Familiar / Social</span>
                                               </div>
-                                            )}
-                                          </div>
+                                              <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                {evo.familyRelationship}
+                                              </span>
+                                              {evo.aspectsReports?.familyRelationship && (
+                                                <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                  "{evo.aspectsReports.familyRelationship}"
+                                                </p>
+                                              )}
+                                            </div>
+                                          )}
 
-                                          {/* General Observations inside History Card */}
-                                          {evo.observations && (
-                                            <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 space-y-1 mt-4">
-                                              <div className="flex items-center gap-1.5 text-amber-800">
-                                                <ScrollText size={14} />
-                                                <span className="text-[10px] font-black uppercase tracking-wider">Anotações do Atendente (Internas)</span>
+                                          {evo.spirituality && (
+                                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <Brain size={14} className="text-indigo-500" />
+                                                <span className="text-[10px] font-bold text-slate-500">Espiritual</span>
                                               </div>
-                                              <p className="text-xs text-amber-950 font-medium leading-relaxed pl-1">
-                                                {evo.observations}
-                                              </p>
+                                              <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block uppercase tracking-wide">
+                                                {evo.spirituality}
+                                              </span>
+                                              {evo.aspectsReports?.spirituality && (
+                                                <p className="text-xs text-slate-600 mt-2 border-t border-slate-50 pt-2 italic leading-relaxed">
+                                                  "{evo.aspectsReports.spirituality}"
+                                                </p>
+                                              )}
                                             </div>
                                           )}
                                         </div>
-                                      )}
 
-                                      {evo.attachments &&
-                                        evo.attachments.length > 0 && (
-                                          <div className="mt-6 flex flex-wrap gap-4">
-                                            {evo.attachments.map(
-                                              (file, fidx) => (
-                                                <a
-                                                  key={fidx}
-                                                  href={file.url}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  className="flex items-center gap-3 p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100 hover:bg-white hover:shadow-lg transition-all group/file"
-                                                >
-                                                  <div className="p-2 bg-white rounded-lg text-red-500 shadow-sm border border-red-50">
-                                                    <Printer size={16} />
-                                                  </div>
-                                                  <div className="min-w-0 pr-4">
-                                                    <p className="text-[10px] font-bold text-indigo-900 truncate max-w-[120px]">
-                                                      {file.name}
-                                                    </p>
-                                                    <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">
-                                                      Documento PDF
-                                                    </p>
-                                                  </div>
-                                                </a>
-                                              ),
-                                            )}
+                                        {evo.observations && (
+                                          <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 space-y-1 mt-4">
+                                            <div className="flex items-center gap-1.5 text-amber-800">
+                                              <ScrollText size={14} />
+                                              <span className="text-[10px] font-black uppercase tracking-wider">Anotações do Atendente (Internas)</span>
+                                            </div>
+                                            <p className="text-xs text-amber-950 font-medium leading-relaxed pl-1">
+                                              {evo.observations}
+                                            </p>
                                           </div>
                                         )}
-                                    </>
-                                  ) : (
-                                    <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex items-center gap-4 text-gray-400 italic text-sm shadow-inner">
-                                      <Lock
-                                        size={20}
-                                        className="shrink-0 opacity-50"
-                                      />
-                                      <span className="leading-tight">
-                                        Conteúdo restrito ao setor de origem ou
-                                        nível de acesso superior.
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
+                                      </div>
+                                    )}
 
-                                <div className="p-8 bg-indigo-50/40 rounded-[32px] border border-indigo-100/50 relative group/evo hover:bg-indigo-50/60 transition-colors">
-                                  <div className="flex items-center gap-2 mb-4">
+                                    {/* Document PDF Attachment Viewer */}
+                                    {evo.attachments && evo.attachments.length > 0 && (
+                                      <div className="mt-6 flex flex-wrap gap-4">
+                                        {evo.attachments.map((file, fidx) => (
+                                          <a
+                                            key={fidx}
+                                            href={file.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex items-center gap-3 p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100 hover:bg-white hover:shadow-lg transition-all group/file"
+                                          >
+                                            <div className="p-2 bg-white rounded-lg text-red-500 shadow-sm border border-red-50">
+                                              <FileText size={16} />
+                                            </div>
+                                            <div className="min-w-0 pr-4">
+                                              <p className="text-[10px] font-bold text-indigo-900 truncate max-w-[140px]">
+                                                {file.name}
+                                              </p>
+                                              <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">
+                                                Visualizar PDF
+                                              </p>
+                                            </div>
+                                          </a>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex items-center gap-4 text-gray-400 italic text-sm shadow-inner">
+                                    <Lock
+                                      size={20}
+                                      className="shrink-0 opacity-50"
+                                    />
+                                    <span className="leading-tight">
+                                      Conteúdo mantido em sigilo fraternal pelo setor de origem.
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="p-8 bg-indigo-50/40 rounded-[32px] border border-indigo-100/50 relative group/evo hover:bg-indigo-50/60 transition-colors">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-2">
                                     <div className="p-2 bg-indigo-600 rounded-lg text-white shadow-md">
                                       <Heart
                                         size={14}
@@ -1311,61 +1516,70 @@ export const EvolutionPage: React.FC = () => {
                                       Recomendações Fraternas
                                     </p>
                                   </div>
-                                  {isAdmin ||
-                                  (currentUser?.role === "COORDENADOR" &&
-                                    evo.sectorId === currentUser?.sectorId) ? (
-                                    <div
-                                      className="text-lg text-indigo-900 font-bold leading-relaxed prose prose-indigo italic pl-1"
-                                      dangerouslySetInnerHTML={{
-                                        __html:
-                                          evo.recommendations ||
-                                          "<i>Nenhuma recomendação específica para este momento.</i>",
-                                      }}
-                                    />
-                                  ) : (
-                                    <div className="flex items-center gap-3 text-indigo-300 italic text-sm py-2">
-                                      <Lock size={16} /> Conteúdo sob sigilo
-                                      fraternal.
-                                    </div>
+                                  {evo.recommendations && (
+                                    <button
+                                      onClick={() => exportParticipantReceipt(evo.recommendations, evo.encaminhamento)}
+                                      className="text-[9px] font-black text-indigo-600 hover:bg-white px-2 py-1 rounded-lg border border-indigo-100 uppercase tracking-wide transition-all"
+                                      title="Imprimir esta recomendação para o atendido"
+                                    >
+                                      Imprimir Orientação
+                                    </button>
                                   )}
                                 </div>
-
-                                {(evo.encaminhamento ||
-                                  (evo.nextStepSectorIds &&
-                                    evo.nextStepSectorIds.length > 0)) && (
-                                  <div className="pt-8 border-t border-indigo-50 space-y-4">
-                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.25em] pl-1">
-                                      Destinos e Encaminhamentos
-                                    </p>
-
-                                    <div className="flex flex-wrap gap-3">
-                                      {evo.encaminhamento && (
-                                        <div className="flex items-center gap-3 text-[11px] font-black text-indigo-700 bg-white px-5 py-2.5 rounded-2xl uppercase border-2 border-indigo-50 shadow-sm transition-all hover:border-indigo-200">
-                                          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                                          {evo.encaminhamento}
-                                        </div>
-                                      )}
-                                      {evo.nextStepSectorIds &&
-                                        evo.nextStepSectorIds.map((sid) => (
-                                          <div
-                                            key={sid}
-                                            className="flex items-center gap-3 text-[11px] font-black text-emerald-700 bg-emerald-50 px-5 py-2.5 rounded-2xl uppercase border-2 border-emerald-100 shadow-sm transition-all hover:border-emerald-200"
-                                          >
-                                            <CheckCircle2
-                                              size={16}
-                                              strokeWidth={3}
-                                            />{" "}
-                                            {sectors.find((s) => s.id === sid)
-                                              ?.name || "Setor"}
-                                          </div>
-                                        ))}
-                                    </div>
+                                {isAdmin ||
+                                (currentUser?.role === "COORDENADOR" &&
+                                  evo.sectorId === currentUser?.sectorId) ? (
+                                  <div
+                                    className="text-lg text-indigo-900 font-bold leading-relaxed prose prose-indigo italic pl-1"
+                                    dangerouslySetInnerHTML={{
+                                      __html:
+                                        evo.recommendations ||
+                                        "<i>Nenhuma recomendação específica para este momento.</i>",
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="flex items-center gap-3 text-indigo-300 italic text-sm py-2">
+                                    <Lock size={16} /> Conteúdo sob sigilo fraternal.
                                   </div>
                                 )}
                               </div>
-                            </motion.div>
-                          </div>
-                        ))
+
+                              {(evo.encaminhamento ||
+                                (evo.nextStepSectorIds &&
+                                  evo.nextStepSectorIds.length > 0)) && (
+                                <div className="pt-8 border-t border-indigo-50 space-y-4">
+                                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.25em] pl-1">
+                                    Destinos e Encaminhamentos
+                                  </p>
+
+                                  <div className="flex flex-wrap gap-3">
+                                    {evo.encaminhamento && (
+                                      <div className="flex items-center gap-3 text-[11px] font-black text-indigo-700 bg-white px-5 py-2.5 rounded-2xl uppercase border-2 border-indigo-50 shadow-sm transition-all hover:border-indigo-200">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                                        {evo.encaminhamento}
+                                      </div>
+                                    )}
+                                    {evo.nextStepSectorIds &&
+                                      evo.nextStepSectorIds.map((sid) => (
+                                        <div
+                                          key={sid}
+                                          className="flex items-center gap-3 text-[11px] font-black text-emerald-700 bg-emerald-50 px-5 py-2.5 rounded-2xl uppercase border-2 border-emerald-100 shadow-sm transition-all hover:border-emerald-200"
+                                        >
+                                          <CheckCircle2
+                                            size={16}
+                                            strokeWidth={3}
+                                          />{" "}
+                                          {sectors.find((s) => s.id === sid)
+                                            ?.name || "Setor"}
+                                        </div>
+                                      ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        </div>
+                      ))
                     ) : (
                       <div className="bg-gray-50/50 rounded-[48px] p-16 text-center border-2 border-dashed border-gray-100">
                         <History
@@ -1376,8 +1590,7 @@ export const EvolutionPage: React.FC = () => {
                           Caminhada Silenciosa
                         </h4>
                         <p className="text-gray-400 text-sm italic">
-                          Nenhum registro anterior encontrado para este
-                          atendido.
+                          Nenhum registro anterior encontrado para este setor/atendido.
                         </p>
                       </div>
                     )}
@@ -1396,7 +1609,6 @@ export const EvolutionPage: React.FC = () => {
                         onSubmit={handleSaveEvolution}
                         className="bg-white p-8 sm:p-10 rounded-[48px] border-2 border-indigo-50 text-indigo-900 space-y-6 shadow-2xl shadow-indigo-100 relative group overflow-hidden"
                       >
-                        {/* Form Background Accent */}
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full translate-x-16 -translate-y-16 blur-2xl opacity-50 group-hover:opacity-100 transition-opacity" />
 
                         {editingEvo && (
@@ -1448,7 +1660,7 @@ export const EvolutionPage: React.FC = () => {
                               })
                             }
                             disabled={currentUser?.role === "COORDENADOR"}
-                            className="w-full bg-gray-50/50 border border-indigo-50 text-indigo-900 rounded-2xl p-4 font-bold outline-none focus:bg-white focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600 transition-all pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-gray-50/50 border border-indigo-50 text-indigo-900 rounded-2xl p-4 font-bold outline-none focus:bg-white focus:ring-4 focus:ring-indigo-50 focus:border-indigo-600 transition-all pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                           >
                             {sectors.map((s) => (
                               <option
@@ -1477,7 +1689,7 @@ export const EvolutionPage: React.FC = () => {
                                 })
                               }
                               placeholder="Notas detalhadas do atendimento..."
-                              className="w-full min-h-[160px] bg-gray-50/50 rounded-3xl p-5 text-gray-800 border-2 border-transparent focus:border-indigo-600 focus:bg-white outline-none font-medium transition-all pr-12 shadow-inner leading-relaxed"
+                              className="w-full min-h-[140px] bg-gray-50/50 rounded-3xl p-5 text-gray-800 border-2 border-transparent focus:border-indigo-600 focus:bg-white outline-none font-medium transition-all pr-12 shadow-inner leading-relaxed text-sm"
                             />
                             <button
                               type="button"
@@ -1514,7 +1726,7 @@ export const EvolutionPage: React.FC = () => {
                                 })
                               }
                               placeholder="Prescrições fluídicas, orações, leituras..."
-                              className="w-full min-h-[120px] bg-indigo-50/20 rounded-3xl p-5 text-indigo-900 border-2 border-transparent focus:border-indigo-600 focus:bg-white outline-none font-bold italic transition-all pr-12 shadow-sm leading-relaxed"
+                              className="w-full min-h-[120px] bg-indigo-50/20 rounded-3xl p-5 text-indigo-900 border-2 border-transparent focus:border-indigo-600 focus:bg-white outline-none font-bold italic transition-all pr-12 shadow-sm leading-relaxed text-sm"
                             />
                             <button
                               type="button"
@@ -1535,6 +1747,7 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* File Upload (PDF to Base64) */}
                         <div className="space-y-4 pt-4 border-t border-indigo-50">
                           <div className="flex items-center justify-between">
                             <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest">
@@ -1547,45 +1760,18 @@ export const EvolutionPage: React.FC = () => {
                                   .getElementById("evolution-file-input")
                                   ?.click()
                               }
-                              className="text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition-all"
+                              className="text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-all border border-indigo-100"
                             >
-                              + Adicionar PDF
+                              + Anexar PDF
                             </button>
                           </div>
 
                           <input
                             id="evolution-file-input"
                             type="file"
-                            accept=".pdf"
+                            accept=".pdf,application/pdf"
                             className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                if (file.type !== "application/pdf") {
-                                  alert("Apenas arquivos PDF são permitidos.");
-                                  return;
-                                }
-                                const newAttachment = {
-                                  id: Math.random().toString(36).substring(7),
-                                  name: file.name,
-                                  size: file.size,
-                                  type: file.type,
-                                  url: "#",
-                                  uploadDate: Date.now(),
-                                  uploadedBy:
-                                    currentUser?.name ||
-                                    currentUser?.email ||
-                                    "Sistema",
-                                };
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  attachments: [
-                                    ...prev.attachments,
-                                    newAttachment,
-                                  ],
-                                }));
-                              }
-                            }}
+                            onChange={handlePdfUpload}
                           />
 
                           <div className="space-y-2">
@@ -1598,7 +1784,7 @@ export const EvolutionPage: React.FC = () => {
                                   >
                                     <div className="flex items-center gap-3">
                                       <div className="p-2 bg-white rounded-lg text-red-500">
-                                        <Printer size={14} />
+                                        <FileText size={14} />
                                       </div>
                                       <p className="text-[10px] font-bold text-indigo-900 truncate max-w-[150px]">
                                         {file.name}
@@ -1622,18 +1808,15 @@ export const EvolutionPage: React.FC = () => {
                                 ))}
                               </div>
                             ) : (
-                              <div className="p-4 bg-gray-50/50 rounded-2xl border-2 border-dashed border-gray-100 flex flex-col items-center justify-center gap-2 text-center min-h-[80px]">
-                                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-200">
-                                  <ScrollText size={16} />
-                                </div>
+                              <div className="p-4 bg-gray-50/50 rounded-2xl border-2 border-dashed border-gray-100 flex flex-col items-center justify-center gap-2 text-center min-h-[70px]">
                                 <p className="text-[9px] text-gray-400 font-bold italic">
-                                  Nenhum arquivo anexado a este registro.
+                                  Nenhum arquivo PDF anexado.
                                 </p>
                               </div>
                             )}
                           </div>
 
-                          <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest">
+                          <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest block pt-2">
                             Encaminhamentos
                           </label>
 
@@ -1708,6 +1891,41 @@ export const EvolutionPage: React.FC = () => {
                                     </span>
                                   </button>
                                 ))}
+                            </div>
+                          </div>
+
+                          {/* Queue Status Management Option */}
+                          <div className="space-y-2 pt-2">
+                            <label className="text-[10px] font-black uppercase text-indigo-300 ml-1 tracking-widest">
+                              Status na Fila ao Salvar
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setQueueFinishOption("FINISH")}
+                                className={cn(
+                                  "p-3 rounded-2xl text-[9px] font-black uppercase border-2 transition-all flex items-center justify-center gap-1.5",
+                                  queueFinishOption === "FINISH"
+                                    ? "bg-emerald-600 border-emerald-600 text-white shadow-md"
+                                    : "bg-gray-50 border-gray-100 text-gray-400 hover:border-gray-200",
+                                )}
+                              >
+                                <CheckCircle2 size={14} />
+                                Concluir Atendimento
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQueueFinishOption("KEEP_IN_PROGRESS")}
+                                className={cn(
+                                  "p-3 rounded-2xl text-[9px] font-black uppercase border-2 transition-all flex items-center justify-center gap-1.5",
+                                  queueFinishOption === "KEEP_IN_PROGRESS"
+                                    ? "bg-amber-500 border-amber-500 text-white shadow-md"
+                                    : "bg-gray-50 border-gray-100 text-gray-400 hover:border-gray-200",
+                                )}
+                              >
+                                <Activity size={14} />
+                                Manter Em Andamento
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1790,7 +2008,7 @@ export const EvolutionPage: React.FC = () => {
                                   Telefone
                                 </p>
                                 <p className="font-bold text-gray-800">
-                                  {selectedP.phone}
+                                  {selectedP.phone || "Não informado"}
                                 </p>
                               </div>
                             </div>
@@ -1840,7 +2058,7 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Section 3: Avaliação Multidimensional & Relatos Escritos dos Aspectos (Solicitado pelo Usuário) */}
+                        {/* Section 3: Avaliação Multidimensional */}
                         <div className="space-y-8 lg:col-span-2 bg-indigo-50/10 p-6 sm:p-8 rounded-[40px] border border-indigo-100/60 shadow-inner">
                           <div className="flex items-center gap-3 border-b border-indigo-100 pb-4">
                             <Heart className="text-indigo-500 fill-indigo-500/20" size={22} />
@@ -1984,7 +2202,7 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Section 4: Observações Gerais do Atendente (Solicitado pelo Usuário) */}
+                        {/* Section 4: Observações Gerais do Atendente */}
                         <div className="space-y-6 lg:col-span-2">
                           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
                             <ScrollText className="text-amber-500" size={20} />
@@ -2010,7 +2228,7 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Section 5: Conhecimento Espírita (formerly 3) */}
+                        {/* Section 5: Conhecimento Espírita */}
                         <div className="space-y-6">
                           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
                             <Users className="text-purple-400" size={20} />
@@ -2053,7 +2271,7 @@ export const EvolutionPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Section 6: Confidentiality (formerly 4) */}
+                        {/* Section 6: Termo de Confidencialidade */}
                         <div className="space-y-6">
                           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
                             <Lock className="text-emerald-400" size={20} />
@@ -2075,26 +2293,21 @@ export const EvolutionPage: React.FC = () => {
                               <div
                                 className={cn(
                                   "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
-                                  formData.referralSectors.length > 0
+                                  isConfidentialityAccepted
                                     ? "bg-emerald-600 border-emerald-600 text-white"
                                     : "border-emerald-200 group-hover:border-emerald-400",
                                 )}
                               >
-                                {formData.referralSectors.length > 0 && (
+                                {isConfidentialityAccepted && (
                                   <CheckCircle2 size={16} strokeWidth={3} />
                                 )}
                               </div>
                               <input
                                 type="checkbox"
                                 className="hidden"
-                                checked={formData.referralSectors.length > 0}
+                                checked={isConfidentialityAccepted}
                                 onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    referralSectors: e.target.checked
-                                      ? ["confidentiality-accepted"]
-                                      : [],
-                                  })
+                                  setIsConfidentialityAccepted(e.target.checked)
                                 }
                               />
                               <span className="text-xs font-black uppercase tracking-tight text-emerald-800">
@@ -2107,13 +2320,11 @@ export const EvolutionPage: React.FC = () => {
                             <button
                               onClick={handleSaveEvolution}
                               disabled={
-                                !formData.notes ||
-                                formData.referralSectors.length === 0
+                                !formData.notes || !isConfidentialityAccepted
                               }
                               className={cn(
                                 "w-full py-6 rounded-[32px] font-black text-sm uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95",
-                                !formData.notes ||
-                                  formData.referralSectors.length === 0
+                                !formData.notes || !isConfidentialityAccepted
                                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                   : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100",
                               )}

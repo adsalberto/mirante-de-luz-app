@@ -46,7 +46,7 @@ export const ScheduleRemindersModal: React.FC<ScheduleRemindersModalProps> = ({
     for (const w of workersToRemind) {
       await dataService.addScheduleReminder({
         workerName: w.name,
-        workerPhone: w.phone || '(11) 99999-0000',
+        workerPhone: w.phone || 'Sem telefone',
         sectorName,
         date: w.day,
         shift: w.shift,

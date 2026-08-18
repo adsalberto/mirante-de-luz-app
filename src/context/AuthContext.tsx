@@ -37,18 +37,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setCurrentUser = (worker: Worker | null) => {
     if (worker) {
+      try {
+        localStorage.setItem(`cemil_worker_profile_${worker.id}`, JSON.stringify(worker));
+      } catch (e) {
+        console.warn("Could not cache profile to localStorage", e);
+      }
+
       const sessionKey = `login_counted_${worker.id}`;
       if (!sessionStorage.getItem(sessionKey)) {
         sessionStorage.setItem(sessionKey, "true");
         const nextCount = (worker.loginCount || 0) + 1;
         
-        // Update loginCount in Firestore
+        // Update loginCount in Firestore silently
         const workerRef = doc(db, 'trabalhadores', worker.id);
         updateDoc(workerRef, { loginCount: nextCount }).catch((e) => {
-          console.error("Failed to update loginCount in firestore:", e);
+          console.warn("Offline/Failed to update loginCount in firestore:", e);
         });
 
-        // Add to audit logs
+        // Add to audit logs silently
         const now = new Date();
         const dateStr = now.toLocaleDateString('pt-BR');
         const timeStr = now.toLocaleTimeString('pt-BR');
@@ -66,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           action: actionFormatted,
           details: details
         }).catch((e) => {
-          console.error("Failed to write login log:", e);
+          console.warn("Offline/Failed to write login log:", e);
         });
         
         // Update memory value so it's fresh in current session state
@@ -92,100 +98,145 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const normalizedEmail = user.email?.toLowerCase().trim();
         console.log("Auth State Changed for:", normalizedEmail, "UID:", user.uid);
         
+        // Retrieve cached profile if available for fast/offline startup
+        let cachedProfile: Worker | null = null;
+        try {
+          const cachedRaw = localStorage.getItem(`cemil_worker_profile_${user.uid}`);
+          if (cachedRaw) {
+            cachedProfile = JSON.parse(cachedRaw) as Worker;
+          }
+        } catch (e) {
+          console.warn("Could not read cached profile:", e);
+        }
+
         try {
           // 1. Check for super admin bootstrap FIRST
           if (normalizedEmail === 'carlostecal35@gmail.com') {
-            console.log("Super Admin detected. Checking profile...");
-            const adminDocRef = doc(db, 'trabalhadores', user.uid);
-            const adminSnap = await getDoc(adminDocRef);
-            
-            if (!adminSnap.exists()) {
-              console.log("Bootstrapping super admin profile...");
-              const adminUser: Worker = {
-                id: user.uid,
-                name: user.displayName || 'Administrador Principal',
-                email: normalizedEmail,
-                role: 'ADMIN',
-                active: true,
-                createdAt: Date.now(),
-                acceptedTerm: true,
-                termAcceptedAt: Date.now()
-              };
-              await setDoc(adminDocRef, adminUser);
+            console.log("Super Admin detected. Initializing profile...");
+            const defaultAdmin: Worker = {
+              id: user.uid,
+              name: user.displayName || 'Administrador Principal',
+              email: normalizedEmail,
+              role: 'ADMIN',
+              active: true,
+              createdAt: cachedProfile?.createdAt || Date.now(),
+              acceptedTerm: true,
+              termAcceptedAt: Date.now()
+            };
+
+            // Immediately set admin state so UI is never blocked by offline/slow network
+            setCurrentUser(cachedProfile || defaultAdmin);
+
+            // In background or if online, ensure document is synced in Firestore
+            try {
+              const adminDocRef = doc(db, 'trabalhadores', user.uid);
+              const adminSnap = await getDoc(adminDocRef);
               
-              try {
-                await dataService.populateDefaults();
-              } catch (popErr) {
-                console.error("Failed to populate default sectors during bootstrap:", popErr);
-              }
-              
-              setCurrentUser(adminUser);
-              setLoading(false);
-              return;
-            } else {
-              // Profile exists, but ensure it has admin powers and is active
-              const adminData = adminSnap.data() as Worker;
-              if (adminData.role !== 'ADMIN' || !adminData.active) {
-                const updatedAdmin = { ...adminData, role: 'ADMIN' as UserRole, active: true };
-                await setDoc(adminDocRef, updatedAdmin, { merge: true });
-                setCurrentUser(updatedAdmin);
+              if (!adminSnap.exists()) {
+                console.log("Bootstrapping super admin profile in Firestore...");
+                await setDoc(adminDocRef, defaultAdmin);
+                try {
+                  await dataService.populateDefaults();
+                } catch (popErr) {
+                  console.warn("Failed to populate default sectors during bootstrap:", popErr);
+                }
+                setCurrentUser(defaultAdmin);
               } else {
-                setCurrentUser({ ...adminData, id: adminSnap.id });
+                const adminData = adminSnap.data() as Worker;
+                if (adminData.role !== 'ADMIN' || !adminData.active) {
+                  const updatedAdmin = { ...adminData, role: 'ADMIN' as UserRole, active: true };
+                  await setDoc(adminDocRef, updatedAdmin, { merge: true });
+                  setCurrentUser(updatedAdmin);
+                } else {
+                  setCurrentUser({ ...adminData, id: adminSnap.id });
+                }
               }
-              setLoading(false);
-              return;
+            } catch (fsErr) {
+              console.warn("Firestore offline or slow during admin check, using fallback admin profile:", fsErr);
             }
+            
+            setLoading(false);
+            return;
+          }
+
+          // Pre-populate with cached profile if we have it
+          if (cachedProfile) {
+            setCurrentUser(cachedProfile);
           }
 
           // 2. Email lookup for existing non-admin profiles
           if (normalizedEmail) {
             console.log("Looking up profile by email:", normalizedEmail);
-            const q = query(collection(db, 'trabalhadores'), where('email', '==', normalizedEmail));
-            const querySnap = await getDocs(q);
-            
-            if (!querySnap.empty) {
-              const workerData = { id: querySnap.docs[0].id, ...querySnap.docs[0].data() } as Worker;
-              console.log("Found worker profile by email:", workerData.id);
+            try {
+              const q = query(collection(db, 'trabalhadores'), where('email', '==', normalizedEmail));
+              const querySnap = await getDocs(q);
               
-              if (workerData.id !== user.uid) {
-                console.log("Syncing worker profile to UID path:", user.uid);
-                try {
-                  const syncedProfile = { 
-                    ...workerData, 
-                    id: user.uid, 
-                    syncedFrom: workerData.id,
-                    email: normalizedEmail
-                  };
-                  await setDoc(doc(db, 'trabalhadores', user.uid), syncedProfile);
-                  setCurrentUser(syncedProfile);
-                } catch (syncErr) {
-                  console.error("Sync failed, using existing profile memory:", syncErr);
-                  setCurrentUser({ ...workerData, id: user.uid, email: normalizedEmail });
+              if (!querySnap.empty) {
+                const workerData = { id: querySnap.docs[0].id, ...querySnap.docs[0].data() } as Worker;
+                console.log("Found worker profile by email:", workerData.id);
+                
+                if (workerData.id !== user.uid) {
+                  console.log("Syncing worker profile to UID path:", user.uid);
+                  try {
+                    const syncedProfile = { 
+                      ...workerData, 
+                      id: user.uid, 
+                      syncedFrom: workerData.id,
+                      email: normalizedEmail
+                    };
+                    await setDoc(doc(db, 'trabalhadores', user.uid), syncedProfile);
+                    setCurrentUser(syncedProfile);
+                  } catch (syncErr) {
+                    console.warn("Sync write failed, using existing profile:", syncErr);
+                    setCurrentUser({ ...workerData, id: user.uid, email: normalizedEmail });
+                  }
+                } else {
+                  setCurrentUser(workerData);
                 }
-              } else {
-                setCurrentUser(workerData);
+                setLoading(false);
+                return;
               }
-              setLoading(false);
-              return;
+            } catch (emailQueryErr) {
+              console.warn("Could not query by email (offline or indexing):", emailQueryErr);
             }
           }
 
           // 3. Fallback to UID lookup
-          console.log("Profile not found by email, trying UID direct lookup...");
-          const docRef = doc(db, 'trabalhadores', user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            const data = docSnap.data() as Worker;
-            console.log("Found worker profile by UID:", docSnap.id);
-            setCurrentUser({ ...data, id: docSnap.id });
-          } else {
-            console.warn("No worker profile found for user:", user.uid);
-            setCurrentUser(null);
+          console.log("Checking UID direct lookup...");
+          try {
+            const docRef = doc(db, 'trabalhadores', user.uid);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+              const data = docSnap.data() as Worker;
+              console.log("Found worker profile by UID:", docSnap.id);
+              setCurrentUser({ ...data, id: docSnap.id });
+            } else if (!cachedProfile) {
+              console.warn("No worker profile found for user:", user.uid);
+              setCurrentUser(null);
+            }
+          } catch (uidLookupErr) {
+            console.warn("UID direct lookup failed (offline):", uidLookupErr);
+            if (!cachedProfile) {
+              // Create a minimal transient profile for logged-in user so they can view the app
+              const tempUser: Worker = {
+                id: user.uid,
+                name: user.displayName || user.email?.split('@')[0] || 'Trabalhador',
+                email: user.email || '',
+                role: 'VOLUNTARIO',
+                active: true,
+                createdAt: Date.now()
+              };
+              setCurrentUser(tempUser);
+            }
           }
         } catch (error) {
           console.error("Error loading profile in AuthContext:", error);
-          setCurrentUser(null);
+          if (cachedProfile) {
+            setCurrentUser(cachedProfile);
+          } else {
+            setCurrentUser(null);
+          }
         }
       } else {
         setCurrentUser(null);

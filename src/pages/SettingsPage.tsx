@@ -20,10 +20,18 @@ import {
   Printer,
   Eye,
   EyeOff,
+  Sparkles,
+  RefreshCw,
+  AlertTriangle,
+  BookOpen,
+  Headphones,
+  ShoppingBag,
 } from "lucide-react";
 import { dataService } from "../services/dataService";
 import {
   Worker,
+  WorkerStatus,
+  WORKER_STATUS_LABELS,
   Sector,
   UserRole,
   SectorType,
@@ -70,7 +78,31 @@ export const SettingsPage: React.FC = () => {
   const [tempDurationUnit, setTempDurationUnit] = useState<'hours' | 'days'>("days");
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [workerFilter, setWorkerFilter] = useState<'all' | 'active' | 'pending'>('all');
+  const [workerFilter, setWorkerFilter] = useState<'all' | 'active' | 'pending' | 'afastado' | 'em_formacao' | 'desligado'>('all');
+
+  // Modal de Limpeza para Produção
+  const [isCleanProductionModalOpen, setIsCleanProductionModalOpen] = useState(false);
+  const [isCleaningProgress, setIsCleaningProgress] = useState(false);
+  const [cleaningResult, setCleaningResult] = useState<{
+    clearedCollections: string[];
+    preservedWorkers: string[];
+    removedWorkersCount: number;
+    audiobooksPreservedCount: number;
+    productsPreservedCount: number;
+  } | null>(null);
+
+  const handleCleanProduction = async () => {
+    setIsCleaningProgress(true);
+    try {
+      const res = await dataService.cleanSystemForProduction();
+      setCleaningResult(res);
+      await loadData();
+    } catch (err: any) {
+      alert("Erro ao realizar limpeza: " + (err.message || String(err)));
+    } finally {
+      setIsCleaningProgress(false);
+    }
+  };
 
   const [selectedWorkerForTerm, setSelectedWorkerForTerm] = useState<Worker | null>(null);
   const [termDate, setTermDate] = useState("");
@@ -628,6 +660,7 @@ export const SettingsPage: React.FC = () => {
     role: "VOLUNTARIO" as UserRole,
     position: "", // NEW
     sectorId: "",
+    status: "ATIVO" as WorkerStatus,
     photoUrl: "",
     acceptedTerm: false,
     bloodType: "",
@@ -641,6 +674,9 @@ export const SettingsPage: React.FC = () => {
     city: "Salvador",
     profession: "",
     nationality: "brasileira",
+    interviewNotes: "",
+    coursesCompleted: [] as string[],
+    availabilityDays: [] as string[],
   });
   const [newSector, setNewSector] = useState({
     name: "",
@@ -710,6 +746,7 @@ export const SettingsPage: React.FC = () => {
       role: "VOLUNTARIO",
       position: "",
       sectorId: (currentUser?.role === "COORDENADOR" && currentUser.sectorId) ? currentUser.sectorId : "",
+      status: "ATIVO",
       photoUrl: "",
       acceptedTerm: false,
       bloodType: "",
@@ -723,6 +760,9 @@ export const SettingsPage: React.FC = () => {
       city: "Salvador",
       profession: "",
       nationality: "brasileira",
+      interviewNotes: "",
+      coursesCompleted: [],
+      availabilityDays: [],
     });
     setWorkerPassword("");
     setForcePasswordChange(true);
@@ -740,20 +780,21 @@ export const SettingsPage: React.FC = () => {
       generated += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setWorkerPassword(generated);
-    setShowCreatedPassword(true); // Automatically show the password to the admin so they can copy it
+    setShowCreatedPassword(true);
   };
 
   useEffect(() => {
-    loadData();
+    const unsub = dataService.subscribeToWorkers((list) => {
+      setWorkers(list || []);
+    });
+    loadSectors();
+    return () => {
+      unsub();
+    };
   }, []);
 
-  const loadData = async () => {
-    const [w, s] = await Promise.all([
-      dataService.getWorkers(),
-      dataService.getSectors(),
-    ]);
-    setWorkers(w);
-
+  const loadSectors = async () => {
+    const s = await dataService.getSectors();
     const uniqueS: Sector[] = [];
     const seenNames = new Set<string>();
     s?.forEach((item) => {
@@ -766,6 +807,10 @@ export const SettingsPage: React.FC = () => {
     setSectors(uniqueS);
   };
 
+  const loadData = async () => {
+    loadSectors();
+  };
+
   const handleEditWorker = (w: Worker) => {
     setEditingWorker(w);
     setNewWorker({
@@ -773,8 +818,9 @@ export const SettingsPage: React.FC = () => {
       email: w.email || "",
       phone: w.phone || "",
       role: w.role || "VOLUNTARIO",
-      position: w.position || "", // NEW
+      position: w.position || "",
       sectorId: w.sectorId || "",
+      status: w.status || (w.active ? "ATIVO" : "EM_ANALISE"),
       photoUrl: w.photoUrl || "",
       acceptedTerm: w.acceptedTerm || false,
       bloodType: w.bloodType || "",
@@ -788,6 +834,9 @@ export const SettingsPage: React.FC = () => {
       city: w.city || "Salvador",
       profession: w.profession || "",
       nationality: w.nationality || "brasileira",
+      interviewNotes: w.interviewNotes || "",
+      coursesCompleted: w.coursesCompleted || [],
+      availabilityDays: w.availabilityDays || [],
     });
 
     const active = !!(w.tempRole && w.tempRoleExpiry && Date.now() < w.tempRoleExpiry);
@@ -880,9 +929,28 @@ export const SettingsPage: React.FC = () => {
       }
 
       console.log("Preparing payload for worker:", normalizedEmail);
+
+      let sectorHistory = editingWorker?.sectorHistory || [];
+      if (editingWorker && newWorker.sectorId && newWorker.sectorId !== editingWorker.sectorId) {
+        const currentSectorObj = sectors.find((s) => s.id === newWorker.sectorId);
+        const nowIso = new Date().toISOString().split("T")[0];
+        sectorHistory = [
+          ...sectorHistory,
+          {
+            sectorId: newWorker.sectorId,
+            sectorName: currentSectorObj?.name || "Setor",
+            startDate: nowIso,
+            roleName: newWorker.position || newWorker.role,
+            notes: "Transferência de setor cadastrada em sistema",
+          },
+        ];
+      }
+
       const payload: any = {
         ...newWorker,
         email: normalizedEmail,
+        active: newWorker.status !== "DESLIGADO" && newWorker.status !== "AFASTADO",
+        sectorHistory,
         termAcceptedAt: newWorker.acceptedTerm ? Date.now() : undefined,
         tempRole: hasTempPermission ? tempRole : null,
         tempRoleExpiry: hasTempPermission
@@ -1089,19 +1157,22 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-8 space-y-8 sm:space-y-10 animate-in fade-in duration-500 max-w-7xl mx-auto">
-      <header className="space-y-2">
+      <header className="flex items-center gap-4">
         <button
           onClick={() => navigate("/")}
-          className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 transition-colors font-bold text-sm mb-2"
+          className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer shrink-0"
+          title="Voltar ao Painel"
         >
-          <ArrowLeft size={16} /> Voltar ao Painel
+          <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tight italic">
-          Configurações & Gestão
-        </h1>
-        <p className="text-sm sm:text-base text-gray-500 font-medium italic">
-          Gerenciamento de equipe e frentes de trabalho do Mirante de Luz.
-        </p>
+        <div>
+          <h1 className="text-2xl sm:text-4xl font-black text-gray-900 tracking-tight italic">
+            Configurações & Gestão
+          </h1>
+          <p className="text-sm sm:text-base text-gray-500 font-medium italic">
+            Gerenciamento de equipe e frentes de trabalho do Mirante de Luz.
+          </p>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
@@ -1142,50 +1213,72 @@ export const SettingsPage: React.FC = () => {
             <button
               onClick={() => setWorkerFilter('all')}
               className={cn(
-                "px-4 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all",
+                "px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all",
                 workerFilter === 'all'
                   ? "bg-white text-indigo-700 shadow-sm border border-indigo-100/30"
                   : "text-gray-400 hover:text-gray-700 hover:bg-white/40"
               )}
             >
-              Todos ({workers.filter(w => {
-                const isUserAllowed = isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId);
-                return isUserAllowed;
-              }).length})
+              Todos ({workers.filter(w => isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId)).length})
             </button>
             <button
               onClick={() => setWorkerFilter('active')}
               className={cn(
-                "px-4 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all",
+                "px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all",
                 workerFilter === 'active'
-                  ? "bg-white text-indigo-700 shadow-sm border border-indigo-100/30"
-                  : "text-gray-400 hover:text-gray-700 hover:bg-white/40"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-emerald-600 hover:bg-emerald-50"
               )}
             >
-              Ativos ({workers.filter(w => {
-                const isUserAllowed = isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId);
-                return isUserAllowed && w.active;
-              }).length})
+              Ativos ({workers.filter(w => (isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId)) && w.active && (w.status === 'ATIVO' || !w.status)).length})
             </button>
             <button
               onClick={() => setWorkerFilter('pending')}
               className={cn(
-                "px-4 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 relative overflow-hidden border border-transparent",
+                "px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 relative overflow-hidden",
                 workerFilter === 'pending'
                   ? "bg-amber-500 text-white shadow-md shadow-amber-200"
-                  : "text-gray-400 hover:text-amber-600 hover:bg-amber-50/50"
+                  : "text-amber-600 hover:bg-amber-50"
               )}
             >
               <span className={cn(
                 "w-1.5 h-1.5 rounded-full shrink-0",
                 workerFilter === 'pending' ? "bg-white animate-pulse" : "bg-amber-500 animate-ping"
               )} />
-              Solicitações Pendentes (
-              {workers.filter(w => {
-                const isUserAllowed = isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId);
-                return isUserAllowed && !w.active;
-              }).length}
-              )
+              Acolhimento / Pendentes ({workers.filter(w => (isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId)) && (!w.active || w.status === 'EM_ANALISE')).length})
+            </button>
+            <button
+              onClick={() => setWorkerFilter('em_formacao')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all",
+                workerFilter === 'em_formacao'
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-blue-600 hover:bg-blue-50"
+              )}
+            >
+              Em Formação ({workers.filter(w => (isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId)) && w.status === 'EM_FORMACAO').length})
+            </button>
+            <button
+              onClick={() => setWorkerFilter('afastado')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all",
+                workerFilter === 'afastado'
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "text-purple-600 hover:bg-purple-50"
+              )}
+            >
+              Afastados ({workers.filter(w => (isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId)) && w.status === 'AFASTADO').length})
+            </button>
+            <button
+              onClick={() => setWorkerFilter('desligado')}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all",
+                workerFilter === 'desligado'
+                  ? "bg-gray-700 text-white shadow-sm"
+                  : "text-gray-500 hover:bg-gray-100"
+              )}
+            >
+              Desligados ({workers.filter(w => (isAdmin || (currentUser?.role === "COORDENADOR" && w.sectorId === currentUser.sectorId)) && w.status === 'DESLIGADO').length})
             </button>
           </div>
 
@@ -1202,8 +1295,11 @@ export const SettingsPage: React.FC = () => {
                 
                 const matchesFilter =
                   workerFilter === 'all' ||
-                  (workerFilter === 'active' && w.active) ||
-                  (workerFilter === 'pending' && !w.active);
+                  (workerFilter === 'active' && w.active && (w.status === 'ATIVO' || !w.status)) ||
+                  (workerFilter === 'pending' && (!w.active || w.status === 'EM_ANALISE')) ||
+                  (workerFilter === 'em_formacao' && w.status === 'EM_FORMACAO') ||
+                  (workerFilter === 'afastado' && w.status === 'AFASTADO') ||
+                  (workerFilter === 'desligado' && w.status === 'DESLIGADO');
 
                 return matchesSearch && isUserAllowed && matchesFilter;
               })
@@ -1301,6 +1397,29 @@ export const SettingsPage: React.FC = () => {
                               {sectors.find((s) => s.id === w.sectorId)?.name ||
                                 "Geral"}
                             </span>
+                            {w.status && (
+                              <span
+                                className={cn(
+                                  "text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border",
+                                  w.status === "ATIVO"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : w.status === "EM_FORMACAO"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : w.status === "EM_ANALISE"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : w.status === "AFASTADO"
+                                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                                    : "bg-gray-100 text-gray-600 border-gray-200"
+                                )}
+                              >
+                                {WORKER_STATUS_LABELS[w.status] || w.status}
+                              </span>
+                            )}
+                            {w.coursesCompleted && w.coursesCompleted.length > 0 && (
+                              <span className="text-[8px] font-bold text-blue-600 bg-blue-50/80 px-2 py-0.5 rounded-full border border-blue-100">
+                                🎓 {w.coursesCompleted.length} curso(s)
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1900,6 +2019,78 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Status do Vínculo RH */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">
+                  Status de Vínculo na Casa
+                </label>
+                <select
+                  value={newWorker.status}
+                  onChange={(e) =>
+                    setNewWorker({
+                      ...newWorker,
+                      status: e.target.value as WorkerStatus,
+                    })
+                  }
+                  className="w-full px-5 py-3.5 bg-gray-50 rounded-2xl outline-none border-none font-bold text-gray-700"
+                >
+                  <option value="ATIVO">Ativo</option>
+                  <option value="EM_ANALISE">Em Análise (Acolhimento / Solicitante)</option>
+                  <option value="EM_FORMACAO">Em Formação / Curso</option>
+                  <option value="AFASTADO">Afastado Temporariamente</option>
+                  <option value="DESLIGADO">Desligado / Inativo</option>
+                </select>
+              </div>
+
+              {/* Formação Espírita & Cursos Concluídos */}
+              <div className="p-5 bg-blue-50/40 rounded-[24px] border border-blue-100/50 space-y-3">
+                <label className="text-[10px] font-black uppercase text-blue-900 tracking-wider block">
+                  Formação & Cursos Concluídos
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {['ESDE', 'EADE', 'Curso de Passe', 'Atendimento Fraterno', 'Estudo da Mediunidade', 'Evangelização Infantil'].map((course) => {
+                    const isSelected = (newWorker.coursesCompleted || []).includes(course);
+                    return (
+                      <button
+                        key={course}
+                        type="button"
+                        onClick={() => {
+                          const current = newWorker.coursesCompleted || [];
+                          const next = isSelected
+                            ? current.filter((c) => c !== course)
+                            : [...current, course];
+                          setNewWorker({ ...newWorker, coursesCompleted: next });
+                        }}
+                        className={cn(
+                          "p-2.5 rounded-xl text-xs font-bold text-left transition-all border",
+                          isSelected
+                            ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                        )}
+                      >
+                        {isSelected ? "✓ " : "+ "}{course}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Observações de Acolhimento & Entrevista */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">
+                  Observações do Acolhimento & Entrevista Inicial
+                </label>
+                <textarea
+                  rows={2}
+                  value={newWorker.interviewNotes}
+                  onChange={(e) =>
+                    setNewWorker({ ...newWorker, interviewNotes: e.target.value })
+                  }
+                  placeholder="Anotações do acolhimento, disponibilidades, aptidões ou histórico doutrinário..."
+                  className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 border border-transparent focus:bg-white focus:border-indigo-600 font-medium text-xs text-gray-700"
+                />
+              </div>
+
               {/* Permissão Temporária Especial */}
               {isAdmin && (
                 <div className="p-5 bg-amber-50/50 rounded-[24px] border border-amber-100 space-y-4">
@@ -2128,6 +2319,8 @@ export const SettingsPage: React.FC = () => {
                     >
                       <option value="FRATERNO">Atendimento Fraterno</option>
                       <option value="PASSE">Passe & Fluidoterapia</option>
+                      <option value="ARTE">Arte Espírita (Coral & Teatro)</option>
+                      <option value="COMUNICACAO">Comunicação Social</option>
                       <option value="ESTUDO">Estudos</option>
                       <option value="INFANCIA">Infância & Juventude</option>
                       <option value="SOCIAL">Ação Social</option>
@@ -2628,18 +2821,44 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Opções Avançadas */}
+      {/* Opções Avançadas de Manutenção e Produção */}
       {isAdmin && (
-        <div className="pt-10 border-t border-gray-100 italic">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-red-50/30 p-8 rounded-[32px] border border-red-100 shadow-inner">
-            <div>
-              <h3 className="text-lg font-bold text-red-900 not-italic">
-                Manutenção de Dados
+        <div className="pt-10 border-t border-gray-100 space-y-6">
+          {/* Card 1: Limpeza para Produção */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-indigo-500/10 p-8 rounded-[32px] border border-emerald-200/60 shadow-sm">
+            <div className="space-y-2 max-w-xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-black rounded-full uppercase tracking-wider">
+                <Sparkles size={13} />
+                <span>Prontidão para Uso Real</span>
+              </div>
+              <h3 className="text-lg font-black text-gray-900">
+                Limpeza do Sistema para Início de Produção
               </h3>
-              <p className="text-sm text-red-600 font-medium max-w-md">
-                Utilize esta opção somente se houver erro ao carregar as abas ou
-                o prontuário. Isso retornará o sistema aos dados originais da
-                casa.
+              <p className="text-sm text-gray-600 font-medium leading-relaxed">
+                Zera as filas de atendimento, atendidos de teste, evoluções fictícias e o histórico de vendas de teste.
+                <strong> Carlos Alberto, Cleiton Airon, todo o acervo de Audiobooks e o Catálogo de Livros da Livraria/Bazar são mantidos 100% intactos.</strong>
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setCleaningResult(null);
+                setIsCleanProductionModalOpen(true);
+              }}
+              className="px-6 py-3.5 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 active:scale-95 transition-all shadow-xl shadow-emerald-200 flex items-center gap-2 shrink-0"
+            >
+              <Sparkles size={18} />
+              <span>Limpar Dados de Teste</span>
+            </button>
+          </div>
+
+          {/* Card 2: Restaurar Estrutura de Setores */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-gray-50 p-6 rounded-[28px] border border-gray-200/70">
+            <div>
+              <h4 className="text-sm font-bold text-gray-800">
+                Verificação de Estrutura de Setores
+              </h4>
+              <p className="text-xs text-gray-500 font-medium max-w-md mt-0.5">
+                Restaura setores básicos que possam ter sido removidos acidentalmente, sem apagar nenhum dado de atendimentos.
               </p>
             </div>
             <button
@@ -2656,7 +2875,7 @@ export const SettingsPage: React.FC = () => {
                       loadData();
                     } else {
                       alert(
-                        "Os setores já existem ou não puderam ser restaurados.",
+                        "Os setores já existem ou não precisaram de restauração.",
                       );
                     }
                   } catch (err: any) {
@@ -2664,12 +2883,155 @@ export const SettingsPage: React.FC = () => {
                   }
                 }
               }}
-              className="px-8 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-100 flex items-center gap-2"
+              className="px-5 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold transition-all text-xs flex items-center gap-2 shrink-0"
             >
-              <ShieldCheck size={18} />
-              <span>Restaurar Setores Padrão</span>
+              <ShieldCheck size={16} />
+              <span>Verificar / Restaurar Setores</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Modal de Limpeza para Produção */}
+      {isCleanProductionModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            onClick={() => !isCleaningProgress && setIsCleanProductionModalOpen(false)}
+          />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="relative w-full max-w-2xl bg-white rounded-[32px] shadow-2xl p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto"
+          >
+            {cleaningResult ? (
+              <div className="text-center space-y-5 py-4">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle2 size={36} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-gray-900 tracking-tight">
+                    Sistema Pronto para Produção!
+                  </h3>
+                  <p className="text-sm text-gray-600 font-medium max-w-lg mx-auto">
+                    Os dados de testes foram limpos e o banco de dados está devidamente preparado para os atendimentos reais da Casa Espírita.
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 text-left space-y-3">
+                  <div className="text-xs font-black uppercase text-slate-500 tracking-wider">
+                    Resumo da Operação:
+                  </div>
+                  <ul className="text-xs text-slate-700 font-semibold space-y-2">
+                    <li className="flex items-center gap-2 text-emerald-700">
+                      <CheckCircle2 size={16} className="shrink-0" />
+                      <span><strong>Trabalhadores preservados:</strong> {cleaningResult.preservedWorkers.join(", ") || "Carlos Alberto e Cleiton Airon"}</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-emerald-700">
+                      <Headphones size={16} className="shrink-0" />
+                      <span><strong>Módulo Audiobooks:</strong> {cleaningResult.audiobooksPreservedCount} títulos e arquivos 100% mantidos sem alterações.</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-emerald-700">
+                      <BookOpen size={16} className="shrink-0" />
+                      <span><strong>Catálogo de Livros & PDV:</strong> {cleaningResult.productsPreservedCount} produtos cadastrados mantidos com histórico de vendas zerado.</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-blue-700">
+                      <RefreshCw size={16} className="shrink-0" />
+                      <span><strong>Coleções de teste limpas:</strong> {cleaningResult.clearedCollections.join(", ")}</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <button
+                  onClick={() => setIsCleanProductionModalOpen(false)}
+                  className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all text-sm"
+                >
+                  Concluir e Voltar ao Sistema
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-2xl">
+                      <Sparkles size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-gray-900 tracking-tight">
+                        Preparar Sistema para Produção
+                      </h3>
+                      <p className="text-xs text-gray-500 font-bold mt-0.5">
+                        Zerar dados temporários e manter registros essenciais
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    disabled={isCleaningProgress}
+                    onClick={() => setIsCleanProductionModalOpen(false)}
+                    className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-all disabled:opacity-50"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200/60 space-y-2">
+                    <div className="text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 size={15} />
+                      <span>O que será PRESERVADO (100% Seguro):</span>
+                    </div>
+                    <ul className="text-xs text-emerald-950 font-medium space-y-1.5 list-disc list-inside">
+                      <li><strong>Carlos Alberto & Cleiton Airon:</strong> Usuários, senhas, privilégios de Admin e acessos.</li>
+                      <li><strong>Módulo Audiobooks & Podcasts:</strong> Todos os áudios, capítulos, capas e livros cadastrados.</li>
+                      <li><strong>Catálogo da Livraria & Bazar:</strong> Todos os livros e produtos cadastrados (itens e preços).</li>
+                      <li><strong>Estrutura da Casa:</strong> Todos os setores, salas e configurações de painel.</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/60 space-y-2">
+                    <div className="text-xs font-black uppercase text-amber-800 tracking-wider flex items-center gap-1.5">
+                      <Trash2 size={15} />
+                      <span>O que será LIMPO / ZERADO:</span>
+                    </div>
+                    <ul className="text-xs text-amber-950 font-medium space-y-1.5 list-disc list-inside">
+                      <li>Filas de atendimento e senhas geradas durante os testes.</li>
+                      <li>Cadastros de participantes/assistidos fictícios criados em testes.</li>
+                      <li>Prontuários e evoluções espirituais de teste.</li>
+                      <li>Histórico de vendas do PDV e sessões de caixa anteriores.</li>
+                      <li>Logs de auditoria antigos (um log limpo de produção será criado).</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    disabled={isCleaningProgress}
+                    onClick={() => setIsCleanProductionModalOpen(false)}
+                    className="flex-1 py-3.5 font-bold text-gray-500 hover:bg-gray-100 rounded-2xl transition-all disabled:opacity-50 text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    disabled={isCleaningProgress}
+                    onClick={handleCleanProduction}
+                    className="flex-[1.5] py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-75"
+                  >
+                    {isCleaningProgress ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" />
+                        <span>Executando Limpeza Segura...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+                        <span>Confirmar e Limpar para Produção</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
         </div>
       )}
     </div>

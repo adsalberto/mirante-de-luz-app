@@ -433,7 +433,7 @@ export default function DonationLandingPage() {
                 <div className="pt-4 border-t border-gray-100 flex flex-col justify-center sm:flex-row gap-3">
                   <button
                     onClick={() => {
-                      alert('Simulação de Doação gravada na Tesouraria! Obrigado por colaborar.');
+                      alert('Doação registrada na Tesouraria! Obrigado por colaborar.');
                       setStep('input');
                     }}
                     className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"

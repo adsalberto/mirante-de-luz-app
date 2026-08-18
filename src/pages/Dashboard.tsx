@@ -23,7 +23,13 @@ import {
   Baby,
   Handshake,
   Activity,
-  Shield
+  Shield,
+  ArrowLeft,
+  GraduationCap,
+  Megaphone,
+  Monitor,
+  Package,
+  Wrench
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -48,64 +54,136 @@ import VolunteerDashboard from './VolunteerDashboard';
 import SpeakerDashboard from './SpeakerDashboard';
 import AdministrativeDashboard from './AdministrativeDashboard';
 import SectorDashboard from '../components/SectorDashboard';
+import { DoutrinarioDashboard } from '../components/doutrinario/DoutrinarioDashboard';
+import { FraternoDashboard } from '../components/fraterno/FraternoDashboard';
 
 const ViewSwitcher = ({ current, set, sectors }: { current: string, set: (v: any) => void, sectors: Sector[] }) => {
   const getSectorIcon = (name: string) => {
     const n = name.toLowerCase();
-    if (n.includes('comunicação')) return MessageSquare;
-    if (n.includes('arte')) return Palette;
-    if (n.includes('fraterno')) return Users;
-    if (n.includes('passe')) return Zap;
-    if (n.includes('estudo') || n.includes('doutrinária')) return BookOpen;
-    if (n.includes('infantil') || n.includes('mocidade')) return Baby;
+    if (n.includes('comunicação') || n.includes('comunicacao')) return Megaphone;
+    if (n.includes('tecnolog') || n.includes('informát') || n.includes('informat')) return Monitor;
+    if (n.includes('patrimônio') || n.includes('patrimonio') || n.includes('material')) return Package;
+    if (n.includes('obra') || n.includes('reforma') || n.includes('manuten')) return Wrench;
+    if (n.includes('arte') || n.includes('coral') || n.includes('música') || n.includes('musica')) return Palette;
+    if (n.includes('fraterno')) return HeartHandshake;
+    if (n.includes('passe') || n.includes('fluidotera')) return Zap;
+    if (n.includes('estudo') || n.includes('doutrin')) return BookOpen;
+    if (n.includes('infantil') || n.includes('evangeliza')) return Baby;
+    if (n.includes('mocidade') || n.includes('jovem') || n.includes('juventude')) return Heart;
     if (n.includes('social')) return Handshake;
-    if (n.includes('mediúnica')) return Activity;
-    if (n.includes('administrativo')) return Shield;
+    if (n.includes('mediún') || n.includes('mediun')) return Activity;
+    if (n.includes('administrativo') || n.includes('secretaria') || n.includes('governança')) return Settings;
     return LayoutDashboard;
   };
 
-  const baseViews = [
+  // Grupo 1: Setores de Trabalho & Módulos Operacionais
+  const operationalViews = [
     { id: 'MASTER', label: 'Visão Master', icon: Sparkles },
-    { id: 'RECEPTION', label: 'Simular Recepção', icon: Users },
-    { id: 'VOLUNTEER', label: 'Simular Atendimento', icon: HeartHandshake },
-    { id: 'SPEAKER', label: 'Simular Palestra', icon: Mic2 },
-    { id: 'ADMIN', label: 'Simular Secretaria', icon: Settings },
+    { id: 'RECEPTION', label: 'Recepção e Triagem', icon: Users },
+    { id: 'ADMIN', label: 'Secretaria & Governança', icon: Settings },
+    { id: 'FRATERNO', label: 'Atendimento Fraterno', icon: HeartHandshake },
+    { id: 'SOCIAL', label: 'Ação Social Espírita', icon: Handshake },
+    { id: 'PASSE', label: 'Passe & Fluidoterapia', icon: Zap },
+    { id: 'MEDIUNICO', label: 'Coordenação Mediúnica', icon: Activity },
+    { id: 'DOUTRI', label: 'Coordenação Doutrinária', icon: BookOpen },
+    { id: 'SPEAKER', label: 'Tribuna & Palestras', icon: Mic2 },
+    { id: 'ESTUDOS', label: 'Estudos Doutrinários', icon: GraduationCap },
+    { id: 'INFANTIL', label: 'Evangelização Infantil', icon: Baby },
+    { id: 'MOCIDADE', label: 'Mocidade & Juventude', icon: Heart },
+    { id: 'ARTE', label: 'Arte Espírita & Coral', icon: Palette },
   ];
 
-  // Filtra duplicatas por nome e remove setores que já possuem visões base dedicadas
-  const sectorViews = sectors
+  // Grupo 2: Demais Setores de Trabalho
+  const demaisViewsBase = [
+    { id: 'COMUNICACAO', label: 'Comunicação Social', icon: Megaphone },
+    { id: 'TECNOLOGIA', label: 'Tecnologia & Informática', icon: Monitor },
+    { id: 'PATRIMONIO', label: 'Material & Patrimônio', icon: Package },
+    { id: 'OBRAS', label: 'Manutenção, Reforma & Obras', icon: Wrench },
+  ];
+
+  // Filtra setores dinâmicos cadastrados que não conflitem com os módulos acima
+  const extraDynamicSectors = sectors
     .map(s => {
       const normalizedName = formatSectorName(s.name);
       return {
         id: `SECTOR:${s.id}:${normalizedName}`,
-        label: `Simular ${normalizedName}`,
+        label: normalizedName,
         icon: getSectorIcon(normalizedName),
         originalName: s.name
       };
     })
     .reduce((acc: any[], current) => {
-      // Evita duplicados baseados na versão normalizada (label)
-      const isDuplicate = acc.some(item => item.label === current.label);
+      const isDuplicate = acc.some(item => item.label.toLowerCase() === current.label.toLowerCase());
       if (isDuplicate) return acc;
 
-      // Evita redundância com visões base (Recepção e Secretaria)
       const name = current.originalName.toLowerCase();
-      const isHandledByBase = 
+      const isHandledByPredefined = 
         name.includes('fraterno') || 
         name.includes('recepção') || 
-        name.includes('secretaria');
+        name.includes('recepcao') || 
+        name.includes('triagem') || 
+        name.includes('passe') ||
+        name.includes('fluidotera') ||
+        name.includes('arte') ||
+        name.includes('música') ||
+        name.includes('musica') ||
+        name.includes('coral') ||
+        name.includes('teatro') ||
+        name.includes('mediún') ||
+        name.includes('mediun') ||
+        name.includes('secretaria') ||
+        name.includes('governança') ||
+        name.includes('governanca') ||
+        name.includes('administrat') ||
+        name.includes('social') ||
+        name.includes('sapse') ||
+        name.includes('doutrin') ||
+        name.includes('obra') ||
+        name.includes('reforma') ||
+        name.includes('manuten') ||
+        name.includes('palestra') ||
+        name.includes('tribuna') ||
+        name.includes('estudo') ||
+        name.includes('infantil') ||
+        name.includes('evangeliza') ||
+        name.includes('criança') ||
+        name.includes('crianca') ||
+        name.includes('mocidade') ||
+        name.includes('juventude') ||
+        name.includes('jovem') ||
+        name.includes('comunicação') ||
+        name.includes('comunicacao') ||
+        name.includes('tecnologia') ||
+        name.includes('informát') ||
+        name.includes('informat') ||
+        name.includes('patrimônio') ||
+        name.includes('patrimonio') ||
+        name.includes('material') ||
+        name.includes('almoxarif');
 
-      if (!isHandledByBase) acc.push(current);
+      if (!isHandledByPredefined) acc.push(current);
       return acc;
     }, []);
 
-  const ButtonGroup = ({ title, items, colorClass }: { title: string, items: any[], colorClass: string }) => (
+  const demaisSetoresViews = [...demaisViewsBase, ...extraDynamicSectors];
+
+  const ButtonGroup = ({ 
+    title, 
+    items, 
+    colorClass,
+    gridClass
+  }: { 
+    title: string, 
+    items: any[], 
+    colorClass: string,
+    gridClass: string
+  }) => (
     <div className="space-y-4">
       <div className="flex items-center gap-3 px-1">
-        <div className={cn("w-1 h-4 rounded-full", colorClass)} />
-        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-900/60 italic">{title}</label>
+        <div className={cn("w-1.5 h-4 rounded-full", colorClass)} />
+        <label className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-950/70 italic">{title}</label>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-3 bg-indigo-50/30 rounded-[32px] border border-indigo-100/50">
+      <div className={cn("gap-2.5 p-3 sm:p-4 bg-indigo-50/30 rounded-[32px] border border-indigo-100/50", gridClass)}>
         {items.map(v => (
           <button
             key={v.id}
@@ -116,19 +194,19 @@ const ViewSwitcher = ({ current, set, sectors }: { current: string, set: (v: any
               set(v.id);
             }}
             className={cn(
-              "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 active:scale-95 border",
+              "flex flex-col items-center justify-center gap-2 p-2.5 sm:p-3.5 rounded-2xl text-[11px] font-black uppercase tracking-tight transition-all duration-300 active:scale-95 border min-h-[102px] text-center w-full",
               current === v.id 
                 ? "bg-indigo-600 text-white border-indigo-500 shadow-xl shadow-indigo-200 -translate-y-0.5" 
-                : "bg-white text-indigo-500 border-indigo-50/50 hover:border-indigo-200 hover:bg-white/90 shadow-sm"
+                : "bg-white text-indigo-600 border-indigo-50/70 hover:border-indigo-200 hover:bg-white/95 shadow-sm"
             )}
           >
             <div className={cn(
-              "p-2 rounded-xl transition-colors",
-              current === v.id ? "bg-white/20" : "bg-indigo-50 text-indigo-600"
+              "p-2 rounded-xl transition-colors shrink-0",
+              current === v.id ? "bg-white/20 text-white" : "bg-indigo-50 text-indigo-600"
             )}>
               <v.icon size={18} className={current === v.id ? "animate-pulse" : ""} />
             </div>
-            <span className="text-center leading-tight">{v.label}</span>
+            <span className="text-center leading-snug break-words hyphens-auto w-full px-0.5">{v.label}</span>
           </button>
         ))}
       </div>
@@ -137,23 +215,21 @@ const ViewSwitcher = ({ current, set, sectors }: { current: string, set: (v: any
 
   return (
     <div className="space-y-8 mb-12">
-      <ButtonGroup title="Gestão e Simulação Base" items={baseViews} colorClass="bg-indigo-600" />
-      {sectorViews.length > 0 && (
-        <ButtonGroup title="Controle Setorial Dinâmico" items={sectorViews} colorClass="bg-indigo-600" />
-      )}
+      <ButtonGroup 
+        title="Setores de Trabalho & Módulos Operacionais" 
+        items={operationalViews} 
+        colorClass="bg-indigo-600" 
+        gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7"
+      />
+      <ButtonGroup 
+        title="Demais Setores de Trabalho" 
+        items={demaisSetoresViews} 
+        colorClass="bg-slate-600" 
+        gridClass="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4"
+      />
     </div>
   );
 };
-
-const dataChart = [
-  { name: 'Seg', total: 40 },
-  { name: 'Ter', total: 30 },
-  { name: 'Qua', total: 45 },
-  { name: 'Qui', total: 20 },
-  { name: 'Sex', total: 10 },
-  { name: 'Sab', total: 60 },
-  { name: 'Dom', total: 15 },
-];
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -161,6 +237,7 @@ export const Dashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<string>('MASTER');
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [weeklyChart, setWeeklyChart] = useState<{ name: string; total: number; dateStr: string }[]>([]);
   const [nextEvents, setNextEvents] = useState<AgendaEvent[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
@@ -172,39 +249,48 @@ export const Dashboard: React.FC = () => {
     const index = (dayTimestamp / (1000 * 60 * 60 * 24)) % reflections.length;
     setDailyReflection(reflections[Math.floor(index)]);
 
-    const fetchData = async () => {
+    // Real-time subscriptions
+    const unsubStats = dataService.subscribeToStats((s) => setStats(s));
+    const unsubChart = dataService.subscribeToWeeklyAttendanceChart((chartData) => setWeeklyChart(chartData));
+    const unsubAgenda = dataService.subscribeToAgendaEvents((events) => {
+      const upcoming = (events || [])
+        .filter(event => {
+          const eventDate = new Date(event.date);
+          if (event.time) {
+            const [hours, minutes] = event.time.split(':').map(Number);
+            if (!isNaN(hours) && !isNaN(minutes)) {
+              eventDate.setHours(hours, minutes, 0, 0);
+            }
+          } else {
+            eventDate.setHours(23, 59, 59, 999);
+          }
+          return eventDate.getTime() >= Date.now() - 3600000; // includes events happening today
+        })
+        .sort((a, b) => a.date - b.date)
+        .slice(0, 3);
+      setNextEvents(upcoming);
+    });
+
+    const fetchStaticInfo = async () => {
       try {
-        const [s, e, spk, sect] = await Promise.all([
-          dataService.getStats(),
-          dataService.getAgendaEvents(),
+        const [spk, sect] = await Promise.all([
           dataService.getSpeakers(),
           dataService.getSectors()
         ]);
-        setStats(s);
         setSectors(sect || []);
-        
-        const upcoming = (e || [])
-          .filter(event => {
-            const eventDate = new Date(event.date);
-            if (event.time) {
-              const [hours, minutes] = event.time.split(':').map(Number);
-              if (!isNaN(hours) && !isNaN(minutes)) {
-                eventDate.setHours(hours, minutes, 0, 0);
-              }
-            } else {
-              eventDate.setHours(23, 59, 59, 999);
-            }
-            return eventDate.getTime() >= Date.now();
-          })
-          .sort((a,b) => a.date - b.date)
-          .slice(0, 3);
-        setNextEvents(upcoming);
         setSpeakers(spk || []);
       } catch (err) {
-        console.error("Dashboard error:", err);
+        console.error("Dashboard static info error:", err);
       }
     };
-    fetchData();
+
+    fetchStaticInfo();
+
+    return () => {
+      unsubStats();
+      unsubChart();
+      unsubAgenda();
+    };
   }, []);
 
   // Deep-link check for assistido check-in
@@ -298,20 +384,20 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight italic">Fluxo de Atendimentos</h2>
-                    <p className="text-sm text-gray-400 font-medium">Histórico de freqüência semanal da casa</p>
+                    <p className="text-sm text-gray-400 font-medium">Histórico de freqüência real da semana em tempo real</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-100/50 shadow-sm">
                       <TrendingUp size={14} strokeWidth={3} />
-                      <span>+12% Crescimento</span>
+                      <span>{weeklyChart.reduce((acc, curr) => acc + curr.total, 0)} Registros na Semana</span>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-300 mr-2 italic">Ref. Março 2024</span>
+                    <span className="text-[10px] font-bold text-gray-400 mr-2 italic">Sincronizado ao Vivo</span>
                   </div>
                 </div>
                 
                 <div className="h-[350px] w-full mt-4 pr-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dataChart}>
+                    <AreaChart data={weeklyChart}>
                       <defs>
                         <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
@@ -328,6 +414,11 @@ export const Dashboard: React.FC = () => {
                       />
                       <YAxis hide />
                       <Tooltip 
+                        formatter={(val: number) => [`${val} Atendimento(s)`, 'Total']}
+                        labelFormatter={(label: string) => {
+                          const found = weeklyChart.find(item => item.name === label);
+                          return found ? `${label} (${found.dateStr})` : label;
+                        }}
                         contentStyle={{ 
                           borderRadius: '24px', 
                           border: 'none', 
@@ -345,7 +436,7 @@ export const Dashboard: React.FC = () => {
                         strokeWidth={5}
                         fillOpacity={1} 
                         fill="url(#colorTotal)" 
-                        animationDuration={2000}
+                        animationDuration={1500}
                         dot={{ r: 6, fill: '#6366f1', strokeWidth: 3, stroke: '#fff' }}
                         activeDot={{ r: 8, strokeWidth: 0, fill: '#1e1b4b' }}
                       />
@@ -480,12 +571,29 @@ export const Dashboard: React.FC = () => {
     }
 
     if (activeView === 'RECEPTION') return <ReceptionistDashboard />;
-    if (activeView === 'VOLUNTEER') return <VolunteerDashboard />;
-    if (activeView === 'SPEAKER') return <SpeakerDashboard />;
     if (activeView === 'ADMIN') return <AdministrativeDashboard />;
+    if (activeView === 'VOLUNTEER' || activeView === 'FRATERNO') return <SectorDashboard sectorId="sec-fraterno" sectorName="Atendimento Fraterno" />;
+    if (activeView === 'SOCIAL') return <SectorDashboard sectorId="social" sectorName="Ação Social Espírita" />;
+    if (activeView === 'PASSE') return <SectorDashboard sectorId="sec-passe" sectorName="Passe e Fluidoterapia" />;
+    if (activeView === 'MEDIUNICO') return <SectorDashboard sectorId="sec-mediunidade" sectorName="Coordenação Mediúnica" />;
+    if (activeView === 'DOUTRI') return <DoutrinarioDashboard />;
+    if (activeView === 'SPEAKER') return <SpeakerDashboard />;
+    if (activeView === 'ESTUDOS') return <SectorDashboard sectorId="sec-estudos" sectorName="Estudos Doutrinários" />;
+    if (activeView === 'INFANTIL') return <SectorDashboard sectorId="sec-infantil" sectorName="Evangelização Infantil" />;
+    if (activeView === 'MOCIDADE') return <SectorDashboard sectorId="sec-mocidade" sectorName="Mocidade e Juventude" />;
+    if (activeView === 'ARTE') return <SectorDashboard sectorId="sec-arte" sectorName="Arte Espírita e Coral" />;
+
+    // Demais Setores de Trabalho
+    if (activeView === 'COMUNICACAO') return <SectorDashboard sectorId="sec-comunicacao" sectorName="Comunicação Social" />;
+    if (activeView === 'TECNOLOGIA') return <SectorDashboard sectorId="sec-tecnologia" sectorName="Tecnologia & Informática" />;
+    if (activeView === 'PATRIMONIO') return <SectorDashboard sectorId="sec-patrimonio" sectorName="Material & Patrimônio" />;
+    if (activeView === 'OBRAS') return <SectorDashboard sectorId="sec-obras" sectorName="Manutenção, Reforma e Obra" />;
 
     if (activeView.startsWith('SECTOR:')) {
       const [_, sectorId, sectorName] = activeView.split(':');
+      if (sectorName.toLowerCase().includes('doutrin')) {
+        return <DoutrinarioDashboard />;
+      }
       return <SectorDashboard sectorId={sectorId} sectorName={sectorName} />;
     }
 
@@ -517,7 +625,49 @@ export const Dashboard: React.FC = () => {
 
       <ViewSwitcher current={activeView} set={setActiveView} sectors={sectors} />
 
-      <main className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <main className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-6">
+        {activeView !== 'MASTER' && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-5 bg-gradient-to-r from-indigo-900 via-indigo-850 to-slate-900 text-white rounded-[28px] shadow-lg border border-indigo-700/50">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 bg-indigo-700/80 rounded-2xl text-indigo-200">
+                <ArrowLeft size={20} />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300 block">
+                  Setor de Trabalho em Visualização
+                </span>
+                <p className="text-sm sm:text-base font-black italic text-white">
+                  {activeView === 'RECEPTION' && 'Setor: Recepção e Triagem de Frequentadores'}
+                  {activeView === 'ADMIN' && 'Setor: Secretaria Geral & Governança'}
+                  {(activeView === 'VOLUNTEER' || activeView === 'FRATERNO') && 'Setor: Atendimento Fraterno & Plantão de Escuta'}
+                  {activeView === 'SOCIAL' && 'Setor: Ação Social Espírita (SAPSE - Assistidos, Famílias, Cestas & Doações)'}
+                  {activeView === 'PASSE' && 'Setor: Passe e Fluidoterapia (Salas, Cabines & Registros)'}
+                  {activeView === 'MEDIUNICO' && 'Setor: Coordenação Mediúnica (Reuniões, Médiuns & Desobsessão)'}
+                  {activeView === 'DOUTRI' && 'Setor: Coordenação Doutrinária (Mesa Dirigente, Cronograma, Expositores & Biblioteca)'}
+                  {activeView === 'SPEAKER' && 'Setor: Tribuna e Palestras Doutrinárias'}
+                  {activeView === 'ESTUDOS' && 'Setor: Estudos Doutrinários (ESDE, EADE & Grupos)'}
+                  {activeView === 'INFANTIL' && 'Setor: Evangelização Espírita Infantil'}
+                  {activeView === 'MOCIDADE' && 'Setor: Mocidade e Juventude Espírita'}
+                  {activeView === 'ARTE' && 'Setor: Arte Espírita e Coral'}
+                  {activeView === 'COMUNICACAO' && 'Setor: Comunicação Social & Divulgação'}
+                  {activeView === 'TECNOLOGIA' && 'Setor: Tecnologia e Informática'}
+                  {activeView === 'PATRIMONIO' && 'Setor: Material e Patrimônio'}
+                  {activeView === 'OBRAS' && 'Setor: Manutenção, Reforma e Obra'}
+                  {activeView.startsWith('SECTOR:') && `Setor: ${formatSectorName(activeView.split(':')[2] || 'Setor Específico')}`}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveView('MASTER')}
+              className="px-5 py-3 bg-white hover:bg-indigo-50 text-indigo-950 font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2 self-end sm:self-auto shrink-0"
+            >
+              <ArrowLeft size={16} />
+              <span>Voltar à Visão Master</span>
+            </button>
+          </div>
+        )}
+
         {renderActiveViewContent()}
       </main>
     </div>

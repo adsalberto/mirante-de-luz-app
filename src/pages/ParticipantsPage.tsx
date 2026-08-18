@@ -29,6 +29,14 @@ import {
   Upload,
   Sparkles,
   Check,
+  FileText,
+  Heart,
+  Package,
+  FileCheck,
+  Eye,
+  Award,
+  DollarSign,
+  AlertTriangle,
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { dataService } from "../services/dataService";
@@ -39,12 +47,24 @@ import {
   Evolution,
   formatSectorName,
 } from "../types";
-import { cn, formatRegistrationCode } from "../lib/utils";
+import { cn, formatRegistrationCode, formatDateBR } from "../lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { 
+  CepField, 
+  PhoneField, 
+  CpfField, 
+  RgField 
+} from "../components/common/BrazilFormFields";
+import { 
+  validateCPF, 
+  validatePhone, 
+  validateRG,
+  isValidCEPFormat 
+} from "../utils/brazilValidation";
 
 export const ParticipantsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -232,18 +252,57 @@ export const ParticipantsPage: React.FC = () => {
     }
   }, [isScanningQr, participants]);
 
-  // Form State
+  // Helper for accent-insensitive search
+  const normalizeStr = (str: string) => {
+    if (!str) return "";
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  };
+
+  // Form State with Socio-demographic & Social Assistance fields
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     birthDate: "",
     gender: "Masculino",
+    cep: "",
     address: "",
+    neighborhood: "",
+    city: "Salvador / BA",
+    state: "BA",
+    cpf: "",
+    rg: "",
+    maritalStatus: "Solteiro(a)",
+    profession: "",
+    vulnerabilityLevel: "Média" as 'Baixa' | 'Média' | 'Alta' | 'Extrema',
+    foodSecurity: "Seguro" as 'Seguro' | 'Insegurança Leve' | 'Insegurança Moderada' | 'Grave',
+    monthlyIncome: "" as string | number,
+    familyMembersCount: 1 as string | number,
+    socialNotes: "",
     lgpdConsent: false,
     bloodType: "",
     allergies: "",
     emergencyContact: "",
   });
+
+  // Visão 360° Modal States
+  const [selected360Participant, setSelected360Participant] = useState<Participant | null>(null);
+  const [active360Tab, setActive360Tab] = useState<'dados' | 'prontuario' | 'frequencia' | 'social'>('dados');
+
+  // Print Sheet States
+  const [isPrintingFicha, setIsPrintingFicha] = useState(false);
+  const [isPrintingLgpdTerm, setIsPrintingLgpdTerm] = useState(false);
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeTab]);
 
   useEffect(() => {
     loadParticipants();
@@ -274,13 +333,54 @@ export const ParticipantsPage: React.FC = () => {
   };
 
   const loadParticipants = async () => {
-    const [p, q] = await Promise.all([
+    const [p, q, w] = await Promise.all([
       dataService.getParticipants(),
       dataService.getQueue(),
+      dataService.getWorkers(),
     ]);
-    setParticipants(p);
+
+    const workerAsParticipants: Participant[] = (w || []).map((wk) => ({
+      id: wk.id,
+      name: wk.name,
+      birthDate: "",
+      email: wk.email,
+      phone: wk.phone || "",
+      address: wk.address || "",
+      cpf: wk.cpf,
+      rg: wk.rg,
+      neighborhood: wk.neighborhood,
+      city: wk.city,
+      profession: wk.profession,
+      lgpdConsent: wk.lgpdConsent || false,
+      lgpdDate: wk.lgpdDate || wk.createdAt || Date.now(),
+      registrationDate: wk.createdAt || Date.now(),
+      currentStatus: wk.active ? "COMPLETED" : "IDLE",
+      photoUrl: wk.photoUrl,
+      isWorker: true,
+      bloodType: wk.bloodType,
+      allergies: wk.allergies,
+      emergencyContact: wk.emergencyContact,
+      observation: wk.observation,
+    }));
+
+    const combinedMap = new Map<string, Participant>();
+    (p || []).forEach((item) => combinedMap.set(item.id, item));
+    workerAsParticipants.forEach((item) => {
+      if (!combinedMap.has(item.id)) {
+        combinedMap.set(item.id, item);
+      } else {
+        const existing = combinedMap.get(item.id)!;
+        combinedMap.set(item.id, {
+          ...existing,
+          isWorker: true,
+          photoUrl: item.photoUrl || existing.photoUrl,
+        });
+      }
+    });
+
+    setParticipants(Array.from(combinedMap.values()));
     setActiveQueues(
-      q.filter(
+      (q || []).filter(
         (entry) => entry.status !== "FINISHED" && entry.status !== "CANCELLED",
       ),
     );
@@ -303,7 +403,20 @@ export const ParticipantsPage: React.FC = () => {
       phone: p.phone || "",
       birthDate: p.birthDate || "",
       gender: p.gender || "Masculino",
+      cep: p.cep || "",
       address: p.address || "",
+      neighborhood: p.neighborhood || "",
+      city: p.city || "Salvador / BA",
+      state: p.state || "BA",
+      cpf: p.cpf || "",
+      rg: p.rg || "",
+      maritalStatus: p.maritalStatus || "Solteiro(a)",
+      profession: p.profession || "",
+      vulnerabilityLevel: p.vulnerabilityLevel || "Média",
+      foodSecurity: p.foodSecurity || "Seguro",
+      monthlyIncome: p.monthlyIncome !== undefined ? p.monthlyIncome : "",
+      familyMembersCount: p.familyMembersCount !== undefined ? p.familyMembersCount : 1,
+      socialNotes: p.socialNotes || "",
       lgpdConsent: !!p.lgpdConsent,
       bloodType: p.bloodType || "",
       allergies: p.allergies || "",
@@ -346,11 +459,85 @@ export const ParticipantsPage: React.FC = () => {
       return;
     }
 
+    // Validação de Telefone / DDD
+    if (formData.phone) {
+      const phoneValidation = validatePhone(formData.phone);
+      if (!phoneValidation.valid) {
+        alert(`⚠️ Telefone inválido: ${phoneValidation.error}`);
+        return;
+      }
+    }
+
+    // Validação de CPF
+    if (formData.cpf) {
+      const cpfValidation = validateCPF(formData.cpf);
+      if (!cpfValidation.valid) {
+        alert(`⚠️ CPF inválido: ${cpfValidation.error}`);
+        return;
+      }
+
+      const cleanCpf = formData.cpf.replace(/\D/g, "");
+      const existingCpf = participants.find(
+        (p) =>
+          p.id !== editingParticipant?.id &&
+          p.cpf &&
+          p.cpf.replace(/\D/g, "") === cleanCpf
+      );
+      if (existingCpf) {
+        alert(
+          `⚠️ O CPF informado (${formData.cpf}) já está cadastrado no sistema para "${existingCpf.name}". Por favor, verifique para evitar duplicidades.`
+        );
+        return;
+      }
+    }
+
+    // Validação de RG se preenchido
+    if (formData.rg) {
+      const rgValidation = validateRG(formData.rg);
+      if (!rgValidation.valid) {
+        alert(`⚠️ Documento de Identidade (RG) inválido: ${rgValidation.error}`);
+        return;
+      }
+    }
+
+    // Validação de CEP se preenchido
+    if (formData.cep) {
+      const cleanCep = formData.cep.replace(/\D/g, "");
+      if (cleanCep.length > 0 && cleanCep.length !== 8) {
+        alert("⚠️ CEP inválido: O CEP precisa ter exatamente 8 números.");
+        return;
+      }
+    }
+
+    // Duplicity warning by Name + Phone
+    const normName = normalizeStr(formData.name);
+    const cleanPhone = formData.phone.replace(/\D/g, "");
+    if (normName && cleanPhone) {
+      const existingDup = participants.find(
+        (p) =>
+          p.id !== editingParticipant?.id &&
+          normalizeStr(p.name) === normName &&
+          p.phone.replace(/\D/g, "") === cleanPhone
+      );
+      if (existingDup) {
+        const confirmProceed = window.confirm(
+          `⚠️ Já existe um atendido cadastrado com o nome "${existingDup.name}" e telefone "${existingDup.phone}".\n\nDeseja prosseguir com o salvamento mesmo assim?`
+        );
+        if (!confirmProceed) return;
+      }
+    }
+
+    const payload = {
+      ...formData,
+      monthlyIncome: formData.monthlyIncome ? Number(formData.monthlyIncome) : 0,
+      familyMembersCount: formData.familyMembersCount ? Number(formData.familyMembersCount) : 1,
+    };
+
     try {
       if (editingParticipant) {
         await dataService.updateParticipant({
           ...editingParticipant,
-          ...formData,
+          ...payload,
           isWorker: editingParticipant.isWorker,
         });
         alert(
@@ -360,7 +547,7 @@ export const ParticipantsPage: React.FC = () => {
         );
       } else {
         const created = await dataService.addParticipant({
-          ...formData,
+          ...payload,
           isWorker: activeTab === "workers",
           lgpdDate: Date.now(),
         });
@@ -392,7 +579,20 @@ export const ParticipantsPage: React.FC = () => {
         phone: "",
         birthDate: "",
         gender: "Masculino",
+        cep: "",
         address: "",
+        neighborhood: "",
+        city: "Salvador / BA",
+        state: "BA",
+        cpf: "",
+        rg: "",
+        maritalStatus: "Solteiro(a)",
+        profession: "",
+        vulnerabilityLevel: "Média",
+        foodSecurity: "Seguro",
+        monthlyIncome: "",
+        familyMembersCount: 1,
+        socialNotes: "",
         lgpdConsent: false,
         bloodType: "",
         allergies: "",
@@ -415,12 +615,24 @@ export const ParticipantsPage: React.FC = () => {
   };
 
   const filtered = participants.filter((p) => {
-    const formattedId = p.id ? formatRegistrationCode(p.id, p.registrationDate).toLowerCase() : '';
+    const normSearch = normalizeStr(searchTerm);
+    if (!normSearch) {
+      if (activeTab === "workers") return p.isWorker === true;
+      if (activeTab === "participants") return !p.isWorker;
+      return true;
+    }
+
+    const formattedId = p.id ? formatRegistrationCode(p.id, p.registrationDate) : '';
     const matchesSearch =
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.phone.includes(searchTerm) ||
-      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      formattedId.includes(searchTerm.toLowerCase());
+      normalizeStr(p.name).includes(normSearch) ||
+      normalizeStr(p.phone).includes(normSearch) ||
+      normalizeStr(p.cpf || '').includes(normSearch) ||
+      normalizeStr(p.rg || '').includes(normSearch) ||
+      normalizeStr(p.neighborhood || '').includes(normSearch) ||
+      normalizeStr(p.address || '').includes(normSearch) ||
+      normalizeStr(p.id).includes(normSearch) ||
+      normalizeStr(formattedId).includes(normSearch);
+
     if (!matchesSearch) return false;
 
     if (activeTab === "workers") {
@@ -428,35 +640,47 @@ export const ParticipantsPage: React.FC = () => {
     } else if (activeTab === "participants") {
       return !p.isWorker;
     }
-    return true; // referrals shows all or does something else
+    return true;
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+  const paginatedParticipants = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="p-8 space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          {activeTab === "workers" && (
-            <button
-              onClick={() => setActiveTab("participants")}
-              className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 transition-colors font-bold text-sm mb-2"
-            >
-              <ArrowLeft size={16} /> Voltar para Atendidos
-            </button>
-          )}
-          <h1 className="text-3xl font-bold text-gray-900">
-            {activeTab === "participants"
-              ? "Atendidos"
-              : activeTab === "workers"
-                ? "Trabalhadores"
-                : "Visão de Encaminhamentos"}
-          </h1>
-          <p className="text-gray-500 font-medium tracking-tight">
-            {activeTab === "participants"
-              ? "Gerenciamento de irmãos e irmãs assistidos."
-              : activeTab === "workers"
-                ? "Gerenciamento de trabalhadores em atendimento do setor mediúnico."
-                : "Lista consolidada de todas as recomendações e destinos."}
-          </p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            {activeTab === "workers" && (
+              <button
+                onClick={() => setActiveTab("participants")}
+                className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 transition-colors font-bold text-sm mb-2"
+              >
+                <ArrowLeft size={16} /> Voltar para Atendidos
+              </button>
+            )}
+            <h1 className="text-3xl font-bold text-gray-900">
+              {activeTab === "participants"
+                ? "Atendidos"
+                : activeTab === "workers"
+                  ? "Trabalhadores"
+                  : "Visão de Encaminhamentos"}
+            </h1>
+            <p className="text-gray-500 font-medium tracking-tight">
+              {activeTab === "participants"
+                ? "Gerenciamento de irmãos e irmãs assistidos."
+                : activeTab === "workers"
+                  ? "Gerenciamento de trabalhadores em atendimento do setor mediúnico."
+                  : "Lista consolidada de todas as recomendações e destinos."}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-gray-100 p-1 rounded-2xl flex items-center shadow-inner">
@@ -553,14 +777,18 @@ export const ParticipantsPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.length > 0 ? (
-              filtered.map((p) => (
+            {paginatedParticipants.length > 0 ? (
+              paginatedParticipants.map((p) => (
                 <motion.div
                   layout
                   key={p.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 hover:border-indigo-100 transition-all group flex flex-col justify-between"
+                  onClick={() => {
+                    setSelected360Participant(p);
+                    setActive360Tab('dados');
+                  }}
+                  className="bg-white p-6 rounded-3xl border border-gray-50 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 hover:border-indigo-100 transition-all group flex flex-col justify-between cursor-pointer"
                 >
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-4 gap-2">
@@ -573,6 +801,11 @@ export const ParticipantsPage: React.FC = () => {
                           {p.name}
                         </h3>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {p.cpf && (
+                            <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                              CPF: {p.cpf}
+                            </span>
+                          )}
                           <span
                             className={cn(
                               "text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider border",
@@ -631,13 +864,24 @@ export const ParticipantsPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin size={14} className="text-gray-300 shrink-0" />
-                      <span className="truncate">{p.address}</span>
+                      <span className="truncate">{p.neighborhood ? `${p.neighborhood}, ${p.address}` : p.address}</span>
                     </div>
-                    <div className="flex items-center gap-2 pt-1 text-[10px]">
-                      <ShieldCheck size={12} className="text-emerald-500 shrink-0" />
-                      <span className="text-emerald-600 font-bold uppercase tracking-tight">
-                        LGPD: Aceito em {format(p.lgpdDate, "dd/MM/yyyy")}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 pt-1 text-[10px]">
+                      <div className="flex items-center gap-1 text-emerald-600 font-bold uppercase tracking-tight">
+                        <ShieldCheck size={12} className="text-emerald-500 shrink-0" />
+                        <span>LGPD OK</span>
+                      </div>
+                      {p.vulnerabilityLevel && (
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border",
+                          p.vulnerabilityLevel === "Extrema" ? "bg-red-50 text-red-600 border-red-200" :
+                          p.vulnerabilityLevel === "Alta" ? "bg-amber-50 text-amber-600 border-amber-200" :
+                          p.vulnerabilityLevel === "Média" ? "bg-blue-50 text-blue-600 border-blue-200" :
+                          "bg-emerald-50 text-emerald-600 border-emerald-200"
+                        )}>
+                          Vuln: {p.vulnerabilityLevel}
+                        </span>
+                      )}
                     </div>
 
                     {/* Active Service Notification Area */}
@@ -662,7 +906,18 @@ export const ParticipantsPage: React.FC = () => {
 
                   {/* Actions Area - Structured separate footer to avoid margin overflow */}
                   <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between gap-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Opções</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelected360Participant(p);
+                        setActive360Tab('dados');
+                      }}
+                      title="Abrir Visão 360°"
+                      className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-lg transition-all"
+                    >
+                      <Eye size={14} />
+                      <span>Visão 360°</span>
+                    </button>
                     <div className="flex items-center gap-0.5">
                       {currentUser?.role !== "RECEPCIONISTA" && (
                         <button
@@ -1272,17 +1527,11 @@ export const ParticipantsPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-                      Telefone / WhatsApp
-                    </label>
-                    <input
+                    <PhoneField
+                      id="participant-phone-field"
                       required
                       value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
-                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
-                      placeholder="(71) 90000-0000"
+                      onChange={(phone) => setFormData({ ...formData, phone })}
                     />
                   </div>
 
@@ -1318,6 +1567,101 @@ export const ParticipantsPage: React.FC = () => {
                     </select>
                   </div>
 
+                  <div className="space-y-1.5">
+                    <CpfField
+                      id="participant-cpf-field"
+                      value={formData.cpf}
+                      onChange={(cpf) => setFormData({ ...formData, cpf })}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <RgField
+                      id="participant-rg-field"
+                      value={formData.rg}
+                      onChange={(rg) => setFormData({ ...formData, rg })}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <CepField
+                      id="participant-cep-field"
+                      value={formData.cep}
+                      onChange={(cep) => setFormData({ ...formData, cep })}
+                      onAddressFound={(data) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          cep: data.cep,
+                          city: data.fullCityState || data.city,
+                          state: data.state,
+                          neighborhood: data.neighborhood || prev.neighborhood,
+                          address: data.address ? (prev.address ? `${data.address}, ${prev.address}` : data.address) : prev.address
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Bairro
+                    </label>
+                    <input
+                      value={formData.neighborhood}
+                      onChange={(e) =>
+                        setFormData({ ...formData, neighborhood: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      placeholder="Ex: Pau da Lima, Liberdade, etc."
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Cidade / UF (Auto-preenchida pelo CEP)
+                    </label>
+                    <input
+                      value={formData.city}
+                      onChange={(e) =>
+                        setFormData({ ...formData, city: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      placeholder="Ex: Salvador / BA"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Estado Civil
+                    </label>
+                    <select
+                      value={formData.maritalStatus}
+                      onChange={(e) =>
+                        setFormData({ ...formData, maritalStatus: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    >
+                      <option value="Solteiro(a)">Solteiro(a)</option>
+                      <option value="Casado(a)">Casado(a)</option>
+                      <option value="União Estável">União Estável</option>
+                      <option value="Divorciado(a)">Divorciado(a)</option>
+                      <option value="Viúvo(a)">Viúvo(a)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Profissão / Ocupação
+                    </label>
+                    <input
+                      value={formData.profession}
+                      onChange={(e) =>
+                        setFormData({ ...formData, profession: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      placeholder="Ex: Autônomo, Aposentado, Estudante"
+                    />
+                  </div>
+
                   <div className="space-y-1.5 md:col-span-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
                       Endereço de Residência
@@ -1330,7 +1674,98 @@ export const ParticipantsPage: React.FC = () => {
                         setFormData({ ...formData, address: e.target.value })
                       }
                       className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all resize-none"
-                      placeholder="Rua, Número, Bairro e CEP"
+                      placeholder="Rua, Número, Complemento e CEP"
+                    />
+                  </div>
+
+                  {/* Assistência Social section header */}
+                  <div className="md:col-span-2 pt-3 border-t border-gray-100">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-emerald-700 mb-1 flex items-center gap-1.5">
+                      <Heart size={14} /> Dados de Assistência Social & Vulnerabilidade
+                    </h4>
+                    <p className="text-[11px] text-gray-400">
+                      Informações para auxílio social e acompanhamento familiar fraterno.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Nível de Vulnerabilidade Social
+                    </label>
+                    <select
+                      value={formData.vulnerabilityLevel}
+                      onChange={(e: any) =>
+                        setFormData({ ...formData, vulnerabilityLevel: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-emerald-50/50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-emerald-200 focus:ring-2 focus:ring-emerald-600 outline-none transition-all font-bold text-emerald-900"
+                    >
+                      <option value="Baixa">Baixa</option>
+                      <option value="Média">Média</option>
+                      <option value="Alta">Alta</option>
+                      <option value="Extrema">Extrema (Prioridade Social)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Segurança Alimentar
+                    </label>
+                    <select
+                      value={formData.foodSecurity}
+                      onChange={(e: any) =>
+                        setFormData({ ...formData, foodSecurity: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    >
+                      <option value="Seguro">Seguro</option>
+                      <option value="Insegurança Leve">Insegurança Leve</option>
+                      <option value="Insegurança Moderada">Insegurança Moderada</option>
+                      <option value="Grave">Insegurança Grave (Necessita Cesta)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Renda Familiar Mensal (R$)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.monthlyIncome}
+                      onChange={(e) =>
+                        setFormData({ ...formData, monthlyIncome: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                      placeholder="Ex: 1412.00"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      N° de Membros na Família
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.familyMembersCount}
+                      onChange={(e) =>
+                        setFormData({ ...formData, familyMembersCount: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                      Observações & Diagnóstico Social
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formData.socialNotes}
+                      onChange={(e) =>
+                        setFormData({ ...formData, socialNotes: e.target.value })
+                      }
+                      className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:bg-white ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all resize-none text-xs"
+                      placeholder="Anotações sobre necessidades da família, visitas sociais ou distribuição de cestas."
                     />
                   </div>
 
@@ -2153,8 +2588,8 @@ export const ParticipantsPage: React.FC = () => {
                               
                               <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 pt-1 text-[7px] text-slate-500 font-medium">
                                 <p><strong className="text-slate-800">REG:</strong> {formatRegistrationCode(credentialParticipant.id, credentialParticipant.registrationDate)}</p>
-                                <p><strong className="text-slate-800">ADM:</strong> {new Date(credentialParticipant.registrationDate || Date.now()).toLocaleDateString('pt-BR')}</p>
-                                <p className="col-span-2"><strong className="text-slate-800">NASC:</strong> {credentialParticipant.birthDate || '-'}</p>
+                                <p><strong className="text-slate-800">ADM:</strong> {formatDateBR(credentialParticipant.registrationDate || Date.now())}</p>
+                                <p className="col-span-2"><strong className="text-slate-800">NASC:</strong> {formatDateBR(credentialParticipant.birthDate)}</p>
                               </div>
                             </div>
                           </div>
@@ -2319,8 +2754,8 @@ export const ParticipantsPage: React.FC = () => {
                         const themeColor = '#0A2E5C';
                         const goldColor = '#CF9E22';
                         
-                        const rDate = credentialParticipant.registrationDate ? new Date(credentialParticipant.registrationDate).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
-                        const bDate = credentialParticipant.birthDate || '-';
+                        const rDate = formatDateBR(credentialParticipant.registrationDate || Date.now());
+                        const bDate = formatDateBR(credentialParticipant.birthDate);
                         const qrData = encodeURIComponent(`${window.location.origin}${window.location.pathname}?assistidoId=${credentialParticipant.id}`);
                         const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${qrData}`;
                         
@@ -2897,6 +3332,388 @@ export const ParticipantsPage: React.FC = () => {
                   </div>
                 </div>
 
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Visão 360° do Atendido Modal */}
+        {selected360Participant && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelected360Participant(null)}
+              className="absolute inset-0 bg-indigo-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-4xl bg-white rounded-[32px] shadow-2xl overflow-hidden shadow-indigo-900/20 flex flex-col max-h-[92vh]"
+            >
+              {/* Header */}
+              <div className="p-6 md:p-8 border-b border-gray-100 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white shrink-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center text-2xl font-black text-amber-400 shrink-0">
+                      {(selected360Participant.name || "?").charAt(0)}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-indigo-950 font-black text-[10px] uppercase tracking-wider">
+                          Prontuário 360°
+                        </span>
+                        <span className="text-xs font-mono text-indigo-200">
+                          {formatRegistrationCode(selected360Participant.id, selected360Participant.registrationDate)}
+                        </span>
+                      </div>
+                      <h2 className="text-2xl font-black text-white mt-1 leading-tight">
+                        {selected360Participant.name}
+                      </h2>
+                      <p className="text-xs text-indigo-200 font-medium flex items-center gap-2 mt-1">
+                        <span>{selected360Participant.phone}</span>
+                        <span>•</span>
+                        <span>Nasc: {formatDateBR(selected360Participant.birthDate)}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelected360Participant(null)}
+                    className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all active:scale-90"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Tabs Header */}
+                <div className="flex items-center gap-2 mt-6 overflow-x-auto custom-scrollbar pt-2 border-t border-white/10">
+                  <button
+                    onClick={() => setActive360Tab('dados')}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 shrink-0 cursor-pointer",
+                      active360Tab === 'dados'
+                        ? "bg-white text-indigo-950 shadow-md"
+                        : "bg-white/10 text-indigo-100 hover:bg-white/20"
+                    )}
+                  >
+                    <FileText size={14} /> Dados Cadastrais
+                  </button>
+                  <button
+                    onClick={() => setActive360Tab('prontuario')}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 shrink-0 cursor-pointer",
+                      active360Tab === 'prontuario'
+                        ? "bg-white text-indigo-950 shadow-md"
+                        : "bg-white/10 text-indigo-100 hover:bg-white/20"
+                    )}
+                  >
+                    <History size={14} /> Prontuário ({evolutions.filter(e => e.participantId === selected360Participant.id).length})
+                  </button>
+                  <button
+                    onClick={() => setActive360Tab('frequencia')}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 shrink-0 cursor-pointer",
+                      active360Tab === 'frequencia'
+                        ? "bg-white text-indigo-950 shadow-md"
+                        : "bg-white/10 text-indigo-100 hover:bg-white/20"
+                    )}
+                  >
+                    <Clock size={14} /> Frequência / Filas
+                  </button>
+                  <button
+                    onClick={() => setActive360Tab('social')}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 shrink-0 cursor-pointer",
+                      active360Tab === 'social'
+                        ? "bg-white text-indigo-950 shadow-md"
+                        : "bg-white/10 text-indigo-100 hover:bg-white/20"
+                    )}
+                  >
+                    <Heart size={14} /> Ação Social & Cestas
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/50">
+                {active360Tab === 'dados' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">CPF</span>
+                        <p className="font-mono font-bold text-gray-900 text-sm mt-0.5">{selected360Participant.cpf || "Não informado"}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">RG</span>
+                        <p className="font-mono font-bold text-gray-900 text-sm mt-0.5">{selected360Participant.rg || "Não informado"}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Estado Civil</span>
+                        <p className="font-bold text-gray-900 text-sm mt-0.5">{selected360Participant.maritalStatus || "Solteiro(a)"}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Profissão</span>
+                        <p className="font-bold text-gray-900 text-sm mt-0.5">{selected360Participant.profession || "Não informada"}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Bairro / Cidade</span>
+                        <p className="font-bold text-gray-900 text-sm mt-0.5">{selected360Participant.neighborhood || "N/I"} - {selected360Participant.city || "Salvador/BA"}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Contato Emergência</span>
+                        <p className="font-bold text-gray-900 text-sm mt-0.5">{selected360Participant.emergencyContact || "Não cadastrado"}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Endereço Residencial Completo</span>
+                      <p className="text-sm font-semibold text-gray-800">{selected360Participant.address}</p>
+                    </div>
+
+                    <div className="bg-emerald-50/70 p-5 rounded-2xl border border-emerald-100 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <ShieldCheck className="text-emerald-600 shrink-0" size={24} />
+                        <div>
+                          <p className="text-xs font-bold text-emerald-950 uppercase tracking-wide">Consentimento LGPD Ativo</p>
+                          <p className="text-[11px] text-emerald-700/80 font-medium">
+                            Registrado em {selected360Participant.lgpdDate ? format(selected360Participant.lgpdDate, "dd/MM/yyyy HH:mm") : "Data de cadastro"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const printWin = window.open("", "_blank");
+                          if (!printWin) return;
+                          printWin.document.write(`
+                            <html>
+                              <head>
+                                <title>TERMO LGPD - ${selected360Participant.name}</title>
+                                <style>
+                                  body { font-family: sans-serif; padding: 40px; color: #111; line-height: 1.6; }
+                                  h2 { text-align: center; color: #0A2E5C; }
+                                  .box { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-top: 20px; }
+                                  .sig { margin-top: 60px; text-align: center; border-top: 1px solid #000; width: 300px; margin-left: auto; margin-right: auto; padding-top: 5px; }
+                                </style>
+                              </head>
+                              <body>
+                                <h2>CENTRO ESPÍRITA MIRANTE DE LUZ</h2>
+                                <h3 style="text-align: center;">TERMO DE CONSENTIMENTO - LGPD</h3>
+                                <div class="box">
+                                  <p>Eu, <strong>${selected360Participant.name}</strong>, portador(a) do CPF/RG <strong>${selected360Participant.cpf || selected360Participant.rg || 'N/A'}</strong>, autorizo expressamente o Centro Espírita Mirante de Luz a efetuar o tratamento de meus dados pessoais e dados sensíveis de acompanhamento espiritual/fraterno para fins institucionais e de atendimento fraterno.</p>
+                                  <p>Este consentimento segue os ditames da Lei Geral de Proteção de Dados (Lei nº 13.709/2018).</p>
+                                </div>
+                                <div style="margin-top: 40px;">
+                                  <p>Salvador/BA, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
+                                </div>
+                                <div class="sig">
+                                  ${selected360Participant.name}<br/>Assinatura do Atendido / Responsável
+                                </div>
+                                <script>window.onload = function() { window.print(); }</script>
+                              </body>
+                            </html>
+                          `);
+                          printWin.document.close();
+                        }}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-1.5 shrink-0"
+                      >
+                        <Printer size={14} /> Imprimir Termo LGPD
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {active360Tab === 'prontuario' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-gray-900">Histórico de Atendimentos Fraternos</h3>
+                      {currentUser?.role !== "RECEPCIONISTA" && (
+                        <button
+                          onClick={() => navigate(`/atendimentos?participantId=${selected360Participant.id}`)}
+                          className="px-3.5 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-1.5"
+                        >
+                          <History size={14} /> Novo Registro / Prontuário
+                        </button>
+                      )}
+                    </div>
+
+                    {evolutions.filter(e => e.participantId === selected360Participant.id).length > 0 ? (
+                      <div className="space-y-3">
+                        {evolutions.filter(e => e.participantId === selected360Participant.id).map(evo => (
+                          <div key={evo.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                                Data: {format(evo.date, "dd/MM/yyyy 'às' HH:mm")}
+                              </span>
+                              {evo.encaminhamento && (
+                                <span className="font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                                  Encaminhado: {evo.encaminhamento}
+                                </span>
+                              )}
+                            </div>
+                            {evo.notesEncrypted && (
+                              <p className="text-xs text-gray-700 bg-gray-50 p-3 rounded-xl italic">
+                                "{evo.notesEncrypted}"
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-white p-8 rounded-2xl border border-gray-100 text-center space-y-2">
+                        <History className="mx-auto text-gray-300" size={32} />
+                        <p className="text-xs font-bold text-gray-500">Nenhum registro no prontuário ainda.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === 'frequencia' && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-gray-900">Passagens e Entrada em Filas</h3>
+                    {activeQueues.filter(q => q.participantId === selected360Participant.id).length > 0 ? (
+                      <div className="space-y-2">
+                        {activeQueues.filter(q => q.participantId === selected360Participant.id).map(q => {
+                          const s = sectors.find(sec => sec.id === q.sectorId);
+                          return (
+                            <div key={q.id} className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-between">
+                              <div>
+                                <p className="font-bold text-xs text-amber-900">{s?.name || "Setor"}</p>
+                                <p className="text-[10px] text-amber-700">Chegada: {format(q.joinedAt, "dd/MM/yyyy HH:mm")}</p>
+                              </div>
+                              <span className="px-2.5 py-1 bg-amber-200/60 text-amber-900 font-black text-[10px] rounded-lg uppercase">
+                                Em Espera ({q.priority ? "Prioritário" : "Normal"})
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="bg-white p-8 rounded-2xl border border-gray-100 text-center space-y-2">
+                        <Clock className="mx-auto text-gray-300" size={32} />
+                        <p className="text-xs font-bold text-gray-500">Atendido livre (não está em nenhuma fila ativa no momento).</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === 'social' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Vulnerabilidade Social</span>
+                        <div>
+                          <span className={cn(
+                            "px-3 py-1 rounded-xl font-black text-xs uppercase border inline-block",
+                            selected360Participant.vulnerabilityLevel === "Extrema" ? "bg-red-50 text-red-600 border-red-200" :
+                            selected360Participant.vulnerabilityLevel === "Alta" ? "bg-amber-50 text-amber-600 border-amber-200" :
+                            selected360Participant.vulnerabilityLevel === "Média" ? "bg-blue-50 text-blue-600 border-blue-200" :
+                            "bg-emerald-50 text-emerald-600 border-emerald-200"
+                          )}>
+                            {selected360Participant.vulnerabilityLevel || "Média"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Segurança Alimentar</span>
+                        <p className="font-bold text-gray-900 text-sm">{selected360Participant.foodSecurity || "Seguro"}</p>
+                      </div>
+
+                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-1">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Renda Familiar Mensal</span>
+                        <p className="font-bold text-gray-900 text-sm">
+                          {selected360Participant.monthlyIncome ? `R$ ${Number(selected360Participant.monthlyIncome).toFixed(2)}` : "Não informada"}
+                        </p>
+                      </div>
+
+                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-1">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Membros da Família</span>
+                        <p className="font-bold text-gray-900 text-sm">{selected360Participant.familyMembersCount || 1} pessoa(s)</p>
+                      </div>
+                    </div>
+
+                    {selected360Participant.socialNotes && (
+                      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                        <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Diagnóstico e Notas do Serviço Social</span>
+                        <p className="text-xs text-gray-700 leading-relaxed">{selected360Participant.socialNotes}</p>
+                      </div>
+                    )}
+
+                    {/* Food Basket Delivery Module */}
+                    <div className="bg-emerald-500/10 p-6 rounded-3xl border border-emerald-200 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold">
+                            <Package size={24} />
+                          </div>
+                          <div>
+                            <h4 className="font-black text-gray-900 text-base">Cestas Básicas Entregues</h4>
+                            <p className="text-xs text-emerald-800 font-medium">
+                              Histórico de auxílio de mantimentos ao atendido.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-emerald-950">{selected360Participant.foodBasketsCount || 0}</span>
+                          <span className="text-[10px] font-bold text-emerald-800 block uppercase">Entregas</span>
+                        </div>
+                      </div>
+
+                      {selected360Participant.lastFoodBasketDate && (
+                        <p className="text-xs text-emerald-900 font-bold bg-white/60 p-3 rounded-xl border border-emerald-100">
+                          📅 Última cesta entregue em: {format(selected360Participant.lastFoodBasketDate, "dd/MM/yyyy 'às' HH:mm")}
+                        </p>
+                      )}
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            const updatedCount = (selected360Participant.foodBasketsCount || 0) + 1;
+                            const updatedDate = Date.now();
+                            const updatedPart = {
+                              ...selected360Participant,
+                              foodBasketsCount: updatedCount,
+                              lastFoodBasketDate: updatedDate,
+                            };
+                            await dataService.updateParticipant(updatedPart);
+                            setSelected360Participant(updatedPart);
+                            await loadParticipants();
+                            alert(`Cesta Básica registrada com sucesso! Total de cestas entregues: ${updatedCount}`);
+                          } catch (err) {
+                            console.error("Erro ao registrar cesta básica:", err);
+                            alert("Erro ao registrar entrega de cesta básica.");
+                          }
+                        }}
+                        className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2 active:scale-95"
+                      >
+                        <Package size={18} />
+                        <span>Registrar Entrega de Cesta Básica Hoje</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-gray-100 bg-white flex justify-end gap-3 shrink-0">
+                <button
+                  onClick={() => {
+                    handleEdit(selected360Participant);
+                    setSelected360Participant(null);
+                  }}
+                  className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-all flex items-center gap-2"
+                >
+                  <Pencil size={14} /> Editar Cadastro
+                </button>
+                <button
+                  onClick={() => setSelected360Participant(null)}
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all"
+                >
+                  Fechar
+                </button>
               </div>
             </motion.div>
           </div>

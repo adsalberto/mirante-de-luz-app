@@ -135,6 +135,294 @@
         "assignments": { "type": "array" }
       },
       "required": ["id", "sectorId", "month", "year", "assignments"]
+    },
+    "JuventudeAluno": {
+      "title": "JuventudeAluno",
+      "description": "Matrícula de evangelizando ou jovem da mocidade",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "age": { "type": "number" },
+        "cycle": { "type": "string" },
+        "roomId": { "type": "string" },
+        "responsibleName": { "type": "string" },
+        "responsibleRelationship": { "type": "string" },
+        "responsiblePhone": { "type": "string" },
+        "responsiblePhoneType": { "type": "string" },
+        "allergiesOrMedical": { "type": "string" },
+        "interests": { "type": "array" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "roomId"]
+    },
+    "JuventudeSala": {
+      "title": "JuventudeSala",
+      "description": "Turmas ou ciclos de evangelização e mocidade",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "schedule": { "type": "string" },
+        "room": { "type": "string" },
+        "leaders": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "JuventudeAula": {
+      "title": "JuventudeAula",
+      "description": "Diário e plano de aulas de evangelização/mocidade",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "date": { "type": "string" },
+        "topic": { "type": "string" },
+        "evangelizador": { "type": "string" },
+        "doctrinalReference": { "type": "string" },
+        "summary": { "type": "string" }
+      },
+      "required": ["id", "roomId", "date", "topic"]
+    },
+    "JuventudeFrequencia": {
+      "title": "JuventudeFrequencia",
+      "description": "Registro histórico de chamada de alunos da juventude",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "roomId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "present": { "type": "boolean" }
+      },
+      "required": ["id", "date", "roomId", "studentId"]
+    },
+    "JuventudeProjeto": {
+      "title": "JuventudeProjeto",
+      "description": "Ações sociais, encontros e projetos da juventude espírita",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "coordinator": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "ObraProject": {
+      "title": "ObraProject",
+      "description": "Projetos de Obras e Reformas do Centro Espírita",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "status": { "type": "string" },
+        "budgetPlanned": { "type": "number" },
+        "budgetActual": { "type": "number" },
+        "startDate": { "type": "string" },
+        "estimatedEndDate": { "type": "string" },
+        "percentage": { "type": "number" },
+        "coordinator": { "type": "string" },
+        "stages": { "type": "array" },
+        "volunteerHoursEst": { "type": "number" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "name", "status"]
+    },
+    "ObraExpense": {
+      "title": "ObraExpense",
+      "description": "Lançamentos e extrato financeiro de faturas de obras",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "supplier": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "registeredBy": { "type": "string" },
+        "receiptRef": { "type": "string" }
+      },
+      "required": ["id", "projectId", "amount", "description"]
+    },
+    "MediunicoReuniao": {
+      "title": "MediunicoReuniao",
+      "description": "Reuniões mediúnicas privativas e de estudos do CEMIL",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "schedule": { "type": "string" },
+        "leader": { "type": "string" },
+        "room": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "MediunicoTrabalhador": {
+      "title": "MediunicoTrabalhador",
+      "description": "Ficha do trabalhador/médium com atribuições e formação",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "roles": { "type": "array" },
+        "faculties": { "type": "array" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "roles"]
+    },
+    "MediunicoEscala": {
+      "title": "MediunicoEscala",
+      "description": "Escalas de trabalhos mediúnicos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "reuniaoId": { "type": "string" },
+        "reuniaoName": { "type": "string" }
+      },
+      "required": ["id", "date", "reuniaoId"]
+    },
+    "MediunicoEncaminhamento": {
+      "title": "MediunicoEncaminhamento",
+      "description": "Encaminhamentos espirituais anonimizados (LGPD)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "anonymousCode": { "type": "string" },
+        "anonymousInitials": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "anonymousCode"]
+    },
+    "ComunicacaoPost": {
+      "title": "ComunicacaoPost",
+      "description": "Postagens de redes sociais com trava de aprovação doutrinária",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "text": { "type": "string" },
+        "platform": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "title", "text"]
+    },
+    "TechTicket": {
+      "title": "TechTicket",
+      "description": "Chamado técnico de TI e manutenção de tecnologia",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "type": "string" },
+        "status": { "type": "string" },
+        "category": { "type": "string" },
+        "location": { "type": "string" },
+        "requestedBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "priority", "status", "requestedBy"]
+    },
+    "TechInfraItem": {
+      "title": "TechInfraItem",
+      "description": "Item de infraestrutura tecnológica, rede e conectividade",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "location": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "status"]
+    },
+    "DoutrinarioPalestra": {
+      "title": "DoutrinarioPalestra",
+      "description": "Reunião doutrinária pública com tema, expositor e escala",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "speakerName": { "type": "string" },
+        "speakerRole": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "evangelhoChapter": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "title", "speakerName", "date", "time"]
+    },
+    "DoutrinarioExpositor": {
+      "title": "DoutrinarioExpositor",
+      "description": "Cadastro e qualificação de oradores e expositores",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "phone"]
+    },
+    "DoutrinarioMaterial": {
+      "title": "DoutrinarioMaterial",
+      "description": "Apostilas, roteiros e materiais de apoio ao expositor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["id", "name", "url"]
+    },
+    "DoutrinarioPergunta": {
+      "title": "DoutrinarioPergunta",
+      "description": "Pergunta enviada pelo público assistente durante reunião pública",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "questionText": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "questionText", "status"]
+    },
+    "DoutrinarioEmprestimoLivro": {
+      "title": "DoutrinarioEmprestimoLivro",
+      "description": "Controle de empréstimos da biblioteca espírita",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookTitle": { "type": "string" },
+        "readerName": { "type": "string" },
+        "borrowDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "bookTitle", "readerName", "borrowDate", "dueDate", "status"]
+    },
+    "DoutrinarioRoteiro": {
+      "title": "DoutrinarioRoteiro",
+      "description": "Roteiro e pauta oficial para o dirigente da reunião pública",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "steps": { "type": "array" }
+      },
+      "required": ["id", "title"]
     }
   },
   "firestore": {
@@ -173,6 +461,222 @@
     "escalas": {
       "schema": "SectorSchedule",
       "description": "Monthly schedules"
+    },
+    "arte_grupos": {
+      "schema": "ArteGroup",
+      "description": "Grupos artísticos (corais, teatro, poesia)"
+    },
+    "arte_musicas": {
+      "schema": "ArteSong",
+      "description": "Acervo de músicas e partiuturas"
+    },
+    "arte_pecas": {
+      "schema": "ArtePiece",
+      "description": "Roteiros e peças teatrais"
+    },
+    "arte_ensaios": {
+      "schema": "ArteEnsaio",
+      "description": "Agendamento e controle de presença de ensaios"
+    },
+    "arte_eventos": {
+      "schema": "ArteEvento",
+      "description": "Saraus, mostra de artes e apresentações"
+    },
+    "juventude_alunos": {
+      "schema": "JuventudeAluno",
+      "description": "Alunos matriculados na Evangelização e Mocidade"
+    },
+    "juventude_salas": {
+      "schema": "JuventudeSala",
+      "description": "Ciclos e turmas de Evangelização e Mocidade"
+    },
+    "juventude_aulas": {
+      "schema": "JuventudeAula",
+      "description": "Diário de aulas e temas ministrados"
+    },
+    "juventude_frequencias": {
+      "schema": "JuventudeFrequencia",
+      "description": "Registros de chamadas por data e turma"
+    },
+    "juventude_projetos": {
+      "schema": "JuventudeProjeto",
+      "description": "Projetos e ações sociais promovidas pela Juventude"
+    },
+    "obras_projetos": {
+      "schema": "ObraProject",
+      "description": "Projetos de obras, reformas e manutenções prediais"
+    },
+    "obras_despesas": {
+      "schema": "ObraExpense",
+      "description": "Extrato de despesas e notas fiscais das obras"
+    },
+    "mediunico_reunioes": {
+      "schema": "MediunicoReuniao",
+      "description": "Reuniões mediúnicas privativas e de estudos"
+    },
+    "mediunico_trabalhadores": {
+      "schema": "MediunicoTrabalhador",
+      "description": "Quadro de médiuns e trabalhadores espíritas com suas funções e formações"
+    },
+    "mediunico_escalas": {
+      "schema": "MediunicoEscala",
+      "description": "Escalas das reuniões mediúnicas"
+    },
+    "mediunico_encaminhamentos": {
+      "schema": "MediunicoEncaminhamento",
+      "description": "Encaminhamentos espirituais com sigilo e anonimização LGPD"
+    },
+    "mediunico_logs": {
+      "schema": "MediunicoAuditLog",
+      "description": "Trilha de auditoria e segurança do setor mediúnico"
+    },
+    "comunicacao_posts": {
+      "schema": "ComunicacaoPost",
+      "description": "Postagens para redes sociais com aprovação doutrinária"
+    },
+    "comunicacao_comunicados": {
+      "schema": "ComunicacaoNotice",
+      "description": "Comunicados oficiais e notícias do centro espírita"
+    },
+    "comunicacao_equipe": {
+      "schema": "ComunicacaoEquipe",
+      "description": "Membros e voluntários da equipe de comunicação"
+    },
+    "ti_tickets": {
+      "schema": "TechTicket",
+      "description": "Chamados e solicitações de suporte de TI"
+    },
+    "ti_infra": {
+      "schema": "TechInfraItem",
+      "description": "Monitoramento de infraestrutura de TI, redes e equipamentos"
+    },
+    "ti_knowledge": {
+      "schema": "TechKnowledgeItem",
+      "description": "Base de conhecimento e procedimentos rápidos de TI"
+    },
+    "ti_transmissoes": {
+      "schema": "TechLiveStream",
+      "description": "Agenda de transmissões ao vivo e escalas de áudio/vídeo"
+    },
+    "evangelizacao_kids": {
+      "schema": "EvangelizacaoKid",
+      "description": "Cadastro de evangelizandos, jovens e contatos dos responsáveis"
+    },
+    "evangelizacao_rooms": {
+      "schema": "EvangelizacaoRoom",
+      "description": "Salas de aula e ciclos pedagógicos da FEB"
+    },
+    "evangelizacao_aulas": {
+      "schema": "EvangelizacaoAula",
+      "description": "Diário de aulas, temas doutrinários e planejamentos"
+    },
+    "evangelizacao_projetos": {
+      "schema": "EvangelizacaoProjeto",
+      "description": "Projetos fraternos, teatro e ações da mocidade"
+    },
+    "evangelizacao_frequencia": {
+      "schema": "EvangelizacaoFrequencia",
+      "description": "Histórico permanente de presença de evangelizandos por data"
+    },
+    "passe_atendimentos": {
+      "schema": "PasseAtendimento",
+      "description": "Fila de atendimento de passe público, magnético e domiciliar"
+    },
+    "passe_passistas": {
+      "schema": "PassePassista",
+      "description": "Cadastro e harmonização de passistas e voluntários"
+    },
+    "passe_salas": {
+      "schema": "PasseSala",
+      "description": "Câmaras fluídicas e salas de passe público"
+    },
+    "passe_escalas": {
+      "schema": "PasseEscala",
+      "description": "Escalas de turnos de trabalho e equipes de passe"
+    },
+    "passe_fluidoterapia": {
+      "schema": "PasseFluidoterapia",
+      "description": "Prescrição e acompanhamento de água fluidificada"
+    },
+    "doutrinario_palestras": {
+      "schema": "DoutrinarioPalestra",
+      "description": "Cronograma de reuniões públicas e palestras doutrinárias com status"
+    },
+    "doutrinario_expositores": {
+      "schema": "DoutrinarioExpositor",
+      "description": "Cadastro e disponibilidade de expositores da casa e convidados"
+    },
+    "doutrinario_materiais": {
+      "schema": "DoutrinarioMaterial",
+      "description": "Acervo e materiais de apoio para palestras doutrinárias"
+    },
+    "doutrinario_perguntas": {
+      "schema": "DoutrinarioPergunta",
+      "description": "Caixa de perguntas e dúvidas do público assistido com triagem"
+    },
+    "doutrinario_emprestimos": {
+      "schema": "DoutrinarioEmprestimoLivro",
+      "description": "Controle de empréstimos e devoluções da biblioteca circulante"
+    },
+    "doutrinario_roteiros": {
+      "schema": "DoutrinarioRoteiro",
+      "description": "Roteiro canônico e pauta para o dirigente da reunião pública"
+    },
+    "social_assistidos": {
+      "schema": "SocialAssistido",
+      "description": "Cadastro e prontuário socioeconômico de famílias assistidas pela Ação Social Espírita"
+    },
+    "social_atendimentos": {
+      "schema": "SocialAtendimento",
+      "description": "Registros de acolhimento social, escuta fraterna e encaminhamentos"
+    },
+    "social_doacoes": {
+      "schema": "SocialDoacao",
+      "description": "Estoque de alimentos, roupas, cobertores e donativos recebidos"
+    },
+    "social_cestas": {
+      "schema": "SocialCestaEntrega",
+      "description": "Histórico de entregas e baixas de cestas básicas com validação QR code"
+    },
+    "social_voluntarios": {
+      "schema": "SocialVoluntario",
+      "description": "Equipe de trabalhadores e voluntários da promoção social"
+    },
+    "social_projetos": {
+      "schema": "SocialProjeto",
+      "description": "Oficinas profissionalizantes, costura de enxovais e cursos de autonomia"
+    },
+    "social_visitas": {
+      "schema": "SocialVisita",
+      "description": "Relatórios de visitas fraternas aos lares dos assistidos"
+    },
+    "social_kits": {
+      "schema": "SocialKitCesta",
+      "description": "Composição de kits de cestas básicas e cálculo de rendimento de estoque"
+    },
+    "social_audit_logs": {
+      "schema": "SocialAuditLog",
+      "description": "Trilha de auditoria e segurança LGPD de consultas socioeconômicas"
+    },
+    "admin_associados": {
+      "schema": "AdminAssociado",
+      "description": "Quadro social estatutário de associados efetivos, contribuintes e beneméritos"
+    },
+    "admin_atas": {
+      "schema": "AdminAta",
+      "description": "Livro de atas de reuniões da diretoria, assembleias ordinárias e conselho fiscal"
+    },
+    "admin_documentos": {
+      "schema": "AdminDocumento",
+      "description": "Emissão de termos de voluntariado (Lei 9.608), termos LGPD, declarações e ofícios"
+    },
+    "admin_patrimonio": {
+      "schema": "AdminPatrimonioItem",
+      "description": "Livro de tombamento patrimonial, bens duráveis e inventário de salas"
+    },
+    "admin_balancetes": {
+      "schema": "AdminBalanceteMensal",
+      "description": "Balancetes mensais sintéticos e prestação de contas com parecer do conselho fiscal"
     }
   }
 }

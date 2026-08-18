@@ -69,6 +69,7 @@ interface FinancialTransaction {
   amountRealized?: number;
   status?: string;
   paymentMethod?: string;
+  sectorId?: string;
 }
 
 export const ReportsPage: React.FC = () => {
@@ -78,6 +79,7 @@ export const ReportsPage: React.FC = () => {
   // State variables for analytics tabs and filters
   const [activeTab, setActiveTab] = useState<'analytics' | 'downloads'>('analytics');
   const [selectedSectorId, setSelectedSectorId] = useState<string>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'current_month' | 'last_3_months' | 'current_year'>('all');
   const [isExporting, setIsExporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [complianceView, setComplianceView] = useState<'workers' | 'ledger' | 'evolutions'>('workers');
@@ -99,64 +101,114 @@ export const ReportsPage: React.FC = () => {
     }
   }, [currentUser, navigate]);
 
-  // Load datasets dynamically from database and local storage
+  // Helper date range filter evaluator
+  const isDateInFilter = (dateVal: string | number, rangeFilter: string): boolean => {
+    if (rangeFilter === 'all' || !dateVal) return true;
+    
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return true;
+
+    const now = new Date();
+    
+    if (rangeFilter === 'current_month') {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    
+    if (rangeFilter === 'last_3_months') {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(now.getMonth() - 3);
+      return d >= threeMonthsAgo && d <= now;
+    }
+    
+    if (rangeFilter === 'current_year') {
+      return d.getFullYear() === now.getFullYear();
+    }
+
+    return true;
+  };
+
+  // Load datasets dynamically with real-time subscriptions
   useEffect(() => {
-    const loadAllDatasets = async () => {
-      setLoading(true);
-      try {
-        const [loadedWorkers, loadedParticipants, loadedSectors, loadedEvolutions] = await Promise.all([
-          dataService.getWorkers() || [],
-          dataService.getParticipants() || [],
-          dataService.getSectors() || [],
-          dataService.getAllEvolutions() || []
-        ]);
+    setLoading(true);
 
-        setWorkers(loadedWorkers || []);
-        setParticipants(loadedParticipants || []);
-        setEvolutions(loadedEvolutions || []);
+    const unsubWorkers = dataService.subscribeToWorkers((wList) => {
+      setWorkers(wList || []);
+      setLoading(false);
+    });
 
-        // Filter and unique sectors
-        const uniqueS: Sector[] = [];
-        const seenNames = new Set<string>();
-        (loadedSectors || []).forEach(s => {
-          const normName = formatSectorName(s.name);
-          if (!seenNames.has(normName)) {
-            seenNames.add(normName);
-            uniqueS.push({ ...s, name: normName });
-          }
-        });
-        setSectors(uniqueS);
+    const unsubParticipants = dataService.subscribeToParticipants((pList) => {
+      setParticipants(pList || []);
+    });
 
-        // Load financial transactions from admin context
-        const cachedTx = localStorage.getItem('admin_transactions');
-        if (cachedTx) {
-          try {
-            setTransactions(JSON.parse(cachedTx));
-          } catch {
-            setTransactions([]);
-          }
-        } else {
-          // Default mock transactions if none are found, to load beautiful default indicators
-          const defaultTransactions: FinancialTransaction[] = [
-            { id: '1', date: '2026-05-01', type: 'ENTRADA', category: 'Contribuição', description: 'Mensalidade de Sócios - Lote Mai/26', amount: 1250.00, amountEstimated: 1500.00, amountRealized: 1250.00, status: 'Recebido' },
-            { id: '2', date: '2026-05-05', type: 'ENTRADA', category: 'Doação', description: 'Doações voluntárias espontâneas', amount: 840.00, amountEstimated: 500.00, amountRealized: 840.00, status: 'Recebido' },
-            { id: '3', date: '2026-05-10', type: 'SAÍDA', category: 'Manutenção', description: 'Reforma da calha e telhado do salão principal', amount: 450.00, amountEstimated: 450.00, amountRealized: 450.00, status: 'Pago' },
-            { id: '4', date: '2026-05-12', type: 'SAÍDA', category: 'Utilitários', description: 'Fatura de Energia Elétrica - Cemig', amount: 320.00, amountEstimated: 350.00, amountRealized: 320.00, status: 'Pago' },
-            { id: '5', date: '2026-05-15', type: 'SAÍDA', category: 'Utilitários', description: 'Fatura de Água e Saneamento - Copasa', amount: 140.00, amountEstimated: 150.00, amountRealized: 140.00, status: 'Pago' },
-            { id: '6', date: '2026-05-18', type: 'ENTRADA', category: 'Evento', description: 'Arrecadação Galinhada Fraterna Beneficente', amount: 1750.00, amountEstimated: 1200.00, amountRealized: 1750.00, status: 'Recebido' },
-            { id: '7', date: '2026-05-20', type: 'SAÍDA', category: 'Ação Social', description: 'Insumos cesta básica para famílias da vila', amount: 600.00, amountEstimated: 600.00, amountRealized: 600.00, status: 'Pago' }
-          ];
-          localStorage.setItem('admin_transactions', JSON.stringify(defaultTransactions));
-          setTransactions(defaultTransactions);
+    const unsubSectors = dataService.subscribeToSectors((sList) => {
+      const uniqueS: Sector[] = [];
+      const seenNames = new Set<string>();
+      (sList || []).forEach(s => {
+        const normName = formatSectorName(s.name);
+        if (!seenNames.has(normName)) {
+          seenNames.add(normName);
+          uniqueS.push({ ...s, name: normName });
         }
-      } catch (err) {
-        console.error('Erro de carregamento dos dados:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      });
+      setSectors(uniqueS);
+    });
 
-    loadAllDatasets();
+    const unsubEvolutions = dataService.subscribeToAllEvolutions((eList) => {
+      setEvolutions(eList || []);
+    });
+
+    const unsubFinances = dataService.subscribeFinancialEntries((fEntries) => {
+      let combined: FinancialTransaction[] = [];
+      
+      if (fEntries && fEntries.length > 0) {
+        combined = fEntries.map(fe => ({
+          id: fe.id || Math.random().toString(),
+          date: fe.date || new Date().toISOString().split('T')[0],
+          type: fe.type === 'RECEITA' ? 'ENTRADA' : 'SAÍDA',
+          category: fe.category || 'Geral',
+          description: fe.description || '',
+          amount: fe.amount || 0,
+          amountRealized: fe.amount || 0,
+          paymentMethod: fe.paymentMethod,
+          sectorId: fe.sectorId
+        }));
+      }
+
+      const cachedTx = localStorage.getItem('admin_transactions');
+      if (cachedTx) {
+        try {
+          const localTxs: FinancialTransaction[] = JSON.parse(cachedTx);
+          const existingIds = new Set(combined.map(c => c.id));
+          localTxs.forEach(lt => {
+            if (!existingIds.has(lt.id)) {
+              combined.push(lt);
+            }
+          });
+        } catch {}
+      }
+
+      if (combined.length === 0) {
+        combined = [
+          { id: '1', date: '2026-05-01', type: 'ENTRADA', category: 'Contribuição', description: 'Mensalidade de Sócios - Lote Mai/26', amount: 1250.00, amountEstimated: 1500.00, amountRealized: 1250.00, status: 'Recebido' },
+          { id: '2', date: '2026-05-05', type: 'ENTRADA', category: 'Doação', description: 'Doações voluntárias espontâneas', amount: 840.00, amountEstimated: 500.00, amountRealized: 840.00, status: 'Recebido' },
+          { id: '3', date: '2026-05-10', type: 'SAÍDA', category: 'Manutenção', description: 'Reforma da calha e telhado do salão principal', amount: 450.00, amountEstimated: 450.00, amountRealized: 450.00, status: 'Pago' },
+          { id: '4', date: '2026-05-12', type: 'SAÍDA', category: 'Utilitários', description: 'Fatura de Energia Elétrica - Cemig', amount: 320.00, amountEstimated: 350.00, amountRealized: 320.00, status: 'Pago' },
+          { id: '5', date: '2026-05-15', type: 'SAÍDA', category: 'Utilitários', description: 'Fatura de Água e Saneamento - Copasa', amount: 140.00, amountEstimated: 150.00, amountRealized: 140.00, status: 'Pago' },
+          { id: '6', date: '2026-05-18', type: 'ENTRADA', category: 'Evento', description: 'Arrecadação Galinhada Fraterna Beneficente', amount: 1750.00, amountEstimated: 1200.00, amountRealized: 1750.00, status: 'Recebido' },
+          { id: '7', date: '2026-05-20', type: 'SAÍDA', category: 'Ação Social', description: 'Insumos cesta básica para famílias da vila', amount: 600.00, amountEstimated: 600.00, amountRealized: 600.00, status: 'Pago' }
+        ];
+      }
+
+      setTransactions(combined);
+    });
+
+    return () => {
+      unsubWorkers();
+      unsubParticipants();
+      unsubSectors();
+      unsubEvolutions();
+      unsubFinances();
+    };
   }, []);
 
   // Standard static file export methods
@@ -181,11 +233,11 @@ export const ReportsPage: React.FC = () => {
       let sheetName = "Relatorio";
 
       if (type === 'workers') {
-        data = workers.map(w => ({
+        data = filteredWorkers.map(w => ({
           'Nome': w.name,
-          'Função': w.role,
-          'Email': w.email,
-          'Setor': w.sectorId || 'N/I'
+          'Função': w.position || w.role || 'Membro do Corpo',
+          'Email': w.email || 'N/I',
+          'Setor': sectors.find(s => s.id === w.sectorId)?.name || w.sectorId || 'Geral / Apoio'
         }));
         sheetName = "Trabalhadores";
       } else if (type === 'agenda') {
@@ -489,7 +541,12 @@ export const ReportsPage: React.FC = () => {
       if (type === 'workers') {
         title = "Quadro de Trabalhadores";
         head = [['Nome', 'Função', 'Setor', 'Email']];
-        body = workers.map(w => [w.name, w.role, w.sectorId || 'N/I', w.email]);
+        body = filteredWorkers.map(w => [
+          w.name,
+          w.position || w.role || 'Membro do Corpo',
+          sectors.find(s => s.id === w.sectorId)?.name || w.sectorId || 'Geral / Apoio',
+          w.email || 'N/I'
+        ]);
       } else if (type === 'agenda') {
         const events = await dataService.getAgendaEvents();
         title = "Calendário de Atividades";
@@ -678,16 +735,14 @@ export const ReportsPage: React.FC = () => {
           c.status || 'Ativo'
         ]);
       } else if (type === 'admin_transactions') {
-        const raw = localStorage.getItem('admin_transactions');
-        const list = raw ? JSON.parse(raw) : [];
         title = "Livro Diário de Caixa - Movimentações";
         head = [['Data Lanc.', 'Categoria', 'Fluxo', 'Descrição', 'Valor']];
-        body = list.map((t: any) => [
+        body = filteredTransactions.map((t: any) => [
           t.date || '',
           t.category || '',
           t.type || '',
           t.description || '',
-          `R$ ${t.amountRealized || t.amount || 0}`
+          `R$ ${(t.amountRealized || t.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         ]);
       } else if (type === 'admin_patrimonio_items') {
         const raw = localStorage.getItem('admin_patrimonio_items');
@@ -748,27 +803,27 @@ export const ReportsPage: React.FC = () => {
     ? workers 
     : workers.filter(w => w.sectorId === selectedSectorId);
   
-  const filteredEvolutions = selectedSectorId === 'all' 
-    ? evolutions 
-    : evolutions.filter(e => e.sectorId === selectedSectorId);
+  const filteredEvolutions = evolutions
+    .filter(e => isDateInFilter(e.date, dateRangeFilter))
+    .filter(e => selectedSectorId === 'all' || e.sectorId === selectedSectorId);
 
   // Filter participants relevant to the chosen sector (participants having at least one evolution record in that sector)
   const filteredParticipants = selectedSectorId === 'all'
     ? participants
     : participants.filter(p => 
-        evolutions.some(e => e.participantId === p.id && e.sectorId === selectedSectorId)
+        evolutions.some(e => e.participantId === p.id && (selectedSectorId === 'all' || e.sectorId === selectedSectorId))
       );
 
-  // Financial filtering simulation: if 'all', show comprehensive finances, if specific sector, show estimations/simulations of sector budget
-  const filteredTransactions = selectedSectorId === 'all'
-    ? transactions
-    : transactions.filter(t => {
-        const sectName = activeSector?.name || '___';
-        return t.category.toLowerCase().includes(sectName.substring(0, 5).toLowerCase()) ||
-               t.description.toLowerCase().includes(sectName.substring(0, 5).toLowerCase()) ||
-               (t.category.toLowerCase() === 'manutenção' && sectName.toLowerCase().includes('apoio')) ||
-               (t.category.toLowerCase() === 'utilitários' && sectName.toLowerCase().includes('apoio'));
-      });
+  // Financial filtering with Date Range and Sector matching
+  const filteredTransactions = transactions
+    .filter(t => isDateInFilter(t.date, dateRangeFilter))
+    .filter(t => {
+      if (selectedSectorId === 'all') return true;
+      if (t.sectorId) return t.sectorId === selectedSectorId;
+      const sectName = activeSector?.name || '___';
+      return t.category.toLowerCase().includes(sectName.substring(0, 5).toLowerCase()) ||
+             t.description.toLowerCase().includes(sectName.substring(0, 5).toLowerCase());
+    });
 
   // Stats Counters
   const totalFinancialIn = filteredTransactions
@@ -782,29 +837,38 @@ export const ReportsPage: React.FC = () => {
   const sectorTargetWorkers = filteredWorkers.length;
   const sectorTargetEvolutions = filteredEvolutions.length;
 
-  // 1. Chart Data: Monthly Financial Trend (Recharts AreaChart)
+  // 1. Chart Data: Monthly Financial Trend (Recharts AreaChart - Chronological YYYY-MM)
   const groupTransactionsByMonth = () => {
-    const monthsMap: Record<string, { month: string, Receitas: number, Despesas: number }> = {};
+    const monthsMap: Record<string, { label: string, Receitas: number, Despesas: number }> = {};
     
     filteredTransactions.forEach(t => {
-      // Date format YYYY-MM-DD -> extracts month name
       const dateObj = new Date(t.date);
+      if (isNaN(dateObj.getTime())) return;
+
+      const yyyy = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const key = `${yyyy}-${mm}`;
       const label = dateObj.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
       
-      if (!monthsMap[label]) {
-        monthsMap[label] = { month: label, Receitas: 0, Despesas: 0 };
+      if (!monthsMap[key]) {
+        monthsMap[key] = { label, Receitas: 0, Despesas: 0 };
       }
       
-      const amountVal = t.amountRealized || t.amount;
+      const amountVal = t.amountRealized || t.amount || 0;
       if (t.type === 'ENTRADA') {
-        monthsMap[label].Receitas += amountVal;
+        monthsMap[key].Receitas += amountVal;
       } else {
-        monthsMap[label].Despesas += amountVal;
+        monthsMap[key].Despesas += amountVal;
       }
     });
 
-    const list = Object.values(monthsMap);
-    // If empty list, put a static reference
+    const sortedKeys = Object.keys(monthsMap).sort();
+    const list = sortedKeys.map(k => ({
+      month: monthsMap[k].label,
+      Receitas: monthsMap[k].Receitas,
+      Despesas: monthsMap[k].Despesas
+    }));
+
     if (list.length === 0) {
       return [
         { month: 'Mar/26', Receitas: 0, Despesas: 0 },
@@ -882,18 +946,29 @@ export const ReportsPage: React.FC = () => {
     })).filter(item => item.value > 0);
   };
 
-  // 4. Chart Data: Evolutionary evaluations trend lines
+  // 4. Chart Data: Evolutionary evaluations trend lines (Chronological YYYY-MM)
   const getEvolutionsTimelineData = () => {
-    const datesMap: Record<string, number> = {};
+    const datesMap: Record<string, { label: string, count: number }> = {};
     
     filteredEvolutions.forEach(e => {
-      const label = new Date(e.date).toLocaleDateString('pt-BR', { month: 'short' });
-      datesMap[label] = (datesMap[label] || 0) + 1;
+      const dateObj = new Date(e.date);
+      if (isNaN(dateObj.getTime())) return;
+
+      const yyyy = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const key = `${yyyy}-${mm}`;
+      const label = dateObj.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+
+      if (!datesMap[key]) {
+        datesMap[key] = { label, count: 0 };
+      }
+      datesMap[key].count += 1;
     });
 
-    const list = Object.entries(datesMap).map(([key, val]) => ({
-      period: key,
-      'Prontuários': val
+    const sortedKeys = Object.keys(datesMap).sort();
+    const list = sortedKeys.map(k => ({
+      period: datesMap[k].label,
+      'Prontuários': datesMap[k].count
     }));
 
     if (list.length === 0) {
@@ -956,7 +1031,8 @@ export const ReportsPage: React.FC = () => {
   };
 
   // Generate Executive Comprehensive PDF Analytics (Joint or Individual)
-  const generateJointExecutivePDF = () => {
+  const generateJointExecutivePDF = async () => {
+    setIsExporting(true);
     try {
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -1183,7 +1259,7 @@ export const ReportsPage: React.FC = () => {
       doc.text(`As anotações psicológicas e terapêuticas lavradas em prontuários e acompanhamentos espirituais passam por auditoria fria (contagem métrica) sem a violação da privacidade dos assistidos conforme dispõe a LGPD local.`, 14, 36, { maxWidth: 182 });
 
       const eHeaders = [['ID', 'Data Prontuário', 'Status Assistência', 'Consentimento LGPD', 'Anotação Sintética']];
-      const eRows = filteredEvolutions.slice(0, 11).map((e, index) => {
+      const eRows = filteredEvolutions.map((e, index) => {
         const participantId = e.participantId;
         const participant = participants.find(p => p.id === participantId);
         const namePart = participant ? participant.name : `Cód #${participantId?.substring(0, 5)}`;
@@ -1218,8 +1294,20 @@ export const ReportsPage: React.FC = () => {
       });
 
       // Parecer and Approval block
-      const lastY = (doc as any).lastAutoTable.finalY || 135;
-      const targetY = lastY + 12;
+      let lastY = (doc as any).lastAutoTable.finalY || 135;
+      let targetY = lastY + 10;
+
+      // Safe overflow handling for signatures
+      if (targetY + 68 > 280) {
+        doc.addPage();
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, 210, 15, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text("HOMOLOGAÇÃO FISCAL E ASSINATURAS DO CONSELHO", 14, 10);
+        targetY = 25;
+      }
 
       doc.setFillColor(248, 250, 252);
       doc.roundedRect(14, targetY, 182, 30, 2, 2, 'F');
@@ -1234,26 +1322,27 @@ export const ReportsPage: React.FC = () => {
       doc.text("Certificamos para os devidos fins de transparência perante a Receita Federal e a Federação que os lançamentos contábeis coletados de forma eletrônica, doações liquidas, frequência do corpo de obreiros e prontuários estão salvaguardados e de acordo com as normas tributárias e do terceiro setor vigentes nesta data.", 18, targetY + 11, { maxWidth: 174 });
 
       // Signatures
-      doc.line(14, targetY + 54, 90, targetY + 54);
-      doc.line(120, targetY + 54, 196, targetY + 54);
+      doc.line(14, targetY + 52, 90, targetY + 52);
+      doc.line(120, targetY + 52, 196, targetY + 52);
       
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(51, 65, 85);
-      doc.text("Coordenação Administrativa / Presidência", 14, targetY + 59);
-      doc.text("Auditor Assistente / Conselho Fiscal CEMIL", 120, targetY + 59);
+      doc.text("Coordenação Administrativa / Presidência", 14, targetY + 57);
+      doc.text("Auditor Assistente / Conselho Fiscal CEMIL", 120, targetY + 57);
       
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text("ASSOCIAÇÃO ESPÍRITA MIRANTE DE LUZ", 14, targetY + 63);
-      doc.text(`Data da Auditoria: ${timestamp.split(' ')[0]}`, 120, targetY + 63);
+      doc.text("ASSOCIAÇÃO ESPÍRITA MIRANTE DE LUZ", 14, targetY + 61);
+      doc.text(`Data da Auditoria: ${timestamp.split(' ')[0]}`, 120, targetY + 61);
 
       doc.save(`Painel_Auditoria_CEMIL_Setor_${selectedSectorId}_${Date.now()}.pdf`);
-      alert('Relatório técnico consolidado para Auditoria (PDF) gerado com sucesso!');
     } catch (e) {
       console.error("PDF Fail:", e);
       alert('Houve uma falha inesperada ao tentar estruturar o PDF de auditoria contábil e de prontuários.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -1308,7 +1397,7 @@ export const ReportsPage: React.FC = () => {
   ];
 
   return (
-    <div className="p-4 sm:p-8 space-y-8 select-none">
+    <div className="p-4 sm:p-8 space-y-8">
       
       {/* Upper header section */}
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-150 pb-6 print:hidden">
@@ -1377,11 +1466,11 @@ export const ReportsPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Global Filter Sector Controller */}
+        {/* Global Filter Sector & Date Controller */}
         {activeTab === 'analytics' && (
-          <div className="flex items-center gap-2 bg-indigo-50/50 p-1.5 rounded-2xl border border-indigo-100/50 my-1">
+          <div className="flex flex-wrap items-center gap-2 bg-indigo-50/50 p-1.5 rounded-2xl border border-indigo-100/50 my-1">
             <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest px-2 flex items-center gap-1">
-              <Filter size={11} className="text-indigo-400" /> Relatório Setorial:
+              <Filter size={11} className="text-indigo-400" /> Filtros:
             </span>
             <select
               value={selectedSectorId}
@@ -1394,6 +1483,17 @@ export const ReportsPage: React.FC = () => {
                   ⚙️ Individual: {s.name}
                 </option>
               ))}
+            </select>
+
+            <select
+              value={dateRangeFilter}
+              onChange={(e) => setDateRangeFilter(e.target.value as any)}
+              className="bg-white border border-gray-250 rounded-xl px-3 py-1 text-xs font-bold text-gray-700 tracking-wide cursor-pointer focus:outline-none focus:border-indigo-500"
+            >
+              <option value="all">📅 Todo o Período</option>
+              <option value="current_month">🗓️ Mês Atual</option>
+              <option value="last_3_months">📊 Últimos 3 Meses</option>
+              <option value="current_year">📈 Ano Atual</option>
             </select>
           </div>
         )}

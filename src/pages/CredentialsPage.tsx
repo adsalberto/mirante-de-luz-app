@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CreditCard, 
@@ -17,18 +18,20 @@ import {
   FileText,
   Clock,
   ArrowRight,
+  ArrowLeft,
   Layers,
   Trash2,
   Phone,
   Mail
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { cn, formatRegistrationCode } from '../lib/utils';
+import { cn, formatRegistrationCode, formatDateBR } from '../lib/utils';
 import { CemilLogo } from '../components/CemilLogo';
 import { dataService } from '../services/dataService';
 import { Participant, Sector } from '../types';
 
 export default function CredentialsPage() {
+  const navigate = useNavigate();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +64,16 @@ export default function CredentialsPage() {
   const [customEventName, setCustomEventName] = useState('Seminário CEMIL');
   const [customEventDate, setCustomEventDate] = useState('Julho / 2026');
 
+  // NEW: Card side toggle (frente / verso)
+  const [cardSide, setCardSide] = useState<'frente' | 'verso'>('frente');
+
+  // NEW: Direct In-Page Print Sheet modal state (Bypasses popup blocker & includes Crop Marks)
+  const [isDirectPrintOpen, setIsDirectPrintOpen] = useState(false);
+
+  // NEW: Camera QR Scanner Action Modal for instant attendance check-in
+  const [scannedParticipantModal, setScannedParticipantModal] = useState<Participant | null>(null);
+  const [checkInSuccessMessage, setCheckInSuccessMessage] = useState<string | null>(null);
+
   // Print Queue States for batch printing
   const [printQueue, setPrintQueue] = useState<any[]>(() => {
     try {
@@ -86,11 +99,16 @@ export default function CredentialsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [membersList, sectorsList, workersList] = await Promise.all([
+      const [membersList, sectorsList, workersList, queueList] = await Promise.all([
         dataService.getParticipants(),
         dataService.getSectors(),
-        dataService.getWorkers()
+        dataService.getWorkers(),
+        dataService.getPrintQueue()
       ]);
+
+      if (queueList && Array.isArray(queueList) && queueList.length > 0) {
+        setPrintQueue(queueList);
+      }
 
       const pList: Participant[] = [...(membersList || [])];
       
@@ -198,11 +216,7 @@ export default function CredentialsPage() {
               );
 
               if (matched) {
-                if (activeCredentialTab === 'carteira' && !matched.isWorker) {
-                  alert("⚠️ Este participante foi localizado, mas não é um Membro da Equipe da Casa registrado. A Carteira de Voluntário é restrita.");
-                  return;
-                }
-                handleSelectMember(matched);
+                setScannedParticipantModal(matched);
                 setIsScanningQr(false);
 
                 if (scannerInstance && scannerInstance.isScanning) {
@@ -237,7 +251,21 @@ export default function CredentialsPage() {
 
   const handleSelectMember = (member: Participant) => {
     setSelectedMember(member);
-    setThemeColorPreset(member.isWorker ? 'indigo' : 'emerald');
+
+    // Auto sector/role theme color detection
+    const roleOrSector = ((member.isWorker ? 'Trabalhador Voluntário' : 'Participante / Assistido') + ' ' + (member.address || '')).toLowerCase();
+    if (roleOrSector.includes('fraterno') || roleOrSector.includes('doutrinária') || roleOrSector.includes('estudo')) {
+      setThemeColorPreset('indigo');
+    } else if (roleOrSector.includes('passe') || roleOrSector.includes('fluido') || roleOrSector.includes('saúde')) {
+      setThemeColorPreset('emerald');
+    } else if (roleOrSector.includes('mocidade') || roleOrSector.includes('evangelização') || roleOrSector.includes('infantil')) {
+      setThemeColorPreset('amber');
+    } else if (roleOrSector.includes('evento') || roleOrSector.includes('comunicação') || roleOrSector.includes('festa')) {
+      setThemeColorPreset('rose');
+    } else {
+      setThemeColorPreset(member.isWorker ? 'indigo' : 'emerald');
+    }
+
     setCustomRole(member.isWorker ? 'Trabalhador Voluntário' : 'Participante / Assistido');
     setCustomAccessLevel(member.isWorker ? 'Geral / Multi-Setores' : 'Acesso Geral');
     setCustomPhoto(member.photoUrl || null);
@@ -245,6 +273,7 @@ export default function CredentialsPage() {
     setPhotoShiftX(0);
     setPhotoShiftY(0);
     setPhotoRotate(0);
+    setCardSide('frente');
   };
 
   // Filter list of participants/workers depending on active credential tab:
@@ -274,8 +303,8 @@ export default function CredentialsPage() {
     const themeColor = '#0A2E5C';
     const goldColor = '#CF9E22';
     
-    const rDate = selectedMember.registrationDate ? new Date(selectedMember.registrationDate).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
-    const bDate = selectedMember.birthDate || '-';
+    const rDate = formatDateBR(selectedMember.registrationDate || Date.now());
+    const bDate = formatDateBR(selectedMember.birthDate);
     const qrData = encodeURIComponent(`${window.location.origin}${window.location.pathname}?assistidoId=${selectedMember.id}`);
     const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${qrData}`;
     
@@ -1817,16 +1846,21 @@ export default function CredentialsPage() {
       return;
     }
 
-    setPrintQueue(prev => [...prev, newItem]);
+    const updated = [...printQueue, newItem];
+    setPrintQueue(updated);
+    dataService.savePrintQueue(updated).catch(console.error);
   };
 
   const handleRemoveFromQueue = (printId: string) => {
-    setPrintQueue(prev => prev.filter(item => item.printId !== printId));
+    const updated = printQueue.filter(item => item.printId !== printId);
+    setPrintQueue(updated);
+    dataService.savePrintQueue(updated).catch(console.error);
   };
 
   const handleClearQueue = () => {
     if (window.confirm("Deseja realmente limpar todo o lote de impressão atual?")) {
       setPrintQueue([]);
+      dataService.savePrintQueue([]).catch(console.error);
     }
   };
 
@@ -3325,14 +3359,23 @@ export default function CredentialsPage() {
     <div className="space-y-8 pb-12 p-4 md:p-8 max-w-7xl mx-auto text-left">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-        <div>
-          <h1 className="text-3xl font-black text-slate-850 tracking-tight flex items-center gap-2.5">
-            <CreditCard size={32} className="text-indigo-650" />
-            Central de Credenciamento
-          </h1>
-          <p className="text-slate-500 font-medium text-sm mt-0.5">
-            Gere carteirinhas de sócios, crachás de eventos, ou escaneie códigos QR para checagem rápida.
-          </p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="p-3 bg-white rounded-2xl shadow-sm hover:shadow-md text-gray-400 hover:text-indigo-600 transition-all active:scale-95 border border-gray-100 cursor-pointer"
+            title="Voltar ao Painel"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-3xl font-black text-slate-850 tracking-tight flex items-center gap-2.5">
+              <CreditCard size={32} className="text-indigo-650" />
+              Central de Credenciamento
+            </h1>
+            <p className="text-slate-500 font-medium text-sm mt-0.5">
+              Gere carteirinhas de sócios, crachás de eventos, ou escaneie códigos QR para checagem rápida.
+            </p>
+          </div>
         </div>
 
         <button
@@ -3900,7 +3943,106 @@ export default function CredentialsPage() {
               {/* Right preview columns and buttons */}
               <div className="md:col-span-6 flex flex-col items-center justify-between space-y-6">
                 <div className="w-full flex-grow flex flex-col items-center justify-center p-4 bg-slate-50 rounded-[32px] border border-slate-100 shadow-inner min-h-[360px]">
-                  {activeCredentialTab === 'carteira' ? (
+                  
+                  {/* Card Side Toggle Pill */}
+                  <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setCardSide('frente')}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer",
+                        cardSide === 'frente' ? "bg-white text-indigo-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      )}
+                    >
+                      Frente (Identificação)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCardSide('verso')}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer",
+                        cardSide === 'verso' ? "bg-white text-indigo-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      )}
+                    >
+                      Verso (Instruções/Saúde)
+                    </button>
+                  </div>
+
+                  {cardSide === 'verso' ? (
+                    /* VERSO (BACK SIDE) PREVIEW VIEW */
+                    activeCredentialTab === 'carteira' ? (
+                      <div className="relative shadow-xl rounded-2xl overflow-hidden select-none bg-[#FBFBFA] w-[210px] h-[333px] border border-slate-200 text-left flex flex-col justify-between p-3.5 animate-fade-in">
+                        <div className="space-y-1.5 border-b border-slate-200 pb-2">
+                          <span className="text-[5px] font-black uppercase text-indigo-900 tracking-wider block">SOCIEDADE ESPÍRITA MIRANTE DE LUZ</span>
+                          <p className="text-[7.5px] font-black text-slate-800 uppercase leading-tight">CARTÃO DE VOLUNTÁRIO / TRABALHADOR</p>
+                          <p className="text-[4.5px] text-slate-500 font-medium leading-tight">CNPJ: 12.345.678/0001-90 • Sede Institucional CEMIL</p>
+                        </div>
+
+                        <div className="space-y-2 py-2 flex-grow">
+                          <div className="bg-slate-100 p-2 rounded-lg border border-slate-200 space-y-1">
+                            <span className="text-[5px] font-black uppercase text-slate-500 block">DADOS DE SAÚDE E EMERGÊNCIA</span>
+                            <div className="grid grid-cols-2 gap-1 text-[5px] font-bold text-slate-700">
+                              <div><span className="text-slate-400">TIPO SANGUÍNEO:</span> <span className="text-red-600 font-black">{selectedMember.bloodType || 'N/I'}</span></div>
+                              <div><span className="text-slate-400">ALERGIAS:</span> <span>{selectedMember.allergies || 'Nenhuma'}</span></div>
+                              <div className="col-span-2 truncate"><span className="text-slate-400">CONTATO:</span> <span>{selectedMember.emergencyContact || selectedMember.phone || '(11) 99999-8888'}</span></div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 text-[4.5px] text-slate-500 leading-normal">
+                            <span className="font-black text-indigo-950 uppercase block text-[5px]">NORMAS DE UTILIZAÇÃO</span>
+                            <p>1. Uso obrigatório e pessoal durante atividades voluntárias na Casa Espírita.</p>
+                            <p>2. Em caso de perda ou desligamento, devolva à secretaria unificada.</p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-200 pt-2 flex items-center justify-between">
+                          <div className="text-left">
+                            <span className="text-[4px] font-black text-slate-400 block uppercase">VALIDADE</span>
+                            <span className="text-[6px] font-black text-slate-800 block">{customExpiryDate}</span>
+                          </div>
+                          <div className="bg-white p-1 rounded border border-slate-200">
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(window.location.origin + window.location.pathname + "?assistidoId=" + selectedMember.id)}`}
+                              alt="Scan QR Verso"
+                              className="w-[28px] h-[28px] object-contain block"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative shadow-xl rounded-2xl overflow-hidden select-none bg-[#FBFBFA] w-[210px] h-[295px] border border-slate-200 text-left flex flex-col justify-between p-4 animate-fade-in">
+                        <div className="space-y-1 border-b border-indigo-900/20 pb-2 text-center">
+                          <span className="text-[6px] font-black uppercase text-indigo-900 tracking-wider block">PROGRAMAÇÃO OFICIAL DO EVENTO</span>
+                          <h4 className="text-[9px] font-black text-[#E59A18] uppercase leading-tight">{customEventName}</h4>
+                          <p className="text-[5px] text-slate-500 font-bold">{customEventDate}</p>
+                        </div>
+
+                        <div className="space-y-1.5 py-2 text-[5.5px] text-slate-700">
+                          <div className="flex gap-2 items-center bg-slate-100 p-1.5 rounded-lg border border-slate-200">
+                            <span className="font-black text-indigo-900 w-8 shrink-0">08:30</span>
+                            <span className="font-semibold">Recepção & Acolhimento Fraterno</span>
+                          </div>
+                          <div className="flex gap-2 items-center bg-slate-100 p-1.5 rounded-lg border border-slate-200">
+                            <span className="font-black text-indigo-900 w-8 shrink-0">09:00</span>
+                            <span className="font-semibold">Abertura com Prece e Leitura</span>
+                          </div>
+                          <div className="flex gap-2 items-center bg-slate-100 p-1.5 rounded-lg border border-slate-200">
+                            <span className="font-black text-indigo-900 w-8 shrink-0">10:30</span>
+                            <span className="font-semibold">Painel Temático & Atividades</span>
+                          </div>
+                          <div className="flex gap-2 items-center bg-slate-100 p-1.5 rounded-lg border border-slate-200">
+                            <span className="font-black text-indigo-900 w-8 shrink-0">12:00</span>
+                            <span className="font-semibold">Encerramento & Confraternização</span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-200 pt-2 text-center space-y-0.5">
+                          <p className="text-[5px] font-black text-slate-400 uppercase">MANTENHA SEU CRACHÁ EM LOCAL VISÍVEL</p>
+                          <p className="text-[4.5px] text-slate-400 font-medium">Sociedade Espírita Mirante de Luz • CEMIL</p>
+                        </div>
+                      </div>
+                    )
+                  ) : activeCredentialTab === 'carteira' ? (
                     selectedTemplate === 'modern' ? (
                       /* VERTICAL MODERN CARTEIRINHA FRONT AND VERSO PREVIEW */
                       <div className="space-y-4 w-full flex flex-col items-center">
@@ -3979,7 +4121,7 @@ export default function CredentialsPage() {
                                 <User size={10} className="text-[#0A2E5C] shrink-0" />
                                 <div className="flex flex-col min-w-0 leading-none">
                                   <span className="text-[3px] font-black text-slate-400 uppercase leading-none">NASCIMENTO</span>
-                                  <span className="text-[5px] font-black text-slate-800 truncate leading-none mt-0.5">{selectedMember.birthDate || "-"}</span>
+                                  <span className="text-[5px] font-black text-slate-800 truncate leading-none mt-0.5">{formatDateBR(selectedMember.birthDate)}</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 min-w-0">
@@ -4108,7 +4250,7 @@ export default function CredentialsPage() {
                                 <div className="flex flex-col">
                                   <span className="text-[2.8px] font-black text-slate-400 uppercase leading-none">ADMISSÃO</span>
                                   <span className="text-[4.5px] font-black text-slate-700 leading-none mt-0.5">
-                                    {new Date(selectedMember.registrationDate || Date.now()).toLocaleDateString('pt-BR')}
+                                    {formatDateBR(selectedMember.registrationDate || Date.now())}
                                   </span>
                                 </div>
                               </div>
@@ -4221,12 +4363,12 @@ export default function CredentialsPage() {
                               </div>
                               <div className="py-1 px-0.5 text-center flex flex-col justify-center min-w-0">
                                 <span className="text-[3.8px] font-black text-slate-400 block uppercase leading-none mb-0.5">NASCIMENTO</span>
-                                <span className="text-[5.5px] font-black text-slate-800 block leading-none">{selectedMember.birthDate || "-"}</span>
+                                <span className="text-[5.5px] font-black text-slate-800 block leading-none">{formatDateBR(selectedMember.birthDate)}</span>
                               </div>
                               <div className="py-1 px-0.5 text-center flex flex-col justify-center min-w-0">
                                 <span className="text-[3.8px] font-black text-slate-400 block uppercase leading-none mb-0.5">ADMISSÃO</span>
                                 <span className="text-[5.5px] font-black text-slate-800 block leading-none">
-                                  {new Date(selectedMember.registrationDate || Date.now()).toLocaleDateString('pt-BR')}
+                                  {formatDateBR(selectedMember.registrationDate || Date.now())}
                                 </span>
                               </div>
                             </div>
@@ -4454,7 +4596,7 @@ export default function CredentialsPage() {
                     className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
                   >
                     <Printer size={15} />
-                    <span>Imprimir Individual</span>
+                    <span>Imprimir Pop-Up</span>
                   </button>
 
                   {printQueue.some(item => item.printId === `${selectedMember.id}-${activeCredentialTab}`) ? (
@@ -4477,6 +4619,16 @@ export default function CredentialsPage() {
                       <span>Adicionar ao Lote</span>
                     </button>
                   )}
+
+                  {/* NEW DIRECT IN-PAGE PRINT BUTTON (BYPASSES POPUP BLOCKERS) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsDirectPrintOpen(true)}
+                    className="col-span-2 py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                  >
+                    <Printer size={16} className="text-amber-400" />
+                    <span>Impressão Direta A4 com Linhas de Corte (Sem Pop-Up)</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -4495,6 +4647,230 @@ export default function CredentialsPage() {
           )}
         </div>
       </div>
+
+      {/* MODAL 1: CHECK-IN SUCCESS TOAST BANNER */}
+      <AnimatePresence>
+        {checkInSuccessMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-xs"
+          >
+            <Check className="text-yellow-300" size={18} />
+            <span>{checkInSuccessMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 2: CAMERA QR SCANNER ACTION MODAL */}
+      <AnimatePresence>
+        {scannedParticipantModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 text-center"
+            >
+              <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl font-black">
+                {scannedParticipantModal.photoUrl ? (
+                  <img src={scannedParticipantModal.photoUrl} className="w-full h-full object-cover rounded-full" />
+                ) : (
+                  (scannedParticipantModal.name || 'U').charAt(0)
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider">Membro Localizado por QR Code</span>
+                <h3 className="text-lg font-black text-slate-900">{scannedParticipantModal.name}</h3>
+                <p className="text-xs text-slate-500 font-semibold">
+                  {scannedParticipantModal.isWorker ? 'Trabalhador Voluntário da Casa' : 'Participante / Assistido'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 pt-2">
+                <button
+                  onClick={async () => {
+                    if (!scannedParticipantModal) return;
+                    await dataService.recordCheckIn({
+                      participantId: scannedParticipantModal.id,
+                      participantName: scannedParticipantModal.name,
+                      sectorOrActivity: 'Portaria / Evento CEMIL',
+                      role: scannedParticipantModal.isWorker ? 'VOLUNTARIO' : 'ATENDIDO',
+                      status: 'PRESENTE',
+                      timestamp: Date.now(),
+                      method: 'QR_CODE'
+                    });
+                    setCheckInSuccessMessage(`Check-in de presença confirmado para ${scannedParticipantModal.name}!`);
+                    setTimeout(() => setCheckInSuccessMessage(null), 4000);
+                    setScannedParticipantModal(null);
+                  }}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  <Check size={16} />
+                  <span>Registrar Presença / Check-In Instantâneo</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleSelectMember(scannedParticipantModal);
+                    setScannedParticipantModal(null);
+                  }}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  <CreditCard size={16} />
+                  <span>Carregar no Gerador de Credencial</span>
+                </button>
+
+                <button
+                  onClick={() => setScannedParticipantModal(null)}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 3: DIRECT IN-PAGE A4 PRINT SHEET WITH CROP MARKS */}
+      <AnimatePresence>
+        {isDirectPrintOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex flex-col items-center justify-between p-4 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
+            {/* Top Bar (Hidden on print) */}
+            <div className="w-full max-w-4xl bg-slate-900 text-white p-4 rounded-2xl flex justify-between items-center mb-4 shadow-xl print:hidden">
+              <div className="flex items-center gap-2">
+                <Printer className="text-amber-400" size={20} />
+                <div>
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider">Folha de Impressão A4 - Marcas de Corte & Guilhotina</h4>
+                  <p className="text-[10px] text-slate-400">Layout de impressão direta sem dependência de janelas pop-up.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Printer size={15} /> Imprimir Folha A4
+                </button>
+                <button
+                  onClick={() => setIsDirectPrintOpen(false)}
+                  className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable A4 Sheet */}
+            <div id="cemil-direct-print-sheet" className="bg-white p-8 rounded-2xl border border-slate-200 shadow-2xl max-w-4xl w-full text-slate-900 print:shadow-none print:border-none print:p-0 print:max-w-none">
+              <style>{`
+                @media print {
+                  body * {
+                    visibility: hidden !important;
+                  }
+                  #cemil-direct-print-sheet, #cemil-direct-print-sheet * {
+                    visibility: visible !important;
+                  }
+                  #cemil-direct-print-sheet {
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 210mm !important;
+                    padding: 5mm !important;
+                    margin: 0 !important;
+                    background: #ffffff !important;
+                  }
+                  @page {
+                    size: A4 portrait;
+                    margin: 0mm;
+                  }
+                }
+              `}</style>
+
+              <div className="text-center border-b border-slate-300 pb-3 mb-6 print:mb-4">
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-900 block">SOCIEDADE ESPÍRITA MIRANTE DE LUZ</span>
+                <h2 className="text-sm font-black text-slate-900 uppercase">LOTE OFICIAL DE CREDENCIAIS DE IDENTIFICAÇÃO</h2>
+                <span className="text-[9px] text-slate-500 font-bold">
+                  Folha A4 Padronizada • {printQueue.length > 0 ? `${printQueue.length} credencial(is) no lote` : '1 credencial selecionada'}
+                </span>
+              </div>
+
+              {/* Cards Grid with Crop Marks */}
+              <div className="grid grid-cols-2 gap-6 print:gap-4 justify-items-center">
+                {(printQueue.length > 0 ? printQueue : (selectedMember ? [{
+                  printId: selectedMember.id,
+                  memberId: selectedMember.id,
+                  name: selectedMember.name,
+                  registrationDate: selectedMember.registrationDate,
+                  birthDate: selectedMember.birthDate || '',
+                  type: activeCredentialTab,
+                  customRole,
+                  customAccessLevel,
+                  customEventName,
+                  customEventDate,
+                  customExpiryDate,
+                  customPhoto,
+                  photoScale,
+                  photoShiftX,
+                  photoShiftY,
+                  photoRotate,
+                  bloodType: selectedMember.bloodType || '',
+                  allergies: selectedMember.allergies || '',
+                  emergencyContact: selectedMember.emergencyContact || '',
+                  phone: selectedMember.phone || '',
+                  email: selectedMember.email || '',
+                  selectedTemplate,
+                }] : [])).map((item, idx) => (
+                  <div key={item.printId || idx} className="relative p-2 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 flex flex-col items-center">
+                    {/* Corner Crop Marks (+) */}
+                    <span className="absolute -top-1 -left-1 text-[10px] font-black text-slate-400 select-none">+</span>
+                    <span className="absolute -top-1 -right-1 text-[10px] font-black text-slate-400 select-none">+</span>
+                    <span className="absolute -bottom-1 -left-1 text-[10px] font-black text-slate-400 select-none">+</span>
+                    <span className="absolute -bottom-1 -right-1 text-[10px] font-black text-slate-400 select-none">+</span>
+
+                    {/* Card Preview */}
+                    <div className="w-[210px] h-[320px] bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm p-3 flex flex-col justify-between text-left">
+                      <div className="flex items-center gap-2 border-b border-indigo-900 pb-2">
+                        <div className="w-6 h-6 bg-indigo-900 text-white rounded-md flex items-center justify-center text-xs font-black">
+                          {(item.name || 'U').charAt(0)}
+                        </div>
+                        <div>
+                          <span className="text-[6px] font-black uppercase text-indigo-900 block">CEMIL CRED</span>
+                          <h4 className="text-[9px] font-black text-slate-900 truncate max-w-[140px]">{item.name}</h4>
+                        </div>
+                      </div>
+
+                      <div className="my-2 flex gap-2 items-center">
+                        <div className="w-12 h-16 bg-slate-100 rounded border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                          {item.customPhoto ? (
+                            <img src={item.customPhoto} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-bold text-indigo-900">{(item.name || 'U').charAt(0)}</span>
+                          )}
+                        </div>
+                        <div className="text-[7px] space-y-0.5">
+                          <p className="font-black text-indigo-900 uppercase">{item.customRole}</p>
+                          <p className="text-slate-500 font-bold">{item.customAccessLevel}</p>
+                          <p className="text-[6px] text-slate-400 font-extrabold">REG: {formatRegistrationCode(item.memberId, item.registrationDate)}</p>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-200 pt-1 flex justify-between items-center text-[6px]">
+                        <span className="font-black text-slate-500">VAL: {item.customExpiryDate || '31/12/2026'}</span>
+                        <span className="font-black text-indigo-900 uppercase">OFICIAL CEMIL</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

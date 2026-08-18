@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Zap,
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   Search,
   MessageSquare,
@@ -21,6 +22,7 @@ import {
   CheckCircle2,
   Activity,
   Handshake,
+  HeartHandshake,
   BookOpen,
   Baby,
   Shield,
@@ -63,18 +65,29 @@ import {
   Check,
   ExternalLink,
   Share2,
-  Settings
+  Settings,
+  Wifi,
+  Video,
+  AlertCircle,
+  Phone,
+  Server
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
+import QRCode from 'qrcode';
 import { dataService } from '../services/dataService';
-import { ServiceQueueEntry, Sector, SectorDocument, formatSectorName, TechTicket, ConstructionProject, VisitorLog, CleaningChecklist, InventoryItem, TicketStatus, TicketPriority, Speaker, AgendaEvent, DoutrinarioMaterial, DoutrinarioReuniao, DoutrinarioTrabalhador, DoutrinarioApoio, DoutrinarioDiretriz } from '../types';
+import { ServiceQueueEntry, Sector, SectorDocument, formatSectorName, TechTicket, TechInfraItem, TechKnowledgeItem, TechLiveStream, ConstructionProject, VisitorLog, CleaningChecklist, InventoryItem, InventoryMovement, PatrimonioLoan, INVENTORY_CATEGORY_LABELS, INVENTORY_STATUS_LABELS, InventoryCategory, InventoryItemStatus, TicketStatus, TicketPriority, Speaker, AgendaEvent, DoutrinarioMaterial, DoutrinarioReuniao, DoutrinarioTrabalhador, DoutrinarioApoio, DoutrinarioDiretriz, ArteGroup, ArteSong, ArtePiece, ArteEnsaio, ArteEvento, ComunicacaoNotice, ComunicacaoPost, EvangelizacaoKid, EvangelizacaoRoom, EvangelizacaoAula, EvangelizacaoProjeto, EvangelizacaoFrequencia } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { cn } from '../lib/utils';
+import { cn, formatDateBR, formatDateTimeBR, getTodayBR } from '../lib/utils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { GoogleGenAI } from "@google/genai";
 import { DoutrinarioDashboard } from './DoutrinarioDashboard';
+import { ObrasDashboard } from './ObrasDashboard';
+import { MediunicoDashboard } from './MediunicoDashboard';
+import { PasseDashboard } from './PasseDashboard';
+import { SocialDashboard } from './social/SocialDashboard';
+import { FraternoDashboard } from './fraterno/FraternoDashboard';
 
 interface SectorDashboardProps {
   sectorId: string;
@@ -207,6 +220,7 @@ const StatCard = ({ title, value, icon: Icon, color, bg, shadow, delay }: any) =
 
 const getSubSectorIcon = (name: string) => {
   const norm = (name || '').toLowerCase();
+  if (norm.includes('fraterno')) return HeartHandshake;
   if (norm.includes('patrimôn') || norm.includes('material')) return Package;
   if (norm.includes('tecnolog') || norm.includes('informát') || norm.includes('ti')) return Laptop;
   if (norm.includes('obra') || norm.includes('reforma') || norm.includes('manuten')) return Wrench;
@@ -257,7 +271,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
 
   const isPatrimonio = subSectorKey.includes("Patrimônio") || subSectorKey.includes("Material");
   const isTecnologia = subSectorKey.includes("Tecnologia") || subSectorKey.includes("Informática");
-  const isObras = subSectorKey.includes("Obras") || subSectorKey.includes("Reformas") || subSectorKey.includes("Construção");
+  const isObras = subSectorKey.includes("Obras") || subSectorKey.includes("Reformas") || subSectorKey.includes("Construção") || subSectorKey.includes("Manuten") || subSectorKey.includes("Reparos");
   const isLimpeza = subSectorKey.includes("Recepção") || subSectorKey.includes("Limpeza") || subSectorKey.includes("Zelo");
   const isEstudos = subSectorKey.toLowerCase().includes("estudo") && !subSectorKey.toLowerCase().includes("doutrin");
   const isDoutrinario = subSectorKey.toLowerCase().includes("doutrin");
@@ -267,9 +281,10 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const isComunicacao = subSectorKey.toLowerCase().includes("comunicação") || subSectorKey.toLowerCase().includes("midia") || subSectorKey.toLowerCase().includes("mídia") || subSectorKey.toLowerCase().includes("redes") || subSectorKey.toLowerCase().includes("divulgação");
   const isPasse = subSectorKey.toLowerCase().includes("passe") || subSectorKey.toLowerCase().includes("fluidotera") || subSectorKey.toLowerCase().includes("harmonização") || subSectorKey.toLowerCase().includes("irradiação");
   const isSocial = subSectorKey.toLowerCase().includes("social") || subSectorKey.toLowerCase().includes("assistênc") || subSectorKey.toLowerCase().includes("cesta");
+  const isFraterno = subSectorKey.toLowerCase().includes("fraterno") || formatSectorName(sectorName || '').toLowerCase().includes("fraterno");
 
-  const isAdvancedSubSector = (isAdministrativo && adminTab.startsWith('sub-') && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isDoutrinario || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial)) ||
-                              (!isAdministrativo && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isDoutrinario || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial));
+  const isAdvancedSubSector = (isAdministrativo && adminTab.startsWith('sub-') && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isDoutrinario || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial || isFraterno)) ||
+                              (!isAdministrativo && (isPatrimonio || isTecnologia || isObras || isLimpeza || isEstudos || isDoutrinario || isEvangelizacao || isMediunica || isArte || isComunicacao || isPasse || isSocial || isFraterno));
 
   // --- ADMIN FINANCE STATES ---
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
@@ -360,11 +375,19 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [buyPrice, setBuyPrice] = useState('');
 
   // --- SUBSECTOR ADVANCED STATES ---
-  // 1. Material e Patrimônio
-  const [patrimonioItems, setPatrimonioItems] = useState<any[]>([]);
-  const [patLoans, setPatLoans] = useState<any[]>([]);
+  // 1. Material e Patrimônio (Unificado via Firestore)
+  const [patrimonioItems, setPatrimonioItems] = useState<InventoryItem[]>([]);
+  const [patLoans, setPatLoans] = useState<PatrimonioLoan[]>([]);
+  const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([]);
   const [patrimonioCategory, setPatrimonioCategory] = useState<string>('ALL');
   const [patrimonioTypeTab, setPatrimonioTypeTab] = useState<'TODOS' | 'PATRIMONIO' | 'MATERIAL'>('TODOS');
+  const [patrimonioMainSubTab, setPatrimonioMainSubTab] = useState<'ACERVO' | 'EMPRESTIMOS' | 'HISTORICO' | 'ETIQUETAS'>('ACERVO');
+  const [patrimonioSearch, setPatrimonioSearch] = useState<string>('');
+
+  // Modals for Loans & Termo de Comodato
+  const [comodatoModalLoan, setComodatoModalLoan] = useState<PatrimonioLoan | null>(null);
+  const [returnModalLoan, setReturnModalLoan] = useState<PatrimonioLoan | null>(null);
+  const [returnCondition, setReturnCondition] = useState<InventoryItemStatus>('BOM');
 
   // New QR States for Asset Tracking
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -445,7 +468,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
           }).catch((err) => {
             console.error("Camera permissions / trigger failed:", err);
             setCameraActive(false);
-            setCameraError("Não foi possível acessar a câmera do celular. Permissão negada ou em uso. Use os simuladores abaixo!");
+            setCameraError("Não foi possível acessar a câmera. Permissão negada ou não disponível. Utilize a seleção direta de ativos abaixo.");
           });
         } catch (e: any) {
           console.error("Scanner setup failed:", e);
@@ -476,12 +499,57 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [treasuryCashSession, setTreasuryCashSession] = useState<any | null>(null);
   const [closedSessionsHistory, setClosedSessionsHistory] = useState<any[]>([]);
   
-  // 2. Tecnologia e Informática
+  // 2. Tecnologia e Informática (TI & Inovação)
   const [techTickets, setTechTickets] = useState<TechTicket[]>([]);
+  const [techInfraList, setTechInfraList] = useState<TechInfraItem[]>([]);
+  const [techKnowledgeList, setTechKnowledgeList] = useState<TechKnowledgeItem[]>([]);
+  const [techLiveStreams, setTechLiveStreams] = useState<TechLiveStream[]>([]);
+  const [techActiveSubTab, setTechActiveSubTab] = useState<'tickets' | 'infra' | 'transmissoes' | 'knowledge'>('tickets');
+  
+  // Ticket Form & Filter States
   const [ticketStatusFilter, setTicketStatusFilter] = useState<string>('ALL');
+  const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('ALL');
+  const [ticketSearchQuery, setTicketSearchQuery] = useState<string>('');
   const [newTicketTitle, setNewTicketTitle] = useState('');
   const [newTicketDesc, setNewTicketDesc] = useState('');
-  const [newTicketPriority, setNewTicketPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA'>('MEDIA');
+  const [newTicketPriority, setNewTicketPriority] = useState<TicketPriority>('MEDIA');
+  const [newTicketCategory, setNewTicketCategory] = useState<'Redes e Wi-Fi' | 'Hardware e Computadores' | 'Software e Sistemas' | 'Som e Audiovisual' | 'Transmissão Ao Vivo' | 'Acessos e Senhas' | 'Outros'>('Redes e Wi-Fi');
+  const [newTicketLocation, setNewTicketLocation] = useState('');
+  const [newTicketAssetTag, setNewTicketAssetTag] = useState('');
+  
+  // Ticket Resolution Modal State
+  const [resolvingTicketId, setResolvingTicketId] = useState<string | null>(null);
+  const [resolutionNotesInput, setResolutionNotesInput] = useState('');
+  
+  // Infra Modal/Form States
+  const [infraModalOpen, setInfraModalOpen] = useState(false);
+  const [editingInfraId, setEditingInfraId] = useState<string | null>(null);
+  const [infraNameInput, setInfraNameInput] = useState('');
+  const [infraTypeInput, setInfraTypeInput] = useState<'Roteador Wi-Fi' | 'Servidor' | 'Mesa de Som' | 'Projetor/TV' | 'Nobreak' | 'Link Internet'>('Roteador Wi-Fi');
+  const [infraLocationInput, setInfraLocationInput] = useState('');
+  const [infraStatusInput, setInfraStatusInput] = useState<'Online' | 'Alerta' | 'Offline' | 'Manutenção'>('Online');
+  const [infraIpDetailsInput, setInfraIpDetailsInput] = useState('');
+
+  // Knowledge Item Form States
+  const [knowledgeModalOpen, setKnowledgeModalOpen] = useState(false);
+  const [editingKnowledgeId, setEditingKnowledgeId] = useState<string | null>(null);
+  const [knowledgeTitleInput, setKnowledgeTitleInput] = useState('');
+  const [knowledgeCategoryInput, setKnowledgeCategoryInput] = useState('Geral');
+  const [knowledgeProblemInput, setKnowledgeProblemInput] = useState('');
+  const [knowledgeSolutionInput, setKnowledgeSolutionInput] = useState('');
+  const [knowledgeStepsInput, setKnowledgeStepsInput] = useState('');
+
+  // Live Stream Form States
+  const [liveStreamModalOpen, setLiveStreamModalOpen] = useState(false);
+  const [editingLiveStreamId, setEditingLiveStreamId] = useState<string | null>(null);
+  const [liveTitleInput, setLiveTitleInput] = useState('');
+  const [liveSpeakerInput, setLiveSpeakerInput] = useState('');
+  const [liveDateInput, setLiveDateInput] = useState('');
+  const [liveTimeInput, setLiveTimeInput] = useState('');
+  const [livePlatformInput, setLivePlatformInput] = useState<'YouTube' | 'Instagram' | 'Facebook' | 'Interno'>('YouTube');
+  const [liveOperatorAudioInput, setLiveOperatorAudioInput] = useState('');
+  const [liveOperatorVideoInput, setLiveOperatorVideoInput] = useState('');
+  const [liveUrlInput, setLiveUrlInput] = useState('');
   
   // 3. Obras e Reformas
   const [obraProjects, setObraProjects] = useState<ConstructionProject[]>([]);
@@ -585,6 +653,18 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [studyClasses, setStudyClasses] = useState<any[]>([]);
   const [studyStudents, setStudyStudents] = useState<any[]>([]);
   const [studyMaterials, setStudyMaterials] = useState<any[]>([]);
+
+  // --- ESTUDOS ADVANCED STATES ---
+  const [estudosSubTab, setEstudosSubTab] = useState<'ciclos' | 'alunos' | 'chamada' | 'biblioteca'>('ciclos');
+  const [certificateStudent, setCertificateStudent] = useState<any | null>(null);
+  const [studyStudentSearch, setStudyStudentSearch] = useState('');
+  const [studyStudentClassFilter, setStudyStudentClassFilter] = useState('');
+
+  // Batch Attendance States
+  const [batchClassId, setBatchClassId] = useState<string>('');
+  const [batchDate, setBatchDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [batchTopic, setBatchTopic] = useState<string>('');
+  const [batchAttendance, setBatchAttendance] = useState<Record<string, boolean>>({});
   
   // Form states for adding courses/students
   const [newCourseName, setNewCourseName] = useState('');
@@ -598,31 +678,71 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   // Editing trackers for studies / evangelização / files
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
-  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
-  const [editingKidId, setEditingKidId] = useState<string | null>(null);
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
-  const [newKidAge, setNewKidAge] = useState<number>(6);
-
-  // New room/ciclo form states (so they can add/edit registered study cycles / classes in Evangelização!)
-  const [newRoomName, setNewRoomName] = useState('');
-  const [newRoomSchedule, setNewRoomSchedule] = useState('Sábados, 15:00');
-  const [newRoomLocation, setNewRoomLocation] = useState('Sala Infantil A');
-  const [newRoomLeaders, setNewRoomLeaders] = useState('');
 
   // --- EVANGELIZAÇÃO INFANTIL / JUVENTUDE STATE VARIABLES ---
+  const [evangelizacaoSubTab, setEvangelizacaoSubTab] = useState<'jovens' | 'ciclos' | 'diario_aulas' | 'projetos_juventude' | 'certificados_pdf'>('jovens');
   const [evangelizacaoRooms, setEvangelizacaoRooms] = useState<any[]>([]);
   const [evangelizacaoKids, setEvangelizacaoKids] = useState<any[]>([]);
+  const [evangelizacaoAulas, setEvangelizacaoAulas] = useState<any[]>([]);
+  const [evangelizacaoFrequencias, setEvangelizacaoFrequencias] = useState<any[]>([]);
+  const [evangelizacaoProjetos, setEvangelizacaoProjetos] = useState<any[]>([]);
+
+  // Jovens / Evangelizandos Form States
   const [newKidName, setNewKidName] = useState('');
+  const [newKidAge, setNewKidAge] = useState<number>(15);
   const [newKidResponsible, setNewKidResponsible] = useState('');
   const [newKidPhone, setNewKidPhone] = useState(''); // Parent/responsible phone
   const [newKidPhoneType, setNewKidPhoneType] = useState<'whatsapp' | 'telefone'>('whatsapp');
-  const [newKidPhone2, setNewKidPhone2] = useState(''); // Parent/responsible phone 2
+  const [newKidPhone2, setNewKidPhone2] = useState('');
   const [newKidPhoneType2, setNewKidPhoneType2] = useState<'whatsapp' | 'telefone'>('whatsapp');
-  const [newKidRelationship, setNewKidRelationship] = useState<string>('Pai');
+  const [newKidRelationship, setNewKidRelationship] = useState<string>('Mãe');
   const [newKidStudentPhone, setNewKidStudentPhone] = useState('');
   const [newKidStudentPhoneType, setNewKidStudentPhoneType] = useState<'whatsapp' | 'telefone'>('whatsapp');
+  const [newKidStudentEmail, setNewKidStudentEmail] = useState('');
   const [newKidAllergies, setNewKidAllergies] = useState('');
   const [newKidRoomId, setNewKidRoomId] = useState('');
+  const [newKidInterests, setNewKidInterests] = useState<string[]>([]);
+  const [newKidSchool, setNewKidSchool] = useState('');
+  const [newKidNotes, setNewKidNotes] = useState('');
+  const [editingKidId, setEditingKidId] = useState<string | null>(null);
+
+  // Ciclos / Turmas Form States
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomCategory, setNewRoomCategory] = useState<'INFANTIL' | 'MOCIDADE'>('MOCIDADE');
+  const [newRoomSchedule, setNewRoomSchedule] = useState('Sábados, 16:30');
+  const [newRoomLocation, setNewRoomLocation] = useState('Salão Mezanino');
+  const [newRoomLeaders, setNewRoomLeaders] = useState('');
+
+  // Diário de Aula States
+  const [editingAulaId, setEditingAulaId] = useState<string | null>(null);
+  const [newAulaRoomId, setNewAulaRoomId] = useState('');
+  const [newAulaDate, setNewAulaDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newAulaTopic, setNewAulaTopic] = useState('');
+  const [newAulaEvangelizador, setNewAulaEvangelizador] = useState('');
+  const [newAulaReference, setNewAulaReference] = useState('O Livro dos Espíritos');
+  const [newAulaSummary, setNewAulaSummary] = useState('');
+  const [newAulaDynamic, setNewAulaDynamic] = useState('');
+
+  // Chamada por Data States
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [attendanceRoomId, setAttendanceRoomId] = useState('');
+
+  // Projetos da Juventude Form States
+  const [editingProjetoId, setEditingProjetoId] = useState<string | null>(null);
+  const [newProjetoTitle, setNewProjetoTitle] = useState('');
+  const [newProjetoCategory, setNewProjetoCategory] = useState('AÇÃO_SOCIAL');
+  const [newProjetoCoordinator, setNewProjetoCoordinator] = useState('');
+  const [newProjetoDescription, setNewProjetoDescription] = useState('');
+  const [newProjetoAudience, setNewProjetoAudience] = useState('Juventude & Comunidade');
+  const [newProjetoStartDate, setNewProjetoStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newProjetoStatus, setNewProjetoStatus] = useState('EM_ANDAMENTO');
+  const [newProjetoNotes, setNewProjetoNotes] = useState('');
+
+  // Filter & Certificate Student
+  const [evaSearchTerm, setEvaSearchTerm] = useState('');
+  const [evaCycleFilter, setEvaCycleFilter] = useState<'TODOS' | 'INFANTIL' | 'MOCIDADE'>('TODOS');
 
   // --- ESTUDOS MEDIÚNICOS STATE VARIABLES ---
   const [mediunicaGroups, setMediunicaGroups] = useState<any[]>([]);
@@ -731,6 +851,18 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [isSimulatingInstaPublish, setIsSimulatingInstaPublish] = useState(false);
   const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
   const [copiedCaptionState, setCopiedCaptionState] = useState(false);
+
+  // Multi-Format Visualizer, Doutrinary Approval Lock, and Agenda Event Importer
+  const [previewChannelFormat, setPreviewChannelFormat] = useState<'IG_FEED' | 'IG_STORIES' | 'WHATSAPP' | 'MURAL_TV'>('IG_FEED');
+  const [showApprovalWarningModal, setShowApprovalWarningModal] = useState(false);
+  const [pendingPublishPost, setPendingPublishPost] = useState<any | null>(null);
+  const [showAgendaImportModal, setShowAgendaImportModal] = useState(false);
+  const [agendaEventsList, setAgendaEventsList] = useState<any[]>([
+    { id: 'ag1', title: 'Palestra Pública: O Evangelho e a Renovação do Ser', speaker: 'Dr. Fernando M. Silva', date: '2026-08-22', time: '19:30', room: 'Salão Principal', description: 'Reflexões evangélicas à luz da Doutrina Espírita para consolo e serenidade na jornada diária.' },
+    { id: 'ag2', title: 'Mocidade e Juventude Espírita: Escolhas e Valores', speaker: 'Heloísa Guimarães', date: '2026-08-23', time: '10:00', room: 'Auditório Anexo', description: 'Encontro fraterno com debates dinâmicos sobre caridade, tecnologia e fraternidade entre os jovens.' },
+    { id: 'ag3', title: 'Curso Básico de Espiritismo (Estudo Sistematizado)', speaker: 'Gabriel Chaves', date: '2026-08-24', time: '20:00', room: 'Sala Kardec', description: 'Abertura da nova turma de estudos focada na Obra Fundamental (O Livro dos Espíritos).' },
+    { id: 'ag4', title: 'Sopão Fraterno e Distribuição de Agasalhos', speaker: 'Área de Ação Social', date: '2026-08-29', time: '08:00', room: 'Pátio Social', description: 'Mutirão comunitário de acolhimento e nutrição para as famílias cadastradas na assistência.' }
+  ]);
 
   // Form states for Mídias & Criativos
   const [newMidiaName, setNewMidiaName] = useState('');
@@ -848,14 +980,22 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   const [newArteGroupLeader, setNewArteGroupLeader] = useState('');
   const [newArteGroupRehearsalDay, setNewArteGroupRehearsalDay] = useState('Sábados');
 
+  const [arteSearch, setArteSearch] = useState('');
+  const [viewingArteMediaModal, setViewingArteMediaModal] = useState<{ type: 'song' | 'piece', item: any } | null>(null);
+
   const [newSongTitle, setNewSongTitle] = useState('');
   const [newSongAuthor, setNewSongAuthor] = useState('');
   const [newSongTheme, setNewSongTheme] = useState('');
   const [newSongKey, setNewSongKey] = useState('C');
+  const [newSongLyrics, setNewSongLyrics] = useState('');
+  const [newSongSheetMusicUrl, setNewSongSheetMusicUrl] = useState('');
+  const [newSongAudioDemoUrl, setNewSongAudioDemoUrl] = useState('');
 
   const [newPieceTitle, setNewPieceTitle] = useState('');
   const [newPieceTheme, setNewPieceTheme] = useState('');
   const [newPieceAuthor, setNewPieceAuthor] = useState('');
+  const [newPieceScript, setNewPieceScript] = useState('');
+  const [newPieceCast, setNewPieceCast] = useState('');
 
   const [newEnsaioGroupId, setNewEnsaioGroupId] = useState('');
   const [newEnsaioDate, setNewEnsaioDate] = useState('');
@@ -1162,9 +1302,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       setSocialVisitas(updated);
       localStorage.setItem('social_visitas', JSON.stringify(updated));
     } else if (type === 'post') {
-      const updated = socialPosts.filter(x => x.id !== id);
-      setSocialPosts(updated);
-      localStorage.setItem('com_social_posts', JSON.stringify(updated));
+      dataService.deleteSocialPost(id).catch(err => console.error(err));
       if (editingSocialPostId === id) {
         setEditingSocialPostId(null);
       }
@@ -2199,6 +2337,54 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     }
   }, [currentViewSectorId, isAdministrativo, isAdvancedSubSector, isSocial, isDoutrinario]);
 
+  // Real-time listener for Inventory, Loans & Movements in Patrimonio & Admin
+  useEffect(() => {
+    if (isPatrimonio || isAdministrativo) {
+      const unsubInv = dataService.subscribeToInventory((items) => {
+        if (items) setPatrimonioItems(items);
+      });
+      const unsubLoans = dataService.subscribeToInventoryLoans((loans) => {
+        if (loans) setPatLoans(loans);
+      });
+      const unsubMovs = dataService.subscribeToInventoryMovements((movs) => {
+        if (movs) setInventoryMovements(movs);
+      });
+      return () => {
+        unsubInv();
+        unsubLoans();
+        unsubMovs();
+      };
+    }
+  }, [isPatrimonio, isAdministrativo]);
+
+  // Real-time listener for Arte Espírita collections
+  useEffect(() => {
+    if (isArte || (isAdministrativo && adminTab.includes('arte'))) {
+      const unsubG = dataService.subscribeArteGroups((items) => {
+        if (items) setArteGroups(items);
+      });
+      const unsubM = dataService.subscribeArteSongs((items) => {
+        if (items) setArteMusicas(items);
+      });
+      const unsubP = dataService.subscribeArtePieces((items) => {
+        if (items) setArtePecas(items);
+      });
+      const unsubE = dataService.subscribeArteEnsaios((items) => {
+        if (items) setArteEnsaios(items);
+      });
+      const unsubEv = dataService.subscribeArteEventos((items) => {
+        if (items) setArteEventos(items);
+      });
+      return () => {
+        unsubG();
+        unsubM();
+        unsubP();
+        unsubE();
+        unsubEv();
+      };
+    }
+  }, [isArte, isAdministrativo, adminTab]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -2318,46 +2504,11 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     }
 
     // 8. Load Advanced Sub-sector states
-    // A. Material e Patrimônio
-    const cachedPatItems = localStorage.getItem('admin_patrimonio_items');
-    if (cachedPatItems) {
-      try { setPatrimonioItems(JSON.parse(cachedPatItems)); } catch {}
-    } else {
-      const defaultPat = [
-        { id: 'pat1', name: 'Projetor Epson PowerLite LCD (Salão Principal)', category: 'ELETRONICOS', quantity: 1, minQuantity: 1, unit: 'unidade(s)', location: 'Salão Principal', status: 'BOM', lastUpdated: Date.now(), updatedBy: 'Carlos Alberto' },
-        { id: 'pat2', name: 'Notebook Dell Latitude Core i5 (Livraria)', category: 'ELETRONICOS', quantity: 1, minQuantity: 1, unit: 'unidade(s)', location: 'Livraria', status: 'BOM', lastUpdated: Date.now(), updatedBy: 'Carlos Alberto' },
-        { id: 'pat3', name: 'Cadeiras de PVC Brancas Altas', category: 'MOBILIARIO', quantity: 120, minQuantity: 100, unit: 'unidade(s)', location: 'Auditório', status: 'BOM', lastUpdated: Date.now(), updatedBy: 'Roberto Silva' },
-        { id: 'pat4', name: 'Detergente Neutro Limpol (Caixa de 24 un)', category: 'LIMPEZA', quantity: 2, minQuantity: 3, unit: 'caixa(s)', location: 'Almoxarifado', status: 'REGULAR', lastUpdated: Date.now(), updatedBy: 'Vera Lúcia' },
-        { id: 'pat5', name: 'Apostilas ESDE Tomo Único (FEB)', category: 'LIVRARIA', quantity: 0, minQuantity: 5, unit: 'unidade(s)', location: 'Livraria', status: 'EM_FALTA', lastUpdated: Date.now(), updatedBy: 'Maria Helena' }
-      ];
-      localStorage.setItem('admin_patrimonio_items', JSON.stringify(defaultPat));
-      setPatrimonioItems(defaultPat);
-    }
+    // A. Material e Patrimônio (Carregado em tempo real via Firestore)
+    // Subscrição é mantida via useEffect em dataService
 
-    const cachedLoans = localStorage.getItem('admin_pat_loans');
-    if (cachedLoans) {
-      try { setPatLoans(JSON.parse(cachedLoans)); } catch {}
-    } else {
-      const defaultLoans = [
-        { id: 'loan1', itemName: 'Projetor Epson PowerLite LCD', borrowerName: 'Paulo Roberto (Estudos)', loanDate: '2026-05-28', returnDate: '2026-05-28', status: 'Retirado' }
-      ];
-      localStorage.setItem('admin_pat_loans', JSON.stringify(defaultLoans));
-      setPatLoans(defaultLoans);
-    }
-
-    // B. Tecnologia e Informática
-    const cachedTickets = localStorage.getItem('admin_tech_tickets');
-    if (cachedTickets) {
-      try { setTechTickets(JSON.parse(cachedTickets)); } catch {}
-    } else {
-      const defaultTickets: TechTicket[] = [
-        { id: 'tk1', number: 'TI-0012', senderName: 'Dra. Ana Paula', senderEmail: 'anapaula@mirante.org', title: 'Wi-Fi oscilando no Mezanino', description: 'A conexão cai intermitentemente durante o atendimento fraterno aos sábados de manhã.', priority: 'ALTA', status: 'ABERTO', createdAt: Date.now() - 259200000 },
-        { id: 'tk2', number: 'TI-0013', senderName: 'Sr. Carlos Alberto', senderEmail: 'carlos@mirante.org', title: 'Impressora de Etiquetas Off-line', description: 'O computador da Livraria não se comunica com a impressora Brother térmica via USB.', priority: 'MEDIA', status: 'ATENDIMENTO', technicianName: 'Guilherme Santos', createdAt: Date.now() - 86400000 },
-        { id: 'tk3', number: 'TI-0014', senderName: 'Evangelizador Júlio', senderEmail: 'julio@mirante.org', title: 'Sincronização do projetor secundário', description: 'O cabo HDMI do projetor da sala 3 de evangelização está com mau contato.', priority: 'BAIXA', status: 'CONCLUIDO', technicianName: 'Guilherme Santos', createdAt: Date.now() - 3600000, completedAt: Date.now() }
-      ];
-      localStorage.setItem('admin_tech_tickets', JSON.stringify(defaultTickets));
-      setTechTickets(defaultTickets);
-    }
+    // B. Tecnologia e Informática (Carregado em tempo real via Firestore)
+    // Subscrições mantidas via useEffect e dataService
 
     // C. Obras e Reformas
     const cachedObras = localStorage.getItem('admin_obra_projects');
@@ -2499,15 +2650,17 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       setStudyMaterials(defaultMaterials);
     }
 
-    // 11. Evangelização Load
+    // 11. Evangelização e Juventude / Mocidade Load
     const cachedEvaRooms = localStorage.getItem('eva_rooms');
     if (cachedEvaRooms) {
       try { setEvangelizacaoRooms(JSON.parse(cachedEvaRooms)); } catch {}
     } else {
       const defaultEvaRooms = [
-        { id: 'er1', name: 'Maternal e Jardim (3 a 6 anos)', schedule: 'Sábados, 15:00', room: 'Sala Infantil A', leaders: 'Sandra & Helena', count: 12 },
-        { id: 'er2', name: 'Primário I e II (7 a 10 anos)', schedule: 'Sábados, 15:00', room: 'Sala Infantil B', leaders: 'Júlio & Regina', count: 18 },
-        { id: 'er3', name: 'Mocidade Espírita (11 a 15 anos)', schedule: 'Sábados, 16h30', room: 'Salão Mezanino', leaders: 'Fábio & Cris', count: 14 }
+        { id: 'er1', name: 'Maternal e Jardim (3 a 6 anos)', cycleCategory: 'INFANTIL', schedule: 'Sábados, 15:00', room: 'Sala Infantil A', leaders: 'Sandra & Helena', count: 12 },
+        { id: 'er2', name: 'Primário I e II (7 a 10 anos)', cycleCategory: 'INFANTIL', schedule: 'Sábados, 15:00', room: 'Sala Infantil B', leaders: 'Júlio & Regina', count: 18 },
+        { id: 'er3', name: 'Pré-Mocidade Espírita (11 a 14 anos)', cycleCategory: 'MOCIDADE', schedule: 'Sábados, 16:30', room: 'Salão Mezanino A', leaders: 'Fábio & Cris', count: 14 },
+        { id: 'er4', name: 'Mocidade I (15 a 18 anos)', cycleCategory: 'MOCIDADE', schedule: 'Sábados, 16:30', room: 'Salão Mezanino B', leaders: 'Lucas & Mariana', count: 16 },
+        { id: 'er5', name: 'Mocidade II & Universitários (18 a 25 anos)', cycleCategory: 'MOCIDADE', schedule: 'Sábados, 18:00', room: 'Auditório Anexo', leaders: 'Gabriel & Amanda', count: 12 }
       ];
       localStorage.setItem('eva_rooms', JSON.stringify(defaultEvaRooms));
       setEvangelizacaoRooms(defaultEvaRooms);
@@ -2518,12 +2671,38 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       try { setEvangelizacaoKids(JSON.parse(cachedEvaKids)); } catch {}
     } else {
       const defaultEvaKids = [
-        { id: 'k1', name: 'Arthur Dias Souza', age: 5, roomId: 'er1', responsible: 'Fernanda de Souza Santos', phone: '(11) 98124-5511', allergies: 'Glúten', authorized: true, presenceToday: true },
-        { id: 'k2', name: 'Beatriz Neves', age: 8, roomId: 'er2', responsible: 'Wellington Silva Neves', phone: '(11) 99187-0099', allergies: 'Nenhuma', authorized: true, presenceToday: true },
-        { id: 'k3', name: 'Mateus Cardoso', age: 14, roomId: 'er3', responsible: 'Amanda Cardoso', phone: '(11) 98444-1212', allergies: 'Lactose', authorized: true, presenceToday: false }
+        { id: 'k1', name: 'Arthur Dias Souza', age: 5, roomId: 'er1', responsible: 'Fernanda de Souza Santos', phone: '(11) 98124-5511', phoneType: 'whatsapp', relationship: 'Mãe', allergies: 'Glúten', authorized: true, presenceToday: true, interests: ['Desenho', 'Música'] },
+        { id: 'k2', name: 'Beatriz Neves', age: 8, roomId: 'er2', responsible: 'Wellington Silva Neves', phone: '(11) 99187-0099', phoneType: 'whatsapp', relationship: 'Pai', allergies: 'Nenhuma', authorized: true, presenceToday: true, interests: ['Teatro', 'Leitura'] },
+        { id: 'k3', name: 'Mateus Cardoso', age: 14, roomId: 'er3', responsible: 'Amanda Cardoso', phone: '(11) 98444-1212', phoneType: 'whatsapp', studentPhone: '(11) 97123-4455', studentPhoneType: 'whatsapp', relationship: 'Mãe', allergies: 'Lactose', authorized: true, presenceToday: false, interests: ['Música / Canto', 'Ação Social'], studentEmail: 'mateus.cardoso@email.com', schoolOrUniversity: 'Colégio Estadual Dom Pedro' },
+        { id: 'k4', name: 'Larissa Alencar Guedes', age: 17, roomId: 'er4', responsible: 'Roberto Guedes', phone: '(11) 98822-1133', phoneType: 'whatsapp', studentPhone: '(11) 98111-9988', studentPhoneType: 'whatsapp', relationship: 'Pai', allergies: 'Nenhuma', authorized: true, presenceToday: true, interests: ['Música / Canto', 'Passe', 'Ação Social'], studentEmail: 'larissa.guedes@email.com', schoolOrUniversity: 'Escola Técnica SP' },
+        { id: 'k5', name: 'Gabriel Mendes Ribeiro', age: 21, roomId: 'er5', responsible: 'Self (Maior)', phone: '(11) 97333-2211', phoneType: 'whatsapp', studentPhone: '(11) 97333-2211', studentPhoneType: 'whatsapp', relationship: 'Próprio Jovem', allergies: 'Nenhuma', authorized: true, presenceToday: true, interests: ['Expositor', 'Mapeamento Digital', 'Acolhimento'], studentEmail: 'gabriel.mendes@email.com', schoolOrUniversity: 'Universidade de São Paulo (USP)' }
       ];
       localStorage.setItem('eva_kids', JSON.stringify(defaultEvaKids));
       setEvangelizacaoKids(defaultEvaKids);
+    }
+
+    const cachedEvaAulas = localStorage.getItem('eva_aulas');
+    if (cachedEvaAulas) {
+      try { setEvangelizacaoAulas(JSON.parse(cachedEvaAulas)); } catch {}
+    } else {
+      const defaultEvaAulas = [
+        { id: 'au1', roomId: 'er4', roomName: 'Mocidade I (15 a 18 anos)', date: '2026-08-08', topic: 'Livre-Arbítrio, Escolhas e Consequências na Juventude', evangelizador: 'Lucas & Mariana', doctrinalReference: 'O Livro dos Espíritos - Questões 843 a 850', summary: 'Debate dinâmico em roda sobre dilemas cotidianos, mídias sociais e autonomia moral com base nas leis morais.', dynamicOrActivity: 'Roda de Conversa com Estudo de Casos Práticos' },
+        { id: 'au2', roomId: 'er5', roomName: 'Mocidade II & Universitários', date: '2026-08-08', topic: 'Transição Planetária e o Papel do Jovem Espírita', evangelizador: 'Gabriel & Amanda', doctrinalReference: 'O Evangelho Segundo o Espiritismo - Cap. III e A Gênese - Cap. XVIII', summary: 'Análise do panorama social atual e como o jovem pode contribuir ativamente no bem comum e na sustentabilidade espiritual.', dynamicOrActivity: 'Apresentação em slides e painel de discussão' }
+      ];
+      localStorage.setItem('eva_aulas', JSON.stringify(defaultEvaAulas));
+      setEvangelizacaoAulas(defaultEvaAulas);
+    }
+
+    const cachedEvaProjetos = localStorage.getItem('eva_projetos');
+    if (cachedEvaProjetos) {
+      try { setEvangelizacaoProjetos(JSON.parse(cachedEvaProjetos)); } catch {}
+    } else {
+      const defaultEvaProjetos = [
+        { id: 'pj1', title: 'Operação Auta de Souza - Arrecadação de Mantimentos', category: 'OPERAÇÃO_AUTA_DE_SOUZA', coordinator: 'Comissão da Juventude & Larissa', description: 'Visita fraterna aos bairros com arrecadação de alimentos não perecíveis e distribuição de mensagens espíritas de esperança.', targetAudience: 'Famílias Cadastradas no Setor Social', startDate: '2026-08-20', status: 'EM_ANDAMENTO', youthInvolvedCount: 18, notes: 'Ponto de encontro no Centro às 08h30 do sábado.' },
+        { id: 'pj2', title: 'Sarau e Mostra de Arte & Poesia Espírita da Juventude', category: 'SARAU_JOVEM', coordinator: 'Mateus & Gabriel', description: 'Apresentação de músicas autoriais, teatro e declamações poéticas com temas doutrinários e de reforma íntima.', targetAudience: 'Comunidade e Frequentadores da Casa', startDate: '2026-09-15', status: 'PLANEJADO', youthInvolvedCount: 25, notes: 'Aberto a todos os jovens da região.' }
+      ];
+      localStorage.setItem('eva_projetos', JSON.stringify(defaultEvaProjetos));
+      setEvangelizacaoProjetos(defaultEvaProjetos);
     }
 
     // 12. Estudos Mediúnicos Load
@@ -2843,6 +3022,277 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     }
   };
 
+  // --- FIRESTORE SUBSCRIPTIONS FOR COMUNICAÇÃO ESPÍRITA ---
+  useEffect(() => {
+    const unsubComs = dataService.subscribeComunicados((list) => {
+      if (list && list.length > 0) {
+        setComunicados(list);
+      } else {
+        const defaultComs: ComunicacaoNotice[] = [
+          { id: 'com1', title: 'Início da Campanha do Agasalho 2026', category: 'Campanhas', content: 'Conclamamos todos os irmãos a participarem da triagem e arrecadação de cobertores para as famílias assistidas pela nossa casa.', author: 'Coordenação Geral', date: '2026-05-20', target: 'Público Geral', status: 'publicado' },
+          { id: 'com2', title: 'Nova Turma de Educação Mediúnica', category: 'Estudos', content: 'Estão abertas as fichas de matrícula para o ciclo prático intensivo do Livro dos Médiuns, aos sábados à tarde.', author: 'Coordenação de Estudos', date: '2026-05-22', target: 'Médiuns', status: 'publicado' },
+          { id: 'com3', title: 'Plantão de Leitura Doutrinária', category: 'Reuniões', content: 'Pedimos atenção ao cronograma de escalas para a prece de abertura da palestra pública de Junho.', author: 'Área de Comunicação', date: '2026-05-25', target: 'Trabalhadores', status: 'rascunho' }
+        ];
+        defaultComs.forEach(c => dataService.saveComunicado(c));
+      }
+    });
+
+    const unsubPosts = dataService.subscribeSocialPosts((list) => {
+      if (list && list.length > 0) {
+        setSocialPosts(list);
+      } else {
+        const defaultPosts: ComunicacaoPost[] = [
+          { id: 'sp1', title: 'Post: Mensagem de Emmanuel', text: 'A caridade é o amor em movimento. Lembremo-nos de auxiliar com alegria e sem preconceitos na jornada.', platform: 'Instagram', date: '2026-05-30', hashtags: '#emmanuel #espiritismo #caridade', status: 'Planejado', responsible: 'Andréia Ramos' },
+          { id: 'sp2', title: 'Live: O Livro dos Espíritos - Q100', text: 'Transmissão ao vivo com estudo fraterno com base nas perguntas da escala espírita.', platform: 'YouTube', date: '2026-06-01', hashtags: '#livrodosespiritos #kardec #estudoespirita', status: 'Planejado', responsible: 'Gabriel Chaves' }
+        ];
+        defaultPosts.forEach(p => dataService.saveSocialPost(p));
+      }
+    });
+
+    const unsubMidias = dataService.subscribeComMidias((list) => {
+      if (list && list.length > 0) {
+        setMidias(list);
+      } else {
+        const defaultMidia = [
+          { id: 'md1', name: 'Folder: Palestra de Sábado', category: 'Artes e Design', designer: 'Lívia Gimenes', url: 'https://img.example.com/banner-sabado.png', status: 'Aprovado', spiritObjective: 'Divulgar a palestra pública com foco no consolo aos corações aflitos.' },
+          { id: 'md2', name: 'Podcast: Gotas de Prece - Eps 32', category: 'Podcasts', designer: 'Mateus Lima', url: 'https://audio.example.com/gotas-prece-32.mp3', status: 'Em Revisão Doutrinária', spiritObjective: 'Auxiliar na harmonização matinal diária por meio de pequenos pensamentos evangélicos.' }
+        ];
+        defaultMidia.forEach(m => dataService.saveComMidia(m));
+      }
+    });
+
+    const unsubEquipe = dataService.subscribeComEquipe((list) => {
+      if (list && list.length > 0) {
+        setEquipeMembros(list);
+      } else {
+        const defaultEquipe = [
+          { id: 'eq1', name: 'Andréia Ramos', role: 'Social Media', availability: 'Sábados e Domingos', equipments: 'Celular Pessoal / Canva' },
+          { id: 'eq2', name: 'Lívia Gimenes', role: 'Designer', availability: 'Sextas e Segundas', equipments: 'Notebook / Creative Cloud' },
+          { id: 'eq3', name: 'Gabriel Chaves', role: 'Revisor Doutrinário', availability: 'Diária (Remoto)', equipments: 'Obras Básicas de Kardec' }
+        ];
+        defaultEquipe.forEach(e => dataService.saveComEquipe(e));
+      }
+    });
+
+    const unsubCampanhas = dataService.subscribeComCampanhas((list) => {
+      if (list && list.length > 0) {
+        setCampanhas(list);
+      } else {
+        const defaultCampanhas = [
+          { id: 'cam1', name: 'Alimentando Almas - Sopão Fraterno', objective: 'Amparo social e pregação do evangelho em bairros de vulnerabilidade.', target: 'Famílias Carentes', date: '2026-06-10', responsible: 'Andréia Ramos', status: 'Planejada', media: 'https://drive.google.com/drive/folders/sopao', result: 'Previsão de 100 refeições e folhetos de esclarecimento.' },
+          { id: 'cam2', name: 'Feira do Livro de Kardec 2026', objective: 'Divulgação em praça pública das obras fundamentais espíritas a preços subsidiados.', target: 'Público Geral', date: '2026-04-18', responsible: 'Lívia Gimenes', status: 'Concluída', media: 'https://photos.app.goo.gl/feira-kardec', result: '143 livros vendidos e dezenas de esclarecimentos consoladores.' }
+        ];
+        defaultCampanhas.forEach(c => dataService.saveComCampanha(c));
+      }
+    });
+
+    // Subscrições TI
+    const unsubTechTickets = dataService.subscribeTechTickets((list) => {
+      if (list && list.length > 0) {
+        setTechTickets(list);
+      } else {
+        const defaultTickets: TechTicket[] = [
+          {
+            id: 'tk1',
+            number: 'TI-0012',
+            senderName: 'Dra. Ana Paula',
+            senderEmail: 'anapaula@mirante.org',
+            title: 'Wi-Fi oscilando no Mezanino',
+            description: 'A conexão cai intermitentemente durante o atendimento fraterno aos sábados de manhã.',
+            priority: 'ALTA',
+            status: 'ABERTO',
+            category: 'Redes e Wi-Fi',
+            location: 'Mezanino / Atendimento Fraterno',
+            createdAt: Date.now() - 259200000
+          },
+          {
+            id: 'tk2',
+            number: 'TI-0013',
+            senderName: 'Sr. Carlos Alberto',
+            senderEmail: 'carlos@mirante.org',
+            title: 'Impressora de Etiquetas Off-line',
+            description: 'O computador da Livraria não se comunica com a impressora Brother térmica via USB.',
+            priority: 'MEDIA',
+            status: 'ATENDIMENTO',
+            category: 'Hardware e Computadores',
+            location: 'Livraria Espírita',
+            technicianName: 'Guilherme Santos',
+            createdAt: Date.now() - 86400000
+          },
+          {
+            id: 'tk3',
+            number: 'TI-0014',
+            senderName: 'Evangelizador Júlio',
+            senderEmail: 'julio@mirante.org',
+            title: 'Sincronização do projetor secundário',
+            description: 'O cabo HDMI do projetor da sala 3 de evangelização está com mau contato.',
+            priority: 'BAIXA',
+            status: 'CONCLUIDO',
+            category: 'Som e Audiovisual',
+            location: 'Sala 03 - Evangelização',
+            technicianName: 'Guilherme Santos',
+            createdAt: Date.now() - 3600000,
+            completedAt: Date.now(),
+            resolutionNotes: 'Cabo HDMI substituído por cabo blindado de 5m e fixado em canaleta.'
+          }
+        ];
+        defaultTickets.forEach(t => dataService.saveTechTicket(t));
+      }
+    });
+
+    const unsubTechInfra = dataService.subscribeTechInfra((list) => {
+      if (list && list.length > 0) {
+        setTechInfraList(list);
+      } else {
+        const defaultInfra: TechInfraItem[] = [
+          { id: 'inf1', name: 'Roteador Wi-Fi Principal (Sede)', type: 'Roteador Wi-Fi', location: 'Secretaria / Recepção', status: 'Online', ipOrDetails: '192.168.1.1 (Fibra 500MB Dedicated)', lastChecked: 'Hoje às 08:00', responsible: 'Guilherme TI' },
+          { id: 'inf2', name: 'Servidor Local CEMIL (Docker)', type: 'Servidor', location: 'Sala de TI / CPD', status: 'Online', ipOrDetails: '192.168.1.10 (Backup Automático 02h)', lastChecked: 'Hoje às 08:00', responsible: 'Guilherme TI' },
+          { id: 'inf3', name: 'Mesa de Som Digital Behringer X32', type: 'Mesa de Som', location: 'Auditório Principal', status: 'Online', ipOrDetails: '32 Cxs / Snake Digital / AES50', lastChecked: 'Hoje às 07:30', responsible: 'Marcos Vinícius' },
+          { id: 'inf4', name: 'Projetor Epson EH-TW740 3300 Lumens', type: 'Projetor/TV', location: 'Auditório Principal', status: 'Online', ipOrDetails: 'Lamp 420h / HDMI 1 & 2 Ativos', lastChecked: 'Ontem', responsible: 'Gabriel Chaves' },
+          { id: 'inf5', name: 'Nobreak Central APC Smart-UP 3000VA', type: 'Nobreak', location: 'Sala de TI / CPD', status: 'Online', ipOrDetails: 'Bateria 100% / Autonomia 45min', lastChecked: 'Hoje às 08:00', responsible: 'Guilherme TI' },
+          { id: 'inf6', name: 'Link de Internet Secundário (Redundância)', type: 'Link Internet', location: 'CPD / Sede', status: 'Alerta', ipOrDetails: 'Chip Vivo Corporate (Sinal fraco 2G)', lastChecked: 'Hoje às 07:00', responsible: 'Guilherme TI' }
+        ];
+        defaultInfra.forEach(i => dataService.saveTechInfra(i));
+      }
+    });
+
+    const unsubTechKnowledge = dataService.subscribeTechKnowledge((list) => {
+      if (list && list.length > 0) {
+        setTechKnowledgeList(list);
+      } else {
+        const defaultKnowledge: TechKnowledgeItem[] = [
+          {
+            id: 'kn1',
+            title: 'Como Ligar o Som e Caixas do Auditório Principal',
+            category: 'Som e Audiovisual',
+            problem: 'Microfones sem áudio ou ruído nas caixas ativas antes da palestra pública.',
+            solution: 'Seguir a sequência exata de energia para evitar estouro nos alto-falantes.',
+            steps: [
+              '1. Ligue o Nobreak principal do rack de áudio no palco.',
+              '2. Ligue a mesa Behringer e aguarde carregar a cena "PALESTRA_SABADO".',
+              '3. Verifique as pilhas dos microfones sem fio Sennheiser (mínimo 2 barras).',
+              '4. Por último, ligue as caixas de som ativas laterais.'
+            ],
+            updatedAt: '2026-05-10'
+          },
+          {
+            id: 'kn2',
+            title: 'Conexão Wi-Fi de Trabalhadores e Visitantes',
+            category: 'Redes e Wi-Fi',
+            problem: 'Evangelizador ou expositor não consegue conectar no Wi-Fi interno.',
+            solution: 'Verificar se o dispositivo está tentando se conectar na rede correta e usar a chave institucional.',
+            steps: [
+              '1. Para frequentadores gerais, direcione para a rede "CEMIL-Visitantes" (sem senha, portal de boas-vindas).',
+              '2. Para trabalhadores, selecione "CEMIL-Trabalhadores" e use a chave informada na Secretaria.',
+              '3. Se a conexão falhar, desative o Wi-Fi do celular por 5 segundos e reconecte.'
+            ],
+            updatedAt: '2026-05-15'
+          }
+        ];
+        defaultKnowledge.forEach(k => dataService.saveTechKnowledge(k));
+      }
+    });
+
+    const unsubTechLiveStreams = dataService.subscribeTechLiveStreams((list) => {
+      if (list && list.length > 0) {
+        setTechLiveStreams(list);
+      } else {
+        const defaultLiveStreams: TechLiveStream[] = [
+          {
+            id: 'liv1',
+            title: 'Palestra Pública: O Livro dos Espíritos Q.100',
+            speaker: 'Dr. Haroldo Dutra',
+            date: '2026-08-16',
+            time: '19:30',
+            platform: 'YouTube',
+            operatorAudio: 'Marcos Vinícius',
+            operatorVideo: 'Gabriel Chaves',
+            status: 'Agendado',
+            streamUrl: 'https://youtube.com/live/cemil-100',
+            checklist: { audioOk: true, videoOk: true, networkOk: true, slidesOk: true }
+          }
+        ];
+        defaultLiveStreams.forEach(l => dataService.saveTechLiveStream(l));
+      }
+    });
+
+    // Subscrições Evangelização Infantil & Juventude
+    const unsubEvaRooms = dataService.subscribeEvangelizacaoRooms((list) => {
+      if (list && list.length > 0) {
+        setEvangelizacaoRooms(list);
+      } else {
+        const defaultEvaRooms: EvangelizacaoRoom[] = [
+          { id: 'er1', name: 'Maternal (3 a 4 anos)', cycle: 'Maternal', ageRange: '3 a 4 anos', evangelistaName: 'Sandra & Helena', auxiliarName: 'Ana Clara', locationRoom: 'Sala Infantil A' },
+          { id: 'er2', name: 'Jardim (5 a 6 anos)', cycle: 'Jardim', ageRange: '5 a 6 anos', evangelistaName: 'Renata & Carlos', auxiliarName: 'Beatriz', locationRoom: 'Sala Infantil B' },
+          { id: 'er3', name: '1º Ciclo (7 a 8 anos)', cycle: '1º Ciclo', ageRange: '7 a 8 anos', evangelistaName: 'Júlio & Regina', auxiliarName: 'Patrícia', locationRoom: 'Sala 01' },
+          { id: 'er4', name: '2º Ciclo (9 a 10 anos)', cycle: '2º Ciclo', ageRange: '9 a 10 anos', evangelistaName: 'Márcio & Tânia', auxiliarName: 'Daniel', locationRoom: 'Sala 02' },
+          { id: 'er5', name: '3º Ciclo (11 a 12 anos)', cycle: '3º Ciclo', ageRange: '11 a 12 anos', evangelistaName: 'Fábio & Cris', auxiliarName: 'Mariana', locationRoom: 'Sala 03' },
+          { id: 'er6', name: 'Juventude Espírita (13 a 18 anos)', cycle: 'Mocidade', ageRange: '13 a 18 anos', evangelistaName: 'Lucas & Amanda', auxiliarName: 'Gabriel', locationRoom: 'Salão Mezanino' }
+        ];
+        defaultEvaRooms.forEach(r => dataService.saveEvangelizacaoRoom(r));
+      }
+    });
+
+    const unsubEvaKids = dataService.subscribeEvangelizacaoKids((list) => {
+      if (list && list.length > 0) {
+        setEvangelizacaoKids(list);
+      } else {
+        const defaultEvaKids: EvangelizacaoKid[] = [
+          { id: 'k1', name: 'Arthur Dias Souza', age: 4, birthDate: '2022-03-15', roomId: 'er1', parentName: 'Fernanda de Souza Santos', parentPhone: '(11) 98124-5511', parentLocationInHouse: 'Auditório Principal - Fileira Meio', allergiesOrMedicalInfo: 'Glúten', badges: ['Acolhimento ao Colega'], presenceToday: true },
+          { id: 'k2', name: 'Beatriz Neves', age: 8, birthDate: '2018-05-20', roomId: 'er3', parentName: 'Wellington Silva Neves', parentPhone: '(11) 99187-0099', parentLocationInHouse: 'Sala de Passe / Atendimento Fraterno', allergiesOrMedicalInfo: 'Nenhuma', badges: ['Estrela de Assiduidade', 'Leitura do Evangelho'], presenceToday: true },
+          { id: 'k3', name: 'Mateus Cardoso', age: 14, birthDate: '2012-11-02', roomId: 'er6', parentName: 'Amanda Cardoso', parentPhone: '(11) 98444-1212', parentLocationInHouse: 'Estudo das Obras Básicas - Sala 04', allergiesOrMedicalInfo: 'Lactose', badges: ['Cooperação Fraterna', 'Acolhimento ao Colega'], presenceToday: false },
+          { id: 'k4', name: 'Larissa Alencar Guedes', age: 17, birthDate: '2009-07-11', roomId: 'er6', parentName: 'Roberto Guedes', parentPhone: '(11) 98822-1133', parentLocationInHouse: 'Voluntário na Livraria/Café', allergiesOrMedicalInfo: 'Nenhuma', badges: ['Estrela de Assiduidade', 'Leitura do Evangelho', 'Cooperação Fraterna'], presenceToday: true }
+        ];
+        defaultEvaKids.forEach(k => dataService.saveEvangelizacaoKid(k));
+      }
+    });
+
+    const unsubEvaAulas = dataService.subscribeEvangelizacaoAulas((list) => {
+      if (list && list.length > 0) {
+        setEvangelizacaoAulas(list);
+      } else {
+        const defaultAulas: EvangelizacaoAula[] = [
+          { id: 'au1', roomId: 'er6', date: '2026-08-08', theme: 'Livre-Arbítrio, Escolhas e Consequências na Juventude', doctrineReference: 'O Livro dos Espíritos - Questões 843 a 850', objective: 'Compreender a responsabilidade individual sobre as escolhas segundo a lei de causa e efeito.', activities: 'Roda de conversa com estudo de casos práticos e dinâmica dos nós.', materialNeeded: 'Cartões com dilemas éticos, papéis e canetas.' },
+          { id: 'au2', roomId: 'er3', date: '2026-08-08', theme: 'A Parábola do Semeador e as Boas Sementes no Coração', doctrineReference: 'O Evangelho segundo o Espiritismo - Cap. XVII', objective: 'Incentivar o cultivo das virtudes e atitudes fraternas no dia a dia escolar e familiar.', activities: 'Atividade prática de plantio de sementes de girassol em vasos recicláveis.', materialNeeded: 'Copos ecológicos, terra fértil e sementes.' }
+        ];
+        defaultAulas.forEach(a => dataService.saveEvangelizacaoAula(a));
+      }
+    });
+
+    const unsubEvaProjetos = dataService.subscribeEvangelizacaoProjetos((list) => {
+      if (list && list.length > 0) {
+        setEvangelizacaoProjetos(list);
+      } else {
+        const defaultProjetos: EvangelizacaoProjeto[] = [
+          { id: 'pj1', title: 'Operação Auta de Souza - Arrecadação Fraterna', category: 'Campanha do Quilo', date: '2026-08-20', responsible: 'Lucas & Mocidade Espírita', description: 'Visita fraterna aos bairros com arrecadação de mantimentos e distribuição de mensagens consoladoras.', status: 'Em Execução' },
+          { id: 'pj2', title: 'Teatro da Mocidade: O Reformador Invisível', category: 'Teatro & Arte', date: '2026-09-15', responsible: 'Amanda & Grupo de Arte', description: 'Apresentação teatral sobre a vida de Allan Kardec e os princípios de fraternidade para o público infanto-juvenil.', status: 'Planejado' }
+        ];
+        defaultProjetos.forEach(p => dataService.saveEvangelizacaoProjeto(p));
+      }
+    });
+
+    const unsubEvaFreq = dataService.subscribeEvangelizacaoFrequencia((list) => {
+      setEvangelizacaoFrequencias(list || []);
+    });
+
+    return () => {
+      unsubComs();
+      unsubPosts();
+      unsubMidias();
+      unsubEquipe();
+      unsubCampanhas();
+      unsubTechTickets();
+      unsubTechInfra();
+      unsubTechKnowledge();
+      unsubTechLiveStreams();
+      unsubEvaRooms();
+      unsubEvaKids();
+      unsubEvaAulas();
+      unsubEvaProjetos();
+      unsubEvaFreq();
+    };
+  }, []);
+
   // --- NEW WORKSPACE/STUDIES ACTION HANDLERS ---
   const handleAddCourseAndClass = (courseName: string, category: string, schedule: string) => {
     if (editingCourseId) {
@@ -2876,6 +3326,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
         localStorage.setItem('study_classes', JSON.stringify(updatedClasses));
       }
 
+      dataService.createLog('ESTUDOS', `Curso/Turma [${courseName}] atualizado com sucesso por ${currentUser?.name || 'Coordenador'}.`);
+
       setEditingCourseId(null);
       setNewCourseName('');
       setNewCourseCategory('ESDE');
@@ -2894,6 +3346,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     const updatedClasses = [...studyClasses, newClass];
     setStudyClasses(updatedClasses);
     localStorage.setItem('study_classes', JSON.stringify(updatedClasses));
+
+    dataService.createLog('ESTUDOS', `Novo Curso [${courseName}] e Turma gerados no ciclo [${category}] por ${currentUser?.name || 'Coordenador'}.`);
   };
 
   const handleAddStudyStudent = (name: string, phone: string, classId: string) => {
@@ -2906,6 +3360,9 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       });
       setStudyStudents(updated);
       localStorage.setItem('study_students', JSON.stringify(updated));
+
+      dataService.createLog('ESTUDOS', `Matrícula do aluno [${name}] atualizada no módulo de Estudos.`);
+
       setEditingStudentId(null);
       setNewStudentName('');
       setNewStudentPhone('');
@@ -2913,10 +3370,23 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       return;
     }
 
-    const newStudent = { id: 'st_' + Date.now(), name, phone, classId, email: name.toLowerCase().replace(/\s/g, '') + '@email.com', presence: [true, true, true], warnings: 0, status: 'Ativo' };
+    const newStudent = { 
+      id: 'st_' + Date.now(), 
+      name, 
+      phone, 
+      classId, 
+      email: name.toLowerCase().replace(/\s/g, '') + '@email.com', 
+      presence: [true, true, true], 
+      warnings: 0, 
+      status: 'Ativo',
+      enrollmentDate: new Date().toISOString().split('T')[0]
+    };
     const updated = [...studyStudents, newStudent];
     setStudyStudents(updated);
     localStorage.setItem('study_students', JSON.stringify(updated));
+
+    const targetClass = studyClasses.find(c => c.id === classId);
+    dataService.createLog('ESTUDOS', `Nova matrícula: Aluno [${name}] registrado na turma [${targetClass?.name || 'Estudos'}] por ${currentUser?.name || 'Secretaria'}.`);
   };
 
   const handleDeleteCourse = (courseId: string, name: string) => {
@@ -2933,6 +3403,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       setEditingCourseId(null);
       setNewCourseName('');
     }
+
+    dataService.createLog('ESTUDOS', `Curso [${name}] excluído da grade curricular.`);
   };
 
   const handleDeleteStudyStudent = (studentId: string, name: string) => {
@@ -2946,6 +3418,8 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       setNewStudentName('');
       setNewStudentClassId('');
     }
+
+    dataService.createLog('ESTUDOS', `Matrícula do aluno [${name}] cancelada/removida.`);
   };
 
   const handleToggleStudyPresence = (id: string, index: number) => {
@@ -2953,12 +3427,60 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       if (st.id === id) {
         const nextPres = [...st.presence];
         nextPres[index] = !nextPres[index];
-        return { ...st, presence: nextPres };
+        const presentsCount = nextPres.filter(Boolean).length;
+        const totalCount = nextPres.length;
+        const ratio = totalCount > 0 ? (presentsCount / totalCount) : 1;
+        let newStatus = 'Ativo';
+        if (ratio < 0.6) {
+          newStatus = 'Alerta (Frequência)';
+        } else if (ratio >= 0.85 && totalCount >= 4) {
+          newStatus = 'Concluído / Aprovado';
+        }
+        return { ...st, presence: nextPres, status: newStatus };
       }
       return st;
     });
     setStudyStudents(updated);
     localStorage.setItem('study_students', JSON.stringify(updated));
+  };
+
+  const handleSaveBatchAttendance = () => {
+    if (!batchClassId) {
+      alert("Selecione a turma para registrar a chamada!");
+      return;
+    }
+    const classStudents = studyStudents.filter(st => st.classId === batchClassId);
+    if (classStudents.length === 0) {
+      alert("Nenhum aluno matriculado nesta turma para realizar a chamada.");
+      return;
+    }
+
+    const updatedStudents = studyStudents.map(st => {
+      if (st.classId === batchClassId) {
+        const isPresent = batchAttendance[st.id] !== false; // default true
+        const nextPres = [...(st.presence || []), isPresent];
+        const presentsCount = nextPres.filter(Boolean).length;
+        const ratio = presentsCount / nextPres.length;
+        let newStatus = 'Ativo';
+        if (ratio < 0.6) {
+          newStatus = 'Alerta (Frequência)';
+        } else if (ratio >= 0.85 && nextPres.length >= 4) {
+          newStatus = 'Concluído / Aprovado';
+        }
+        return { ...st, presence: nextPres, status: newStatus };
+      }
+      return st;
+    });
+
+    setStudyStudents(updatedStudents);
+    localStorage.setItem('study_students', JSON.stringify(updatedStudents));
+
+    const targetClass = studyClasses.find(c => c.id === batchClassId);
+    dataService.createLog('ESTUDOS', `Chamada realizada em lote na turma [${targetClass?.name || 'Turma'}] em [${batchDate}]. Tema: "${batchTopic || 'Aula Regular'}". Presentes: ${Object.values(batchAttendance).filter(v => v !== false).length}/${classStudents.length}.`);
+
+    alert(`Diário de classe e chamada gravados com sucesso para a turma "${targetClass?.name}"!`);
+    setBatchTopic('');
+    setBatchAttendance({});
   };
 
   const handleAddCategory = (id: string, name: string) => {
@@ -2997,7 +3519,7 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     localStorage.setItem('study_categories', JSON.stringify(updated));
   };
 
-  const handleRegisterEvaKid = (
+  const handleRegisterEvaKid = async (
     name: string, 
     age: number, 
     roomId: string, 
@@ -3009,88 +3531,68 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     relationship: string,
     studentPhone: string,
     studentPhoneType: 'whatsapp' | 'telefone',
-    allergies: string
+    studentEmail: string,
+    allergies: string,
+    interests: string[],
+    schoolOrUniversity: string,
+    observations: string
   ) => {
     if (editingKidId) {
-      const updatedKids = evangelizacaoKids.map(k => {
-        if (k.id === editingKidId) {
-          return { 
-            ...k, 
-            name, 
-            age, 
-            roomId, 
-            responsible, 
-            phone, 
-            phoneType,
-            phone2,
-            phoneType2,
-            relationship,
-            studentPhone,
-            studentPhoneType,
-            allergies: allergies || 'Nenhuma' 
-          };
-        }
-        return k;
-      });
-      setEvangelizacaoKids(updatedKids);
-      localStorage.setItem('eva_kids', JSON.stringify(updatedKids));
+      const existingKid = evangelizacaoKids.find(k => k.id === editingKidId);
+      const updatedKid: EvangelizacaoKid = {
+        ...existingKid,
+        id: editingKidId,
+        name,
+        age,
+        roomId,
+        parentName: responsible || (age >= 18 ? 'Próprio Jovem' : ''),
+        parentPhone: phone,
+        parentLocationInHouse: newKidNotes || existingKid?.parentLocationInHouse || 'Auditório Principal',
+        allergiesOrMedicalInfo: allergies || 'Nenhuma',
+        presenceToday: existingKid?.presenceToday ?? true,
+        badges: existingKid?.badges || ['Acolhimento ao Colega']
+      };
+      await dataService.saveEvangelizacaoKid(updatedKid);
 
       setEditingKidId(null);
       setNewKidName('');
       setNewKidResponsible('');
       setNewKidRoomId('');
       setNewKidAllergies('');
-      setNewKidAge(6);
+      setNewKidAge(15);
       setNewKidPhone('');
-      setNewKidPhoneType('whatsapp');
       setNewKidPhone2('');
-      setNewKidPhoneType2('whatsapp');
-      setNewKidRelationship('Pai');
-      setNewKidStudentPhone('');
-      setNewKidStudentPhoneType('whatsapp');
+      setNewKidNotes('');
       return;
     }
 
-    const newKid = { 
-      id: 'kid_' + Date.now(), 
-      name, 
-      age, 
-      roomId, 
-      responsible, 
-      phone, 
-      phoneType,
-      phone2,
-      phoneType2,
-      relationship,
-      studentPhone,
-      studentPhoneType,
-      allergies: allergies || 'Nenhuma', 
-      authorized: true, 
-      presenceToday: true 
+    const newKid: EvangelizacaoKid = {
+      id: 'kid_' + Date.now(),
+      name,
+      age,
+      roomId,
+      parentName: responsible || (age >= 18 ? 'Próprio Jovem' : ''),
+      parentPhone: phone,
+      parentLocationInHouse: newKidNotes || 'Auditório Principal',
+      allergiesOrMedicalInfo: allergies || 'Nenhuma',
+      presenceToday: true,
+      badges: ['Acolhimento ao Colega']
     };
-    const updated = [...evangelizacaoKids, newKid];
-    setEvangelizacaoKids(updated);
-    localStorage.setItem('eva_kids', JSON.stringify(updated));
+    await dataService.saveEvangelizacaoKid(newKid);
 
     setNewKidName('');
     setNewKidResponsible('');
     setNewKidRoomId('');
     setNewKidAllergies('');
-    setNewKidAge(6);
+    setNewKidAge(15);
     setNewKidPhone('');
-    setNewKidPhoneType('whatsapp');
     setNewKidPhone2('');
-    setNewKidPhoneType2('whatsapp');
-    setNewKidRelationship('Pai');
-    setNewKidStudentPhone('');
-    setNewKidStudentPhoneType('whatsapp');
+    setNewKidNotes('');
   };
 
-  const handleDeleteEvaKid = (kidId: string, name: string) => {
-    if (!window.confirm(`Deseja realmente cancelar a matrícula do evangelizando "${name}"?`)) return;
-    const updatedKids = evangelizacaoKids.filter(k => k.id !== kidId);
-    setEvangelizacaoKids(updatedKids);
-    localStorage.setItem('eva_kids', JSON.stringify(updatedKids));
+  const handleDeleteEvaKid = async (kidId: string, name: string) => {
+    if (!window.confirm(`Deseja realmente cancelar a matrícula de "${name}"?`)) return;
+    await dataService.deleteEvangelizacaoKid(kidId);
 
     if (editingKidId === kidId) {
       setEditingKidId(null);
@@ -3098,55 +3600,345 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
       setNewKidResponsible('');
       setNewKidRoomId('');
       setNewKidAllergies('');
-      setNewKidAge(6);
+      setNewKidAge(15);
       setNewKidPhone('');
-      setNewKidPhoneType('whatsapp');
-      setNewKidPhone2('');
-      setNewKidPhoneType2('whatsapp');
-      setNewKidRelationship('Pai');
-      setNewKidStudentPhone('');
-      setNewKidStudentPhoneType('whatsapp');
+      setNewKidNotes('');
     }
   };
 
-  const handleAddEvaRoom = (name: string, schedule: string, room: string, leaders: string) => {
+  const handleAddEvaRoom = async (name: string, cycleCategory: 'INFANTIL' | 'MOCIDADE', schedule: string, room: string, leaders: string) => {
     if (editingRoomId) {
-      const updatedRooms = evangelizacaoRooms.map(r => {
-        if (r.id === editingRoomId) {
-          return { ...r, name, schedule, room, leaders };
-        }
-        return r;
-      });
-      setEvangelizacaoRooms(updatedRooms);
-      localStorage.setItem('eva_rooms', JSON.stringify(updatedRooms));
+      const updatedRoom: EvangelizacaoRoom = {
+        id: editingRoomId,
+        name,
+        cycle: cycleCategory === 'INFANTIL' ? '1º Ciclo' : 'Mocidade',
+        ageRange: schedule || '3 a 18 anos',
+        evangelistaName: leaders,
+        locationRoom: room
+      };
+      await dataService.saveEvangelizacaoRoom(updatedRoom);
 
       setEditingRoomId(null);
       setNewRoomName('');
       setNewRoomLeaders('');
-      setNewRoomLocation('Sala Infantil A');
-      setNewRoomSchedule('Sábados, 15:00');
+      setNewRoomLocation('Salão Mezanino');
+      setNewRoomSchedule('Sábados, 16:30');
       return;
     }
 
-    const newRoom = { id: 'er_' + Date.now(), name, schedule, room, leaders, count: 0 };
-    const updatedRooms = [...evangelizacaoRooms, newRoom];
-    setEvangelizacaoRooms(updatedRooms);
-    localStorage.setItem('eva_rooms', JSON.stringify(updatedRooms));
+    const newRoom: EvangelizacaoRoom = {
+      id: 'er_' + Date.now(),
+      name,
+      cycle: cycleCategory === 'INFANTIL' ? '1º Ciclo' : 'Mocidade',
+      ageRange: schedule || '3 a 18 anos',
+      evangelistaName: leaders,
+      locationRoom: room
+    };
+    await dataService.saveEvangelizacaoRoom(newRoom);
+
+    setNewRoomName('');
+    setNewRoomLeaders('');
+    setNewRoomLocation('Salão Mezanino');
+    setNewRoomSchedule('Sábados, 16:30');
   };
 
-  const handleDeleteEvaRoom = (roomId: string, name: string) => {
-    if (!window.confirm(`Deseja realmente excluir o ciclo/sala "${name}"?`)) return;
-    const updatedRooms = evangelizacaoRooms.filter(r => r.id !== roomId);
-    setEvangelizacaoRooms(updatedRooms);
-    localStorage.setItem('eva_rooms', JSON.stringify(updatedRooms));
+  const handleDeleteEvaRoom = async (roomId: string, name: string) => {
+    if (!window.confirm(`Deseja realmente excluir o ciclo/turma "${name}"?`)) return;
+    await dataService.deleteEvangelizacaoRoom(roomId);
 
     if (editingRoomId === roomId) {
       setEditingRoomId(null);
       setNewRoomName('');
       setNewRoomLeaders('');
-      setNewRoomLocation('Sala Infantil A');
-      setNewRoomSchedule('Sábados, 15:00');
     }
+  };
+
+  const handleSaveEvaAula = async () => {
+    if (!newAulaRoomId || !newAulaTopic.trim()) {
+      alert("Selecione a turma e digite o tema da aula!");
+      return;
+    }
+
+    if (editingAulaId) {
+      const updatedAula: EvangelizacaoAula = {
+        id: editingAulaId,
+        roomId: newAulaRoomId,
+        date: newAulaDate,
+        theme: newAulaTopic,
+        doctrineReference: newAulaReference,
+        objective: newAulaSummary || 'Objetivo Pedagógico Espírita',
+        activities: newAulaDynamic || 'Roda de Conversa e Dinâmica',
+        materialNeeded: 'Materiais Doutrinários'
+      };
+      await dataService.saveEvangelizacaoAula(updatedAula);
+      setEditingAulaId(null);
+    } else {
+      const newAula: EvangelizacaoAula = {
+        id: 'aula_' + Date.now(),
+        roomId: newAulaRoomId,
+        date: newAulaDate,
+        theme: newAulaTopic,
+        doctrineReference: newAulaReference,
+        objective: newAulaSummary || 'Objetivo Pedagógico Espírita',
+        activities: newAulaDynamic || 'Roda de Conversa e Dinâmica',
+        materialNeeded: 'Materiais Doutrinários'
+      };
+      await dataService.saveEvangelizacaoAula(newAula);
+    }
+
+    setNewAulaTopic('');
+    setNewAulaEvangelizador('');
+    setNewAulaReference('O Livro dos Espíritos');
+    setNewAulaSummary('');
+    setNewAulaDynamic('');
+    alert("Plano de aula salvo no Firestore com sucesso!");
+  };
+
+  const handleDeleteEvaAula = async (id: string, topic: string) => {
+    if (!window.confirm(`Deseja excluir a aula "${topic}"?`)) return;
+    await dataService.deleteEvangelizacaoAula(id);
+  };
+
+  const handleSaveEvaProjeto = async () => {
+    if (!newProjetoTitle.trim()) {
+      alert("Preencha o título do projeto ou ação social!");
+      return;
+    }
+
+    if (editingProjetoId) {
+      const updatedProj: EvangelizacaoProjeto = {
+        id: editingProjetoId,
+        title: newProjetoTitle,
+        category: (newProjetoCategory as any) || 'Campanha do Quilo',
+        date: newProjetoStartDate,
+        responsible: newProjetoCoordinator || 'Coordenação da Juventude',
+        description: newProjetoDescription,
+        status: (newProjetoStatus as any) || 'Em Execução'
+      };
+      await dataService.saveEvangelizacaoProjeto(updatedProj);
+      setEditingProjetoId(null);
+    } else {
+      const newProj: EvangelizacaoProjeto = {
+        id: 'proj_' + Date.now(),
+        title: newProjetoTitle,
+        category: (newProjetoCategory as any) || 'Campanha do Quilo',
+        date: newProjetoStartDate,
+        responsible: newProjetoCoordinator || 'Coordenação da Juventude',
+        description: newProjetoDescription,
+        status: 'Planejado'
+      };
+      await dataService.saveEvangelizacaoProjeto(newProj);
+    }
+
+    setNewProjetoTitle('');
+    setNewProjetoCoordinator('');
+    setNewProjetoDescription('');
+    setNewProjetoNotes('');
+    alert("Projeto da Juventude salvo no Firestore com sucesso!");
+  };
+
+  const handleDeleteEvaProjeto = async (id: string, title: string) => {
+    if (!window.confirm(`Deseja excluir o projeto "${title}"?`)) return;
+    await dataService.deleteEvangelizacaoProjeto(id);
+  };
+
+  const handleToggleEvaBadge = async (kidId: string, badgeName: string) => {
+    const kid = evangelizacaoKids.find(k => k.id === kidId);
+    if (!kid) return;
+    const currentBadges = kid.badges || [];
+    const hasBadge = currentBadges.includes(badgeName);
+    const updatedBadges = hasBadge 
+      ? currentBadges.filter(b => b !== badgeName)
+      : [...currentBadges, badgeName];
+    
+    const updatedKid: EvangelizacaoKid = { ...kid, badges: updatedBadges };
+    await dataService.saveEvangelizacaoKid(updatedKid);
+  };
+
+  const exportEvaRelatorioGeralPDF = () => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("CENTRO ESPÍRITA MIRANTE DA PAZ - EVANGELIZAÇÃO & JUVENTUDE", 105, 18, { align: "center" });
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text("RELATÓRIO GERAL DE MATRÍCULAS E MOCIDADE ESPÍRITA", 105, 25, { align: "center" });
+    
+    doc.setLineWidth(0.5);
+    doc.line(14, 29, 196, 29);
+
+    const totalAlunos = evangelizacaoKids.length;
+    const totalMocidade = evangelizacaoKids.filter(k => {
+      const r = evangelizacaoRooms.find(room => room.id === k.roomId);
+      return (r && r.cycleCategory === 'MOCIDADE') || k.age >= 11;
+    }).length;
+    const totalInfantil = totalAlunos - totalMocidade;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Total de Matriculados: ${totalAlunos} | Infância (3-10 anos): ${totalInfantil} | Juventude/Mocidade (11-25 anos): ${totalMocidade}`, 14, 36);
+
+    const studentRows = evangelizacaoKids.map(k => {
+      const room = evangelizacaoRooms.find(r => r.id === k.roomId);
+      const interestsStr = (k.interests || []).join(', ') || 'Geral';
+      return [
+        k.name,
+        `${k.age} anos`,
+        room ? room.name : 'Sem Turma',
+        k.responsible || 'Próprio Jovem',
+        k.studentPhone || k.phone || '-',
+        interestsStr
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 42,
+      head: [["Nome do Jovem / Evangelizando", "Idade", "Ciclo / Turma", "Responsável", "Contato", "Interesses"]],
+      body: studentRows.length > 0 ? studentRows : [["Nenhum aluno registrado", "-", "-", "-", "-", "-"]],
+      headStyles: { fillColor: [147, 51, 234] },
+      styles: { fontSize: 8, cellPadding: 3 }
+    });
+
+    const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : 120;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("AÇÕES SOCIAIS & PROJETOS DA JUVENTUDE", 14, finalY);
+
+    const projectRows = evangelizacaoProjetos.map(p => [
+      p.title,
+      p.category,
+      p.coordinator,
+      p.targetAudience,
+      p.status
+    ]);
+
+    autoTable(doc, {
+      startY: finalY + 5,
+      head: [["Projeto / Ação", "Categoria", "Coordenador", "Público Alvo", "Status"]],
+      body: projectRows.length > 0 ? projectRows : [["Nenhum projeto cadastrado", "-", "-", "-", "-"]],
+      headStyles: { fillColor: [79, 70, 229] },
+      styles: { fontSize: 8, cellPadding: 3 }
+    });
+
+    doc.save(`Relatorio_Evangelizacao_Mocidade_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const exportEvaDiarioPDF = (roomId?: string, dateStr?: string) => {
+    const doc = new jsPDF();
+    const targetRoom = evangelizacaoRooms.find(r => r.id === roomId) || evangelizacaoRooms[0];
+    const targetDate = dateStr || new Date().toISOString().split('T')[0];
+    const lesson = evangelizacaoAulas.find(a => a.roomId === targetRoom?.id && a.date === targetDate);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text("CENTRO ESPÍRITA MIRANTE DA PAZ - DIÁRIO DE CLASSE", 105, 18, { align: "center" });
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(`TURMA: ${targetRoom?.name || 'Mocidade Espírita'} | DATA: ${targetDate}`, 105, 25, { align: "center" });
+    
+    doc.setLineWidth(0.5);
+    doc.line(14, 29, 196, 29);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Evangelizadores/Líderes: ${targetRoom?.leaders || '-'} | Sala: ${targetRoom?.room || '-'} | Horário: ${targetRoom?.schedule || '-'}`, 14, 36);
+
+    if (lesson) {
+      doc.text(`Tema Ministrado: ${lesson.topic}`, 14, 43);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Referência Doutrinária: ${lesson.doctrinalReference || 'Obras Básicas'}`, 14, 49);
+      doc.text(`Dinâmica/Atividade: ${lesson.dynamicOrActivity || '-'}`, 14, 55);
+    }
+
+    const studentsInRoom = evangelizacaoKids.filter(k => !targetRoom || k.roomId === targetRoom.id);
+
+    const rows = studentsInRoom.map((st, idx) => {
+      return [
+        String(idx + 1),
+        st.name,
+        `${st.age} anos`,
+        st.studentPhone || st.phone || '-',
+        "[  ] Presente   [  ] Ausente",
+        "________________________"
+      ];
+    });
+
+    autoTable(doc, {
+      startY: lesson ? 60 : 42,
+      head: [["Nº", "Nome do Jovem / Evangelizando", "Idade", "Contato", "Presença", "Assinatura / Obs"]],
+      body: rows.length > 0 ? rows : [["-", "Nenhum aluno nesta turma", "-", "-", "-", "-"]],
+      headStyles: { fillColor: [124, 58, 237] },
+      styles: { fontSize: 8, cellPadding: 3.5 }
+    });
+
+    const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 25 : 180;
+    doc.line(14, finalY, 90, finalY);
+    doc.line(110, finalY, 190, finalY);
+
+    doc.setFontSize(8);
+    doc.text("Assinatura do Evangelizador Responsável", 22, finalY + 5);
+    doc.text("Assinatura do Coordenador da Mocidade", 120, finalY + 5);
+
+    doc.save(`Diario_Classe_${targetRoom?.name.replace(/\s+/g, '_')}_${targetDate}.pdf`);
+  };
+
+  const exportJovemCertificatePDF = (student: any) => {
+    if (!student) return;
+    const doc = new jsPDF({ orientation: 'landscape' });
+
+    // Border frame
+    doc.setLineWidth(2);
+    doc.setDrawColor(124, 58, 237);
+    doc.rect(10, 10, 277, 190);
+
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(192, 132, 252);
+    doc.rect(14, 14, 269, 182);
+
+    // Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(88, 28, 135);
+    doc.text("CENTRO ESPÍRITA MIRANTE DA PAZ", 148, 40, { align: "center" });
+
+    doc.setFontSize(14);
+    doc.setTextColor(107, 114, 128);
+    doc.text("DEPARTAMENTO DE INFÂNCIA & JUVENTUDE ESPÍRITA", 148, 50, { align: "center" });
+
+    doc.setFontSize(26);
+    doc.setTextColor(124, 58, 237);
+    doc.text("CERTIFICADO DE FREQUÊNCIA E VIVÊNCIA", 148, 72, { align: "center" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(13);
+    doc.setTextColor(31, 41, 55);
+
+    const room = evangelizacaoRooms.find(r => r.id === student.roomId);
+
+    const certText = `Certificamos para os devidos fins de direito e comprovação acadêmica/escolar que o(a) jovem ${student.name.toUpperCase()}, matriculado(a) na Juventude Espírita, participou ativamente das atividades doutrinárias, estudos, rodas de conversa e projetos de ação social no ciclo "${room ? room.name : 'Mocidade Espírita'}", perfazendo a carga horária regular de 40 (quarenta) horas de vivência cristã e aprendizado moral.`;
+
+    const splitText = doc.splitTextToSize(certText, 230);
+    doc.text(splitText, 148, 98, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    doc.text(`Emitido em São Paulo, ${todayStr}.`, 148, 145, { align: "center" });
+
+    // Signatures
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(75, 85, 99);
+    doc.line(50, 175, 120, 175);
+    doc.line(177, 175, 247, 175);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(31, 41, 55);
+    doc.text("Coordenação da Juventude Espírita", 85, 180, { align: "center" });
+    doc.text("Diretoria Doutrinária do Centro", 212, 180, { align: "center" });
+
+    doc.save(`Certificado_Mocidade_${student.name.replace(/\s+/g, '_')}.pdf`);
   };
 
   // Document/Material uploader and handlers for Estudos
@@ -3201,15 +3993,22 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     localStorage.setItem('study_materials', JSON.stringify(updated));
   };
 
-  const handleToggleEvaPresence = (id: string) => {
-    const updated = evangelizacaoKids.map(k => {
-      if (k.id === id) {
-        return { ...k, presenceToday: !k.presenceToday };
-      }
-      return k;
-    });
-    setEvangelizacaoKids(updated);
-    localStorage.setItem('eva_kids', JSON.stringify(updated));
+  const handleToggleEvaPresence = async (id: string) => {
+    const kid = evangelizacaoKids.find(k => k.id === id);
+    if (!kid) return;
+    const newPresence = !kid.presenceToday;
+    const updatedKid: EvangelizacaoKid = { ...kid, presenceToday: newPresence };
+    await dataService.saveEvangelizacaoKid(updatedKid);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const freqRecord: EvangelizacaoFrequencia = {
+      id: `freq_${id}_${todayStr}`,
+      kidId: id,
+      roomId: kid.roomId,
+      date: todayStr,
+      present: newPresence
+    };
+    await dataService.saveEvangelizacaoFrequencia(freqRecord);
   };
 
   const handleAddMediGroup = (title: string, leader: string, schedule: string) => {
@@ -3232,230 +4031,128 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
     localStorage.setItem('medi_members', JSON.stringify(updated));
   };
 
-  // --- ARTE ESPÍRITA ACTION HANDLERS ---
-  const handleAddArteGroup = (name: string, modality: string, coordinator: string, schedule: string) => {
-    if (editingArteGroupId) {
-      const updated = arteGroups.map(g => {
-        if (g.id === editingArteGroupId) {
-          return {
-            ...g,
-            name,
-            modality: modality.toUpperCase(),
-            coordinator: coordinator || currentUser?.name || 'Coord. de Arte',
-            schedule: schedule || 'Sábados'
-          };
-        }
-        return g;
-      });
-      setArteGroups(updated);
-      localStorage.setItem('arte_groups', JSON.stringify(updated));
-      setEditingArteGroupId(null);
-    } else {
-      const newGroup = {
-        id: 'ag_' + Date.now(),
-        name,
-        modality: modality.toUpperCase(),
-        coordinator: coordinator || currentUser?.name || 'Coord. de Arte',
-        qty: 1,
-        schedule: schedule || 'Sábados',
-        status: 'Ativo'
-      };
-      const updated = [...arteGroups, newGroup];
-      setArteGroups(updated);
-      localStorage.setItem('arte_groups', JSON.stringify(updated));
-    }
+  // --- ARTE ESPÍRITA ACTION HANDLERS (FIRESTORE DATA SERVICE) ---
+  const handleAddArteGroup = async (name: string, modality: string, coordinator: string, schedule: string) => {
+    const grp: ArteGroup = {
+      id: editingArteGroupId || 'ag_' + Date.now(),
+      name,
+      modality: modality.toUpperCase(),
+      coordinator: coordinator || currentUser?.name || 'Coord. de Arte',
+      qty: 1,
+      schedule: schedule || 'Sábados',
+      status: 'Ativo'
+    };
+    await dataService.saveArteGroup(grp);
+    setEditingArteGroupId(null);
   };
 
-  const handleDeleteArteGroup = (id: string, name: string) => {
+  const handleDeleteArteGroup = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover o grupo artístico "${name}"? Esta ação é permanente.`)) {
-      const updated = arteGroups.filter(g => g.id !== id);
-      setArteGroups(updated);
-      localStorage.setItem('arte_groups', JSON.stringify(updated));
+      await dataService.deleteArteGroup(id);
       if (editingArteGroupId === id) {
         setEditingArteGroupId(null);
       }
     }
   };
 
-  const handleAddArteSong = (name: string, author: string, theme: string, category: string, key: string, duration: string) => {
-    if (editingArteSongId) {
-      const updated = arteMusicas.map(s => {
-        if (s.id === editingArteSongId) {
-          return {
-            ...s,
-            name,
-            author: author || 'Desconhecido',
-            theme: theme || 'Tema Doutrinário',
-            category: category || 'Solo / Coral',
-            key: key || 'C Major',
-            duration: duration || '3:00'
-          };
-        }
-        return s;
-      });
-      setArteMusicas(updated);
-      localStorage.setItem('arte_musicas', JSON.stringify(updated));
-      setEditingArteSongId(null);
-    } else {
-      const newSong = {
-        id: 'am_' + Date.now(),
-        name,
-        author: author || 'Desconhecido',
-        theme: theme || 'Tema Doutrinário',
-        category: category || 'Solo / Coral',
-        key: key || 'C Major',
-        duration: duration || '3:00'
-      };
-      const updated = [...arteMusicas, newSong];
-      setArteMusicas(updated);
-      localStorage.setItem('arte_musicas', JSON.stringify(updated));
-    }
+  const handleAddArteSong = async (name: string, author: string, theme: string, category: string, key: string, duration: string) => {
+    const song: ArteSong = {
+      id: editingArteSongId || 'am_' + Date.now(),
+      name,
+      author: author || 'Desconhecido',
+      theme: theme || 'Tema Doutrinário',
+      category: category || 'Solo / Coral',
+      key: key || 'C Major',
+      duration: duration || '3:00',
+      lyrics: newSongLyrics || undefined,
+      sheetMusicUrl: newSongSheetMusicUrl || undefined,
+      audioDemoUrl: newSongAudioDemoUrl || undefined
+    };
+    await dataService.saveArteSong(song);
+    setEditingArteSongId(null);
+    setNewSongLyrics('');
+    setNewSongSheetMusicUrl('');
+    setNewSongAudioDemoUrl('');
   };
 
-  const handleDeleteArteSong = (id: string, name: string) => {
+  const handleDeleteArteSong = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover a música "${name}"? Esta ação é permanente.`)) {
-      const updated = arteMusicas.filter(s => s.id !== id);
-      setArteMusicas(updated);
-      localStorage.setItem('arte_musicas', JSON.stringify(updated));
+      await dataService.deleteArteSong(id);
       if (editingArteSongId === id) {
         setEditingArteSongId(null);
       }
     }
   };
 
-  const handleAddArtePiece = (name: string, theme: string, author: string, duration: string, message: string) => {
-    if (editingArtePieceId) {
-      const updated = artePecas.map(p => {
-        if (p.id === editingArtePieceId) {
-          return {
-            ...p,
-            name,
-            theme: theme || 'Tema Espírita',
-            author: author || 'Autor Espírita',
-            duration: duration || '30 min',
-            message: message || 'Elevação moral'
-          };
-        }
-        return p;
-      });
-      setArtePecas(updated);
-      localStorage.setItem('arte_pecas', JSON.stringify(updated));
-      setEditingArtePieceId(null);
-    } else {
-      const newPiece = {
-        id: 'ap_' + Date.now(),
-        name,
-        theme: theme || 'Tema Espírita',
-        author: author || 'Autor Espírita',
-        duration: duration || '30 min',
-        message: message || 'Elevação moral'
-      };
-      const updated = [...artePecas, newPiece];
-      setArtePecas(updated);
-      localStorage.setItem('arte_pecas', JSON.stringify(updated));
-    }
+  const handleAddArtePiece = async (name: string, theme: string, author: string, duration: string, message: string) => {
+    const piece: ArtePiece = {
+      id: editingArtePieceId || 'ap_' + Date.now(),
+      name,
+      theme: theme || 'Tema Espírita',
+      author: author || 'Autor Espírita',
+      duration: duration || '30 min',
+      message: message || 'Elevação moral',
+      fullScript: newPieceScript || undefined,
+      castRoles: newPieceCast || undefined
+    };
+    await dataService.saveArtePiece(piece);
+    setEditingArtePieceId(null);
+    setNewPieceScript('');
+    setNewPieceCast('');
   };
 
-  const handleDeleteArtePiece = (id: string, name: string) => {
-    if (window.confirm(`Deseja realmente remover a peça teatral/roteiro "${name}"? Esta ação é permanente.`)) {
-      const updated = artePecas.filter(p => p.id !== id);
-      setArtePecas(updated);
-      localStorage.setItem('arte_pecas', JSON.stringify(updated));
+  const handleDeleteArtePiece = async (id: string, name: string) => {
+    if (window.confirm(`Deseja realmente remover o roteiro "${name}"? Esta ação é permanente.`)) {
+      await dataService.deleteArtePiece(id);
       if (editingArtePieceId === id) {
         setEditingArtePieceId(null);
       }
     }
   };
 
-  const handleAddArteEnsaio = (groupId: string, date: string, time: string, local: string, activity: string) => {
+  const handleAddArteEnsaio = async (groupId: string, date: string, time: string, local: string, activity: string) => {
     const gr = arteGroups.find(g => g.id === groupId);
-    if (editingArteEnsaioId) {
-      const updated = arteEnsaios.map(e => {
-        if (e.id === editingArteEnsaioId) {
-          return {
-            ...e,
-            groupId,
-            date: date || new Date().toISOString().split('T')[0],
-            time: time || '15:00',
-            local: local || 'Salão',
-            activity: activity || 'Ensaio Geral',
-            presentQty: gr ? gr.qty : 5,
-            totalQty: gr ? gr.qty : 5
-          };
-        }
-        return e;
-      });
-      setArteEnsaios(updated);
-      localStorage.setItem('arte_ensaios', JSON.stringify(updated));
-      setEditingArteEnsaioId(null);
-    } else {
-      const newEn = {
-        id: 'ae_' + Date.now(),
-        groupId,
-        date: date || new Date().toISOString().split('T')[0],
-        time: time || '15:00',
-        local: local || 'Salão',
-        activity: activity || 'Ensaio Geral',
-        presentQty: gr ? gr.qty : 5,
-        totalQty: gr ? gr.qty : 5
-      };
-      const updated = [...arteEnsaios, newEn];
-      setArteEnsaios(updated);
-      localStorage.setItem('arte_ensaios', JSON.stringify(updated));
-    }
+    const ensaio: ArteEnsaio = {
+      id: editingArteEnsaioId || 'ae_' + Date.now(),
+      groupId,
+      groupName: gr?.name,
+      date: date || new Date().toISOString().split('T')[0],
+      time: time || '15:00',
+      local: local || 'Salão Principal',
+      activity: activity || 'Ensaio Geral',
+      presentQty: gr ? gr.qty : 5,
+      totalQty: gr ? gr.qty : 5
+    };
+    await dataService.saveArteEnsaio(ensaio);
+    setEditingArteEnsaioId(null);
   };
 
-  const handleDeleteArteEnsaio = (id: string, name: string) => {
+  const handleDeleteArteEnsaio = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover o ensaio para "${name}"? Esta ação é permanente.`)) {
-      const updated = arteEnsaios.filter(e => e.id !== id);
-      setArteEnsaios(updated);
-      localStorage.setItem('arte_ensaios', JSON.stringify(updated));
+      await dataService.deleteArteEnsaio(id);
       if (editingArteEnsaioId === id) {
         setEditingArteEnsaioId(null);
       }
     }
   };
 
-  const handleAddArteEvento = (name: string, theme: string, date: string, local: string, coordinator: string, estimate: string) => {
-    if (editingArteEventoId) {
-      const updated = arteEventos.map(ev => {
-        if (ev.id === editingArteEventoId) {
-          return {
-            ...ev,
-            name,
-            theme,
-            date: date || new Date().toISOString().split('T')[0],
-            local: local || 'Salão da Casa',
-            coordinator: coordinator || currentUser?.name || 'Coord. de Arte',
-            estimate: estimate || '100 pessoas'
-          };
-        }
-        return ev;
-      });
-      setArteEventos(updated);
-      localStorage.setItem('arte_eventos', JSON.stringify(updated));
-      setEditingArteEventoId(null);
-    } else {
-      const newEv = {
-        id: 'aev_' + Date.now(),
-        name,
-        theme,
-        date: date || new Date().toISOString().split('T')[0],
-        local: local || 'Salão da Casa',
-        coordinator: coordinator || currentUser?.name || 'Coord. de Arte',
-        estimate: estimate || '100 pessoas'
-      };
-      const updated = [...arteEventos, newEv];
-      setArteEventos(updated);
-      localStorage.setItem('arte_eventos', JSON.stringify(updated));
-    }
+  const handleAddArteEvento = async (name: string, theme: string, date: string, local: string, coordinator: string, estimate: string) => {
+    const ev: ArteEvento = {
+      id: editingArteEventoId || 'aev_' + Date.now(),
+      name,
+      theme,
+      date: date || new Date().toISOString().split('T')[0],
+      local: local || 'Salão da Casa',
+      coordinator: coordinator || currentUser?.name || 'Coord. de Arte',
+      estimate: estimate || '100 pessoas'
+    };
+    await dataService.saveArteEvento(ev);
+    setEditingArteEventoId(null);
   };
 
-  const handleDeleteArteEvento = (id: string, name: string) => {
+  const handleDeleteArteEvento = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover a apresentação/evento "${name}"? Esta ação é permanente.`)) {
-      const updated = arteEventos.filter(ev => ev.id !== id);
-      setArteEventos(updated);
-      localStorage.setItem('arte_eventos', JSON.stringify(updated));
+      await dataService.deleteArteEvento(id);
       if (editingArteEventoId === id) {
         setEditingArteEventoId(null);
       }
@@ -3463,97 +4160,47 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   // --- COMUNICAÇÃO ESPÍRITA ACTION HANDLERS ---
-  const handleAddComunicado = (title: string, category: string, content: string, author: string, target: string, status: string, spiritObjective?: string, approvedBy?: string) => {
-    if (editingComunicadoId) {
-      const updated = comunicados.map(c => {
-        if (c.id === editingComunicadoId) {
-          return {
-            ...c,
-            title,
-            category,
-            content,
-            author: author || currentUser?.name || 'Comunicação',
-            target: target || 'Público Geral',
-            status,
-            spiritObjective: spiritObjective || '',
-            approvedBy: approvedBy || '',
-            date: new Date().toISOString().split('T')[0]
-          };
-        }
-        return c;
-      });
-      setComunicados(updated);
-      localStorage.setItem('com_comunicados', JSON.stringify(updated));
-      setEditingComunicadoId(null);
-    } else {
-      const newCom = {
-        id: 'com_' + Date.now(),
-        title,
-        category,
-        content,
-        author: author || currentUser?.name || 'Comunicação',
-        target: target || 'Público Geral',
-        status,
-        spiritObjective: spiritObjective || '',
-        approvedBy: approvedBy || '',
-        date: new Date().toISOString().split('T')[0]
-      };
-      const updated = [...comunicados, newCom];
-      setComunicados(updated);
-      localStorage.setItem('com_comunicados', JSON.stringify(updated));
-    }
+  const handleAddComunicado = async (title: string, category: string, content: string, author: string, target: string, status: string, spiritObjective?: string, approvedBy?: string) => {
+    const item: any = {
+      id: editingComunicadoId || 'com_' + Date.now(),
+      title,
+      category,
+      content,
+      author: author || currentUser?.name || 'Comunicação',
+      target: target || 'Público Geral',
+      status: status as any,
+      spiritObjective: spiritObjective || '',
+      approvedBy: approvedBy || '',
+      date: new Date().toISOString().split('T')[0]
+    };
+    await dataService.saveComunicado(item);
+    setEditingComunicadoId(null);
   };
 
-  const handleDeleteComunicado = (id: string, title: string) => {
+  const handleDeleteComunicado = async (id: string, title: string) => {
     if (window.confirm(`Deseja realmente remover o comunicado "${title}"? Esta ação é permanente.`)) {
-      const updated = comunicados.filter(c => c.id !== id);
-      setComunicados(updated);
-      localStorage.setItem('com_comunicados', JSON.stringify(updated));
+      await dataService.deleteComunicado(id);
       if (editingComunicadoId === id) {
         setEditingComunicadoId(null);
       }
     }
   };
 
-  const handleAddSocialPost = (title: string, text: string, platform: string, date: string, hashtags: string, status: string, responsible: string, spiritObjective?: string, approvedBy?: string) => {
-    if (editingSocialPostId) {
-      const updated = socialPosts.map(p => {
-        if (p.id === editingSocialPostId) {
-          return {
-            ...p,
-            title,
-            text,
-            platform,
-            date: date || new Date().toISOString().split('T')[0],
-            hashtags,
-            status,
-            responsible: responsible || currentUser?.name || 'Social Media',
-            spiritObjective: spiritObjective || '',
-            approvedBy: approvedBy || ''
-          };
-        }
-        return p;
-      });
-      setSocialPosts(updated);
-      localStorage.setItem('com_social_posts', JSON.stringify(updated));
-      setEditingSocialPostId(null);
-    } else {
-      const newPost = {
-        id: 'sp_' + Date.now(),
-        title,
-        text,
-        platform,
-        date: date || new Date().toISOString().split('T')[0],
-        hashtags,
-        status,
-        responsible: responsible || currentUser?.name || 'Social Media',
-        spiritObjective: spiritObjective || '',
-        approvedBy: approvedBy || ''
-      };
-      const updated = [...socialPosts, newPost];
-      setSocialPosts(updated);
-      localStorage.setItem('com_social_posts', JSON.stringify(updated));
-    }
+  const handleAddSocialPost = async (title: string, text: string, platform: string, date: string, hashtags: string, status: string, responsible: string, spiritObjective?: string, approvedBy?: string) => {
+    const item: any = {
+      id: editingSocialPostId || 'sp_' + Date.now(),
+      title,
+      text,
+      platform: platform as any,
+      date: date || new Date().toISOString().split('T')[0],
+      hashtags,
+      status: status as any,
+      responsible: responsible || currentUser?.name || 'Social Media',
+      spiritObjective: spiritObjective || '',
+      approvedBy: approvedBy || ''
+    };
+    await dataService.saveSocialPost(item);
+    setEditingSocialPostId(null);
   };
 
   const handleDeleteSocialPost = (id: string, title: string) => {
@@ -3670,23 +4317,28 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
   };
 
   const handleSimulateInstagramPublish = async (post: any) => {
+    // Check if approved by doctrinal reviewer or coordinator
+    const isApproved = Boolean(post.approvedBy && post.approvedBy.trim() !== '') || post.status === 'Aprovado';
+    
+    if (!isApproved) {
+      setPendingPublishPost(post);
+      setShowApprovalWarningModal(true);
+      return;
+    }
+
     setIsSimulatingInstaPublish(true);
     
     // Check if configured
     const configuredToken = localStorage.getItem('com_insta_api_token') || '';
     const configuredPageId = localStorage.getItem('com_insta_page_id') || '';
     
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     // Change status to published!
-    const updated = socialPosts.map(p => {
-      if (p.id === post.id) {
-        return { ...p, status: 'Publicado' };
-      }
-      return p;
-    });
-    setSocialPosts(updated);
-    localStorage.setItem('com_social_posts', JSON.stringify(updated));
+    const targetPost = socialPosts.find(p => p.id === post.id);
+    if (targetPost) {
+      await dataService.saveSocialPost({ ...targetPost, status: 'Publicado' });
+    }
     
     try {
       const detailsMsg = configuredToken && configuredPageId 
@@ -3700,143 +4352,120 @@ export default function SectorDashboard({ sectorId, sectorName, initialTab }: Se
 
     setIsSimulatingInstaPublish(false);
     alert(configuredToken && configuredPageId 
-      ? `✓ Post "${post.title}" foi enviado e publicado diretamente no feed do Instagram com sucesso usando o Token de Acesso!`
+      ? `✓ Post "${post.title}" foi enviado e publicado diretamente no feed do Instagram com sucesso!`
       : `✓ Sucesso! O status do post foi atualizado para "Publicado" no Mirante de Luz.`
     );
   };
 
-  const handleAddCampanha = (name: string, objective: string, target: string, date: string, responsible: string, status: string, media: string, result: string) => {
-    if (editingCampanhaId) {
-      const updated = campanhas.map(c => {
-        if (c.id === editingCampanhaId) {
-          return {
-            ...c,
-            name,
-            objective,
-            target,
-            date: date || new Date().toISOString().split('T')[0],
-            responsible: responsible || currentUser?.name || 'Comunicação',
-            status,
-            media,
-            result
-          };
-        }
-        return c;
-      });
-      setCampanhas(updated);
-      localStorage.setItem('com_campanhas', JSON.stringify(updated));
-      setEditingCampanhaId(null);
-    } else {
-      const newCam = {
-        id: 'cam_' + Date.now(),
-        name,
-        objective,
-        target,
-        date: date || new Date().toISOString().split('T')[0],
-        responsible: responsible || currentUser?.name || 'Comunicação',
-        status,
-        media,
-        result
-      };
-      const updated = [...campanhas, newCam];
-      setCampanhas(updated);
-      localStorage.setItem('com_campanhas', JSON.stringify(updated));
+  const handleConcederVistoEPublicar = async () => {
+    if (!pendingPublishPost) return;
+    const reviewerName = currentUser?.name || 'Revisor Doutrinário (Gabriel Chaves)';
+    
+    await dataService.saveSocialPost({
+      ...pendingPublishPost,
+      approvedBy: reviewerName,
+      status: 'Publicado'
+    });
+
+    try {
+      await dataService.createLog(
+        'Visto Doutrinário & Publicação',
+        `Aprovação doutrinária concedida por [${reviewerName}] para o post [${pendingPublishPost.title}]. Status atualizado para Publicado.`
+      );
+    } catch (err) {
+      console.error(err);
     }
+
+    setShowApprovalWarningModal(false);
+    setPendingPublishPost(null);
+    alert(`✓ Visto Doutrinário concedido por ${reviewerName}! Post "${pendingPublishPost.title}" publicado com sucesso.`);
   };
 
-  const handleDeleteCampanha = (id: string, name: string) => {
+  const handleEncaminharParaRevisao = async () => {
+    if (!pendingPublishPost) return;
+
+    await dataService.saveSocialPost({
+      ...pendingPublishPost,
+      status: 'Aguardando Revisão'
+    });
+
+    try {
+      await dataService.createLog(
+        'Revisão Doutrinária Solicitada',
+        `Post [${pendingPublishPost.title}] foi submetido à fila de revisão do Revisor Doutrinário.`
+      );
+    } catch (err) {
+      console.error(err);
+    }
+
+    setShowApprovalWarningModal(false);
+    setPendingPublishPost(null);
+    alert(`✓ Post "${pendingPublishPost.title}" enviado para a Fila de Revisão Doutrinária do Coordenador.`);
+  };
+
+  const handleAddCampanha = async (name: string, objective: string, target: string, date: string, responsible: string, status: string, media: string, result: string) => {
+    const item: any = {
+      id: editingCampanhaId || 'cam_' + Date.now(),
+      name,
+      objective,
+      target,
+      date: date || new Date().toISOString().split('T')[0],
+      responsible: responsible || currentUser?.name || 'Comunicação',
+      status,
+      media,
+      result
+    };
+    await dataService.saveComCampanha(item);
+    setEditingCampanhaId(null);
+  };
+
+  const handleDeleteCampanha = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover a campanha/cobertura "${name}"? Esta ação é permanente.`)) {
-      const updated = campanhas.filter(c => c.id !== id);
-      setCampanhas(updated);
-      localStorage.setItem('com_campanhas', JSON.stringify(updated));
+      await dataService.deleteComCampanha(id);
       if (editingCampanhaId === id) {
         setEditingCampanhaId(null);
       }
     }
   };
 
-  const handleAddMidia = (name: string, category: string, designer: string, url: string, status: string, spiritObjective: string) => {
-    if (editingMidiaId) {
-      const updated = midias.map(m => {
-        if (m.id === editingMidiaId) {
-          return {
-            ...m,
-            name,
-            category,
-            designer: designer || 'Equipe de Criação',
-            url: url || '',
-            status,
-            spiritObjective: spiritObjective || 'Esclarecimento e consolo espiritual.'
-          };
-        }
-        return m;
-      });
-      setMidias(updated);
-      localStorage.setItem('com_midias', JSON.stringify(updated));
-      setEditingMidiaId(null);
-    } else {
-      const newMidia = {
-        id: 'md_' + Date.now(),
-        name,
-        category,
-        designer: designer || 'Equipe de Criação',
-        url: url || '',
-        status,
-        spiritObjective: spiritObjective || 'Esclarecimento e consolo espiritual.'
-      };
-      const updated = [...midias, newMidia];
-      setMidias(updated);
-      localStorage.setItem('com_midias', JSON.stringify(updated));
-    }
+  const handleAddMidia = async (name: string, category: string, designer: string, url: string, status: string, spiritObjective: string) => {
+    const item: any = {
+      id: editingMidiaId || 'md_' + Date.now(),
+      name,
+      category,
+      designer: designer || 'Equipe de Criação',
+      url: url || '',
+      status,
+      spiritObjective: spiritObjective || 'Esclarecimento e consolo espiritual.'
+    };
+    await dataService.saveComMidia(item);
+    setEditingMidiaId(null);
   };
 
-  const handleDeleteMidia = (id: string, name: string) => {
+  const handleDeleteMidia = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover o material "${name}"? Esta ação é permanente.`)) {
-      const updated = midias.filter(m => m.id !== id);
-      setMidias(updated);
-      localStorage.setItem('com_midias', JSON.stringify(updated));
+      await dataService.deleteComMidia(id);
       if (editingMidiaId === id) {
         setEditingMidiaId(null);
       }
     }
   };
 
-  const handleAddEquipeMembro = (name: string, role: string, availability: string, equipments: string) => {
-    if (editingEquipeId) {
-      const updated = equipeMembros.map(m => {
-        if (m.id === editingEquipeId) {
-          return {
-            ...m,
-            name,
-            role,
-            availability: availability || 'Sob Demanda',
-            equipments: equipments || 'Smartphone / Computador'
-          };
-        }
-        return m;
-      });
-      setEquipeMembros(updated);
-      localStorage.setItem('com_equipe', JSON.stringify(updated));
-      setEditingEquipeId(null);
-    } else {
-      const newMembro = {
-        id: 'eq_' + Date.now(),
-        name,
-        role,
-        availability: availability || 'Sob Demanda',
-        equipments: equipments || 'Smartphone / Computador'
-      };
-      const updated = [...equipeMembros, newMembro];
-      setEquipeMembros(updated);
-      localStorage.setItem('com_equipe', JSON.stringify(updated));
-    }
+  const handleAddEquipeMembro = async (name: string, role: string, availability: string, equipments: string) => {
+    const item: any = {
+      id: editingEquipeId || 'eq_' + Date.now(),
+      name,
+      role,
+      availability: availability || 'Sob Demanda',
+      equipments: equipments || 'Smartphone / Computador'
+    };
+    await dataService.saveComEquipe(item);
+    setEditingEquipeId(null);
   };
 
-  const handleDeleteEquipeMembro = (id: string, name: string) => {
+  const handleDeleteEquipeMembro = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover o membro da equipe "${name}"? Esta ação é permanente.`)) {
-      const updated = equipeMembros.filter(m => m.id !== id);
-      setEquipeMembros(updated);
-      localStorage.setItem('com_equipe', JSON.stringify(updated));
+      await dataService.deleteComEquipe(id);
       if (editingEquipeId === id) {
         setEditingEquipeId(null);
       }
@@ -4177,30 +4806,38 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
     }
   };
 
-  // --- SUBSECTOR ACTION CONTROLLERS ---
-  const handleAddPatrimonio = (item: any) => {
-    const updated = [...patrimonioItems, { id: 'pat_' + Date.now(), ...item, lastUpdated: Date.now(), updatedBy: currentUser?.name || 'Administrador' }];
-    setPatrimonioItems(updated);
-    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+  // --- SUBSECTOR ACTION CONTROLLERS (MATERIAL E PATRIMÔNIO - FIRESTORE) ---
+  const handleAddPatrimonio = async (item: any) => {
+    await dataService.addInventoryItem({
+      name: item.name,
+      category: item.category || 'OUTROS',
+      itemType: item.itemType || 'PATRIMONIO',
+      quantity: Number(item.quantity) || 1,
+      minQuantity: Number(item.minQuantity) || 1,
+      unit: item.unit || 'unidade(s)',
+      location: item.location || 'Almoxarifado',
+      status: item.status || 'BOM',
+      patrimonyCode: item.patrimonyCode || `PAT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+      unitPrice: Number(item.unitPrice) || 0,
+      observation: item.observation || '',
+      lastUpdated: Date.now(),
+      updatedBy: currentUser?.name || 'Administrador'
+    });
   };
   
-  const handleUpdatePatQuantity = (id: string, diff: number) => {
-    const updated = patrimonioItems.map(item => {
-      if (item.id === id) {
-        const nextQty = Math.max(0, item.quantity + diff);
-        const nextStatus = nextQty === 0 ? 'EM_FALTA' : (nextQty <= item.minQuantity ? 'REGULAR' : 'BOM');
-        return { ...item, quantity: nextQty, status: nextStatus, lastUpdated: Date.now() };
-      }
-      return item;
-    });
-    setPatrimonioItems(updated);
-    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+  const handleUpdatePatQuantity = async (id: string, diff: number) => {
+    await dataService.updateInventoryQuantityAtomic(
+      id,
+      diff,
+      currentUser?.name || 'Administrador',
+      diff > 0 ? 'Entrada manual de estoque' : 'Baixa/Uso manual de estoque'
+    );
   };
 
-  const handleDeletePatrimonio = (id: string) => {
-    const updated = patrimonioItems.filter(item => item.id !== id);
-    setPatrimonioItems(updated);
-    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+  const handleDeletePatrimonio = async (id: string) => {
+    if (window.confirm("Deseja realmente excluir este item do patrimonio/inventário?")) {
+      await dataService.deleteInventoryItem(id);
+    }
   };
 
   const handleShowItemQRCode = (item: any) => {
@@ -4208,126 +4845,73 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
     setQrModalOpen(true);
   };
 
-  const handlePrintAllQRCodes = () => {
+  const handlePrintAllQRCodes = async () => {
     if (patrimonioItems.length === 0) {
       alert("Nenhum item patrimonial registrado para gerar etiquetas.");
       return;
     }
 
     const printwin = window.open("", "_blank");
-    if (printwin) {
-      const itemsHtml = patrimonioItems.map(item => {
-        const appLink = `${window.location.origin}${window.location.pathname}?assetId=${encodeURIComponent(item.id)}`;
-        return `
-          <div class="sticker">
-            <h2>${item.name}</h2>
-            <div class="id">ID: ${item.id}</div>
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(appLink)}" style="max-width: 120px; margin: 4px auto; display: block;" />
-            <div class="meta">
-              <span>Local: ${item.location || 'N/A'}</span>
-              <span>Cat: ${item.category || 'N/A'}</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      printwin.document.write(`
-        <html>
-        <head>
-          <title>Imprimir Todas as Etiquetas de Ativos</title>
-          <style>
-            body { 
-              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-              padding: 20px; 
-              margin: 0; 
-              background-color: #fff;
-            }
-            .header-banner {
-              text-align: center;
-              margin-bottom: 25px;
-              border-bottom: 2px solid #333;
-              padding-bottom: 10px;
-            }
-            .header-banner h1 {
-              margin: 0;
-              font-size: 20px;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-            }
-            .header-banner p {
-              margin: 5px 0 0 0;
-              font-size: 11px;
-              color: #666;
-            }
-            .grid-container { 
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              gap: 15px;
-            }
-            .sticker { 
-              border: 1px dashed #999; 
-              padding: 12px; 
-              text-align: center;
-              background-color: #fff;
-              page-break-inside: avoid;
-              border-radius: 8px;
-            }
-            h2 { 
-              margin: 0 0 4px 0; 
-              font-size: 11px; 
-              font-weight: 800; 
-              text-transform: uppercase;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            }
-            .id { 
-              font-size: 8px; 
-              font-family: monospace;
-              letter-spacing: 0.5px; 
-              margin-bottom: 6px; 
-              color: #555;
-            }
-            .meta { 
-              font-size: 8px; 
-              border-top: 1px dashed #ccc; 
-              padding-top: 5px; 
-              margin-top: 5px; 
-              display: flex; 
-              justify-content: space-between; 
-              text-transform: uppercase;
-              color: #444;
-              font-weight: bold;
-            }
-            @media print {
-              .header-banner { display: none; }
-              body { padding: 0; }
-              .grid-container { gap: 10px; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header-banner">
-            <h1>Folha de Etiquetas Patrimoniais</h1>
-            <p>Grade gerada automaticamente com ${patrimonioItems.length} ativos — Pronto para impressão (Papel Adesivo A4 ou Carta)</p>
-          </div>
-          <div class="grid-container">
-            ${itemsHtml}
-          </div>
-          <script>
-            window.onload = function() { 
-              setTimeout(function() {
-                window.print(); 
-              }, 500);
-            }
-          </script>
-        </body>
-        </html>
-      `);
-      printwin.document.close();
-    } else {
-      alert("Por favor, ative a permissão de pop-up no navegador para abrir a folha de impressão!");
+    if (!printwin) {
+      alert("Por favor, ative a permissão de pop-ups no navegador para abrir a folha de etiquetas!");
+      return;
     }
+
+    const itemsWithQr = await Promise.all(
+      patrimonioItems.map(async (item) => {
+        const appLink = `${window.location.origin}${window.location.pathname}?assetId=${encodeURIComponent(item.id)}`;
+        let qrDataUrl = '';
+        try {
+          qrDataUrl = await QRCode.toDataURL(appLink, { width: 200, margin: 1 });
+        } catch {
+          qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(appLink)}`;
+        }
+        return { ...item, qrDataUrl };
+      })
+    );
+
+    const itemsHtml = itemsWithQr.map(item => `
+      <div class="sticker">
+        <h2>${item.name}</h2>
+        <div class="id">CÓD: ${item.patrimonyCode || item.id}</div>
+        <img src="${item.qrDataUrl}" style="max-width: 110px; margin: 4px auto; display: block;" />
+        <div class="meta">
+          <span>Local: ${item.location || 'N/A'}</span>
+          <span>Cat: ${item.category || 'N/A'}</span>
+        </div>
+      </div>
+    `).join('');
+
+    printwin.document.write(`
+      <html>
+      <head>
+        <title>Folha de Etiquetas Patrimoniais - Centro Espírita</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; margin: 0; background-color: #fff; }
+          .header-banner { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+          .header-banner h1 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
+          .header-banner p { margin: 5px 0 0 0; font-size: 11px; color: #666; }
+          .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+          .sticker { border: 1px dashed #666; padding: 12px; text-align: center; background-color: #fff; page-break-inside: avoid; border-radius: 8px; }
+          h2 { margin: 0 0 4px 0; font-size: 11px; font-weight: 800; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .id { font-size: 8px; font-family: monospace; letter-spacing: 0.5px; margin-bottom: 4px; color: #333; font-weight: bold; }
+          .meta { font-size: 8px; border-top: 1px dashed #ccc; padding-top: 5px; margin-top: 5px; display: flex; justify-between: space-between; text-transform: uppercase; color: #444; font-weight: bold; }
+          @media print { .header-banner { display: none; } body { padding: 0; } .grid-container { gap: 10px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header-banner">
+          <h1>Folha de Etiquetas Patrimoniais</h1>
+          <p>Grade gerada com ${patrimonioItems.length} ativos — Impressão em Papel Adesivo A4 ou Carta</p>
+        </div>
+        <div class="grid-container">${itemsHtml}</div>
+        <script>
+          window.onload = function() { setTimeout(function() { window.print(); }, 500); }
+        </script>
+      </body>
+      </html>
+    `);
+    printwin.document.close();
   };
 
   const handleStartScanner = () => {
@@ -4337,83 +4921,152 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
 
   const handleProcessScannedId = (id: string) => {
     let cleanId = (id || '').trim();
-    // Smart URL parsing in case scanned text is a full deep-link QR Code (e.g. https://.../?assetId=pat1)
     try {
       if (cleanId.includes('?') || cleanId.includes('assetId=') || cleanId.includes('scan=')) {
         const urlPart = cleanId.includes('?') ? cleanId.split('?')[1] : cleanId;
         const urlParams = new URLSearchParams(urlPart);
         const idFromUrl = urlParams.get('assetId') || urlParams.get('patId') || urlParams.get('scan');
-        if (idFromUrl) {
-          cleanId = idFromUrl;
-        }
+        if (idFromUrl) cleanId = idFromUrl;
       }
-    } catch (e) {
-      // Treat as plain ID if any parsing errors occur
-    }
+    } catch {}
 
-    const item = patrimonioItems.find(i => String(i.id).toLowerCase() === cleanId.toLowerCase());
+    const item = patrimonioItems.find(i => String(i.id).toLowerCase() === cleanId.toLowerCase() || String(i.patrimonyCode).toLowerCase() === cleanId.toLowerCase());
     if (item) {
       setScannedItemDetail(item);
       setTempConservationStatus(item.status || 'BOM');
       setTempObservation(item.observation || '');
     } else {
-      alert("QR Code ou ID de ativo patrimonial não cadastrado: " + cleanId);
+      alert("QR Code ou Código Patrimonial não encontrado: " + cleanId);
     }
   };
 
-  const handleUpdateScannedItemQty = (diff: number) => {
+  const handleUpdateScannedItemQty = async (diff: number) => {
     if (!scannedItemDetail) return;
-    const nextQty = Math.max(0, scannedItemDetail.quantity + diff);
-    setScannedItemDetail({
-      ...scannedItemDetail,
-      quantity: nextQty
-    });
-    const updated = patrimonioItems.map(item => {
-      if (item.id === scannedItemDetail.id) {
-        return { ...item, quantity: nextQty };
-      }
-      return item;
-    });
-    setPatrimonioItems(updated);
-    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
+    const nextQty = Math.max(0, (scannedItemDetail.quantity || 0) + diff);
+    setScannedItemDetail({ ...scannedItemDetail, quantity: nextQty });
+    await dataService.updateInventoryQuantityAtomic(
+      scannedItemDetail.id,
+      diff,
+      currentUser?.name || 'Administrador',
+      'Ajuste via leitor QR Code'
+    );
   };
 
-  const handleSaveConservationStatus = () => {
+  const handleSaveConservationStatus = async () => {
     if (!scannedItemDetail) return;
-    const updated = patrimonioItems.map(item => {
-      if (item.id === scannedItemDetail.id) {
-        return {
-          ...item,
-          status: tempConservationStatus,
-          observation: tempObservation,
-          lastUpdated: Date.now(),
-          updatedBy: currentUser?.name || 'Administrador'
-        };
-      }
-      return item;
+    await dataService.updateInventoryItem({
+      ...scannedItemDetail,
+      status: tempConservationStatus as InventoryItemStatus,
+      observation: tempObservation,
+      lastUpdated: Date.now(),
+      updatedBy: currentUser?.name || 'Administrador'
     });
-    setPatrimonioItems(updated);
-    localStorage.setItem('admin_patrimonio_items', JSON.stringify(updated));
-    alert("Ficha de Estado de Conservação gravada com sucesso!");
+    alert("Ficha de Conservação gravada com sucesso!");
     setScannerModalOpen(false);
     setScannedItemDetail(null);
   };
 
-  const handleAddLoan = (loan: any) => {
-    const updated = [...patLoans, { id: 'loan_' + Date.now(), ...loan, status: 'Retirado' }];
-    setPatLoans(updated);
-    localStorage.setItem('admin_pat_loans', JSON.stringify(updated));
+  const handleAddLoan = async (loan: any) => {
+    await dataService.addInventoryLoan({
+      itemId: loan.itemId || '',
+      itemName: loan.itemName,
+      borrowerName: loan.borrowerName,
+      borrowerPhone: loan.borrowerPhone || '',
+      borrowerEmail: loan.borrowerEmail || '',
+      borrowerSector: loan.borrowerSector || '',
+      quantity: Number(loan.quantity) || 1,
+      loanDate: loan.loanDate || new Date().toISOString().split('T')[0],
+      expectedReturnDate: loan.expectedReturnDate || '',
+      status: 'EMPRESTADO',
+      observation: loan.observation || '',
+      authorizedBy: currentUser?.name || 'Administrador',
+      timestamp: Date.now()
+    });
   };
 
-  const handleReturnLoan = (id: string) => {
-    const updated = patLoans.filter(l => l.id !== id);
-    setPatLoans(updated);
-    localStorage.setItem('admin_pat_loans', JSON.stringify(updated));
+  const handleReturnLoan = async (loanId: string, condition: InventoryItemStatus = 'BOM') => {
+    await dataService.returnInventoryLoan(loanId, condition, currentUser?.name || 'Administrador');
+    setReturnModalLoan(null);
+  };
+
+  const handlePrintComodatoTerm = (loan: PatrimonioLoan) => {
+    const printwin = window.open("", "_blank");
+    if (!printwin) {
+      alert("Ative a permissão de pop-ups para imprimir o Termo de Comodato.");
+      return;
+    }
+    const today = new Date().toLocaleDateString('pt-BR');
+    printwin.document.write(`
+      <html>
+      <head>
+        <title>Termo de Comodato e Responsabilidade - Patrimônio</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #111; line-height: 1.6; }
+          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 30px; }
+          .header h1 { margin: 0; font-size: 18px; text-transform: uppercase; }
+          .header h2 { margin: 5px 0 0 0; font-size: 12px; font-weight: normal; color: #555; }
+          .box { border: 1px solid #ccc; padding: 15px; background: #fafafa; border-radius: 8px; margin-bottom: 20px; font-size: 12px; }
+          .box p { margin: 4px 0; }
+          .terms { font-size: 12px; margin-bottom: 40px; text-align: justify; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 80px; }
+          .sig-line { width: 45%; border-top: 1px solid #000; text-align: center; font-size: 11px; padding-top: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Centro Espírita - Termo de Responsabilidade e Comodato</h1>
+          <h2>Controle e Salvaguarda de Bens Patrimoniais e Equipamentos</h2>
+        </div>
+
+        <p class="terms">
+          Pelo presente instrumento, declaramos que o bem/equipamento patrimonial descrito abaixo foi entregue em regime de empréstimo/comodato temporário para uso exclusivo em atividades institucionais da casa espírita.
+        </p>
+
+        <div class="box">
+          <p><strong>Item / Equipamento:</strong> ${loan.itemName}</p>
+          <p><strong>Quantidade:</strong> ${loan.quantity || 1} unidade(s)</p>
+          <p><strong>Retirado Por (Comodatário):</strong> ${loan.borrowerName}</p>
+          <p><strong>Setor / Atividade Destino:</strong> ${loan.borrowerSector || 'Não Especificado'}</p>
+          <p><strong>Contato / Telefone:</strong> ${loan.borrowerPhone || 'N/A'}</p>
+          <p><strong>Data de Retirada:</strong> ${loan.loanDate}</p>
+          <p><strong>Data Prevista de Devolução:</strong> ${loan.expectedReturnDate || 'A combinar'}</p>
+          <p><strong>Autorizado Por:</strong> ${loan.authorizedBy || 'Administrador'}</p>
+        </div>
+
+        <div class="terms">
+          <p><strong>Cláusulas de Compromisso:</strong></p>
+          <ol>
+            <li>O comodatário assume total responsabilidade pela guarda, bom uso e integridade física do bem citado durante o período sob seus cuidados.</li>
+            <li>O bem deverá ser restituído nas mesmas condições de funcionamento e conservação em que foi recebido.</li>
+            <li>Em caso de dano, extravio ou defeito, o fato deverá ser comunicado imediatamente ao Setor de Material e Patrimônio.</li>
+          </ol>
+        </div>
+
+        <p style="text-align: right; font-size: 12px;">Data de Emissão: ${today}</p>
+
+        <div class="signatures">
+          <div class="sig-line">
+            <strong>${loan.borrowerName}</strong><br/>
+            Comodatário / Responsável
+          </div>
+          <div class="sig-line">
+            <strong>${loan.authorizedBy || 'Setor de Patrimônio'}</strong><br/>
+            Responsável pelo Patrimônio
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `);
+    printwin.document.close();
   };
 
   const handleCreateTicket = () => {
     if (!newTicketTitle.trim() || !newTicketDesc.trim()) return;
-    const ticketNo = 'TI-00' + (techTickets.length + 12);
+    const ticketNo = 'TI-00' + (techTickets.length + 15);
     const newTk: TechTicket = {
       id: 'tk_' + Date.now(),
       number: ticketNo,
@@ -4423,41 +5076,175 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
       description: newTicketDesc,
       priority: newTicketPriority,
       status: 'ABERTO',
+      category: newTicketCategory,
+      location: newTicketLocation || 'Não especificado',
+      assetTag: newTicketAssetTag || undefined,
       createdAt: Date.now()
     };
-    const updated = [newTk, ...techTickets];
-    setTechTickets(updated);
-    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+    dataService.saveTechTicket(newTk);
     setNewTicketTitle('');
     setNewTicketDesc('');
+    setNewTicketLocation('');
+    setNewTicketAssetTag('');
   };
 
   const handleStartTicketAtendimento = (id: string) => {
-    const updated = techTickets.map(tk => {
-      if (tk.id === id) {
-        return { ...tk, status: 'ATENDIMENTO' as TicketStatus, technicianName: currentUser?.name || 'Administrador' };
-      }
-      return tk;
-    });
-    setTechTickets(updated);
-    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+    const tk = techTickets.find(t => t.id === id);
+    if (tk) {
+      const updated: TechTicket = {
+        ...tk,
+        status: 'ATENDIMENTO',
+        technicianName: currentUser?.name || 'Técnico de TI'
+      };
+      dataService.saveTechTicket(updated);
+    }
   };
 
-  const handleCloseTicket = (id: string) => {
-    const updated = techTickets.map(tk => {
-      if (tk.id === id) {
-        return { ...tk, status: 'CONCLUIDO' as TicketStatus, completedAt: Date.now(), technicianName: tk.technicianName || currentUser?.name || 'Administrador' };
-      }
-      return tk;
-    });
-    setTechTickets(updated);
-    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+  const handleOpenTicketResolutionModal = (id: string) => {
+    const tk = techTickets.find(t => t.id === id);
+    if (tk) {
+      setResolvingTicketId(id);
+      setResolutionNotesInput(tk.resolutionNotes || '');
+    }
+  };
+
+  const handleConfirmTicketResolution = () => {
+    if (!resolvingTicketId) return;
+    const tk = techTickets.find(t => t.id === resolvingTicketId);
+    if (tk) {
+      const updated: TechTicket = {
+        ...tk,
+        status: 'CONCLUIDO',
+        completedAt: Date.now(),
+        technicianName: tk.technicianName || currentUser?.name || 'Técnico de TI',
+        resolutionNotes: resolutionNotesInput || 'Atendimento concluído e verificado em bancada.'
+      };
+      dataService.saveTechTicket(updated);
+    }
+    setResolvingTicketId(null);
+    setResolutionNotesInput('');
   };
 
   const handleDeleteTicket = (id: string) => {
-    const updated = techTickets.filter(tk => tk.id !== id);
-    setTechTickets(updated);
-    localStorage.setItem('admin_tech_tickets', JSON.stringify(updated));
+    dataService.deleteTechTicket(id);
+  };
+
+  // --- INFRAESTRUTURA HANDLERS ---
+  const handleSaveInfraItem = () => {
+    if (!infraNameInput.trim()) return;
+    const item: TechInfraItem = {
+      id: editingInfraId || 'inf_' + Date.now(),
+      name: infraNameInput,
+      type: infraTypeInput,
+      location: infraLocationInput || 'Sede Geral',
+      status: infraStatusInput,
+      ipOrDetails: infraIpDetailsInput || undefined,
+      lastChecked: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      responsible: currentUser?.name || 'Equipe de TI'
+    };
+    dataService.saveTechInfra(item);
+    setInfraModalOpen(false);
+    setEditingInfraId(null);
+    setInfraNameInput('');
+    setInfraLocationInput('');
+    setInfraIpDetailsInput('');
+  };
+
+  const handleToggleInfraStatus = (item: TechInfraItem) => {
+    const nextStatusMap: Record<string, 'Online' | 'Alerta' | 'Offline' | 'Manutenção'> = {
+      'Online': 'Alerta',
+      'Alerta': 'Offline',
+      'Offline': 'Manutenção',
+      'Manutenção': 'Online'
+    };
+    const nextStatus = nextStatusMap[item.status] || 'Online';
+    const updated: TechInfraItem = {
+      ...item,
+      status: nextStatus,
+      lastChecked: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    };
+    dataService.saveTechInfra(updated);
+  };
+
+  const handleDeleteInfraItem = (id: string) => {
+    dataService.deleteTechInfra(id);
+  };
+
+  // --- BASE DE CONHECIMENTO HANDLERS ---
+  const handleSaveKnowledgeItem = () => {
+    if (!knowledgeTitleInput.trim() || !knowledgeProblemInput.trim()) return;
+    const stepsArray = knowledgeStepsInput
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const item: TechKnowledgeItem = {
+      id: editingKnowledgeId || 'kn_' + Date.now(),
+      title: knowledgeTitleInput,
+      category: knowledgeCategoryInput || 'Geral',
+      problem: knowledgeProblemInput,
+      solution: knowledgeSolutionInput,
+      steps: stepsArray.length > 0 ? stepsArray : ['Seguir instruções operacionais do setor.'],
+      updatedAt: new Date().toISOString().split('T')[0]
+    };
+    dataService.saveTechKnowledge(item);
+    setKnowledgeModalOpen(false);
+    setEditingKnowledgeId(null);
+    setKnowledgeTitleInput('');
+    setKnowledgeProblemInput('');
+    setKnowledgeSolutionInput('');
+    setKnowledgeStepsInput('');
+  };
+
+  const handleDeleteKnowledgeItem = (id: string) => {
+    dataService.deleteTechKnowledge(id);
+  };
+
+  // --- TRANSMISSÕES AO VIVO HANDLERS ---
+  const handleSaveLiveStream = () => {
+    if (!liveTitleInput.trim() || !liveSpeakerInput.trim()) return;
+    const stream: TechLiveStream = {
+      id: editingLiveStreamId || 'liv_' + Date.now(),
+      title: liveTitleInput,
+      speaker: liveSpeakerInput,
+      date: liveDateInput || new Date().toISOString().split('T')[0],
+      time: liveTimeInput || '19:30',
+      platform: livePlatformInput,
+      operatorAudio: liveOperatorAudioInput || 'Técnico de Som',
+      operatorVideo: liveOperatorVideoInput || 'Técnico de Vídeo',
+      status: 'Agendado',
+      streamUrl: liveUrlInput || undefined,
+      checklist: { audioOk: false, videoOk: false, networkOk: false, slidesOk: false }
+    };
+    dataService.saveTechLiveStream(stream);
+    setLiveStreamModalOpen(false);
+    setEditingLiveStreamId(null);
+    setLiveTitleInput('');
+    setLiveSpeakerInput('');
+    setLiveDateInput('');
+    setLiveTimeInput('');
+    setLiveOperatorAudioInput('');
+    setLiveOperatorVideoInput('');
+    setLiveUrlInput('');
+  };
+
+  const handleToggleChecklistKey = (stream: TechLiveStream, key: 'audioOk' | 'videoOk' | 'networkOk' | 'slidesOk') => {
+    const updatedChecklist = {
+      audioOk: stream.checklist?.audioOk || false,
+      videoOk: stream.checklist?.videoOk || false,
+      networkOk: stream.checklist?.networkOk || false,
+      slidesOk: stream.checklist?.slidesOk || false,
+      [key]: !(stream.checklist ? stream.checklist[key] : false)
+    };
+    const updatedStream: TechLiveStream = {
+      ...stream,
+      checklist: updatedChecklist
+    };
+    dataService.saveTechLiveStream(updatedStream);
+  };
+
+  const handleDeleteLiveStream = (id: string) => {
+    dataService.deleteTechLiveStream(id);
   };
 
   const handleCreateObra = () => {
@@ -4964,7 +5751,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
     doc.setFontSize(14);
     doc.setFont('Helvetica', 'bold');
     doc.setTextColor(79, 70, 229); // Indigo
-    doc.text(isDRE ? 'DEMONSTRATIVO DE RESULTADOS DO EXERCÍCIO (DRE SIMULADO)' : 'BALANÇO PATRIMONIAL CONSOLIDADO (SIMULADO)', 14, 43);
+    doc.text(isDRE ? 'DEMONSTRATIVO DE RESULTADOS DO EXERCÍCIO (DRE)' : 'BALANÇO PATRIMONIAL CONSOLIDADO', 14, 43);
 
     doc.setFontSize(10);
     doc.setFont('Helvetica', 'normal');
@@ -5520,645 +6307,1788 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
 
   // --- SUB-SECTOR DASHBOARD WORKSPACE BUILDERS ---
   const renderPatrimonioDashboard = () => {
+    // Calculators
+    const totalPatrimonioValue = patrimonioItems.reduce((sum, item) => sum + ((item.unitPrice || 0) * (item.quantity || 0)), 0);
+    const activeLoansCount = patLoans.filter(l => l.status === 'EMPRESTADO').length;
+    const lowStockCount = patrimonioItems.filter(i => i.quantity <= i.minQuantity || i.status === 'EM_FALTA').length;
+
+    // Filtered items
+    const filteredItems = patrimonioItems.filter(item => {
+      const matchesSearch = !patrimonioSearch.trim() || 
+        item.name.toLowerCase().includes(patrimonioSearch.toLowerCase()) || 
+        (item.location && item.location.toLowerCase().includes(patrimonioSearch.toLowerCase())) ||
+        (item.patrimonyCode && item.patrimonyCode.toLowerCase().includes(patrimonioSearch.toLowerCase()));
+
+      const matchesCategory = patrimonioCategory === 'ALL' || item.category === patrimonioCategory;
+
+      let matchesType = true;
+      if (patrimonioTypeTab === 'PATRIMONIO') {
+        matchesType = item.itemType === 'PATRIMONIO' || item.category === 'ELETRONICOS' || item.category === 'MOBILIARIO';
+      } else if (patrimonioTypeTab === 'MATERIAL') {
+        matchesType = item.itemType === 'MATERIAL' || item.category === 'LIMPEZA' || item.category === 'LIVRARIA';
+      }
+
+      return matchesSearch && matchesCategory && matchesType;
+    });
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500">
-        {/* Left Column: Inventory Items */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-50 pb-6">
-              <div className="text-left">
-                <h3 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2 italic">
-                  <Package className="text-indigo-600" size={22} />
-                  Inventário e Controle de Ativos
+      <div className="space-y-8 animate-in fade-in duration-500 font-sans text-left">
+        {/* KPI Top Cards Header */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+              <Package size={24} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Ativos no Acervo</p>
+              <h4 className="text-2xl font-black text-gray-900 mt-0.5">{patrimonioItems.length} <span className="text-xs font-semibold text-gray-400">itens</span></h4>
+            </div>
+          </div>
+
+          <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+              <DollarSign size={24} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Valor do Patrimônio</p>
+              <h4 className="text-xl font-black text-emerald-800 mt-0.5">R$ {totalPatrimonioValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h4>
+            </div>
+          </div>
+
+          <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+              <Users size={24} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Empréstimos Ativos</p>
+              <h4 className="text-2xl font-black text-amber-900 mt-0.5">{activeLoansCount} <span className="text-xs font-semibold text-amber-600">retiradas</span></h4>
+            </div>
+          </div>
+
+          <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Alertas de Reposição</p>
+              <h4 className="text-2xl font-black text-rose-800 mt-0.5">{lowStockCount} <span className="text-xs font-semibold text-rose-500">críticos</span></h4>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Bar for Patrimonio Subtabs */}
+        <div className="bg-white rounded-3xl border border-gray-100 p-2 shadow-sm flex items-center gap-2 overflow-x-auto scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setPatrimonioMainSubTab('ACERVO')}
+            className={cn(
+              "flex-1 min-w-[140px] py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
+              patrimonioMainSubTab === 'ACERVO'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "bg-transparent text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Package size={16} />
+            Acervo & Ativos
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPatrimonioMainSubTab('EMPRESTIMOS')}
+            className={cn(
+              "flex-1 min-w-[140px] py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
+              patrimonioMainSubTab === 'EMPRESTIMOS'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "bg-transparent text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Handshake size={16} />
+            Empréstimos ({activeLoansCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPatrimonioMainSubTab('HISTORICO')}
+            className={cn(
+              "flex-1 min-w-[140px] py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
+              patrimonioMainSubTab === 'HISTORICO'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "bg-transparent text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Clock size={16} />
+            Movimentações
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPatrimonioMainSubTab('ETIQUETAS')}
+            className={cn(
+              "flex-1 min-w-[140px] py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
+              patrimonioMainSubTab === 'ETIQUETAS'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "bg-transparent text-gray-500 hover:bg-gray-50"
+            )}
+          >
+            <Barcode size={16} />
+            Central de QR Codes
+          </button>
+        </div>
+
+        {/* TAB 1: ACERVO & ATIVOS */}
+        {patrimonioMainSubTab === 'ACERVO' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Inventory List Column */}
+            <div className="lg:col-span-8 space-y-6">
+              <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+                {/* Header Actions & Filters */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                      <Package className="text-indigo-600" size={20} />
+                      Ativos Patrimoniais e Materiais
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Sincronizado em tempo real com o Firestore</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleStartScanner}
+                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-indigo-150 active:scale-95"
+                    >
+                      <QrCode size={14} />
+                      Escanear QR
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handlePrintAllQRCodes}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-slate-150 active:scale-95"
+                      title="Imprimir lote de etiquetas"
+                    >
+                      <Printer size={14} />
+                      Imprimir QRs
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search and Category Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="relative sm:col-span-2">
+                    <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
+                    <input
+                      type="text"
+                      value={patrimonioSearch}
+                      onChange={(e) => setPatrimonioSearch(e.target.value)}
+                      placeholder="Buscar por nome, código patrimonial, local..."
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <select
+                    value={patrimonioCategory}
+                    onChange={(e) => setPatrimonioCategory(e.target.value)}
+                    className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none"
+                  >
+                    <option value="ALL">Todas as Categorias</option>
+                    <option value="ELETRONICOS">Eletrônicos & Som</option>
+                    <option value="MOBILIARIO">Mobiliário</option>
+                    <option value="LIVRARIA">Livraria & Doutrinários</option>
+                    <option value="LIMPEZA">Limpeza & Sanitários</option>
+                    <option value="COZINHA">Cozinha & Refeitório</option>
+                    <option value="SUPRIMENTOS">Suprimentos & Escritório</option>
+                    <option value="MANUTENCAO">Manutenção & Obras</option>
+                    <option value="OUTROS">Outros</option>
+                  </select>
+                </div>
+
+                {/* Type Tab Filter */}
+                <div className="flex border-b border-gray-150 justify-start gap-3 pb-1 overflow-x-auto scrollbar-none w-full">
+                  <button
+                    type="button"
+                    onClick={() => setPatrimonioTypeTab('TODOS')}
+                    className={cn(
+                      "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer",
+                      patrimonioTypeTab === 'TODOS'
+                        ? "border-indigo-600 text-indigo-600 font-black"
+                        : "border-transparent text-gray-400 hover:text-gray-650"
+                    )}
+                  >
+                    Todos os Itens ({patrimonioItems.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPatrimonioTypeTab('PATRIMONIO')}
+                    className={cn(
+                      "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
+                      patrimonioTypeTab === 'PATRIMONIO'
+                        ? "border-indigo-600 text-indigo-600 font-black"
+                        : "border-transparent text-gray-400 hover:text-gray-650"
+                    )}
+                  >
+                    <Package size={13} />
+                    Patrimônio Permanente
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPatrimonioTypeTab('MATERIAL')}
+                    className={cn(
+                      "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
+                      patrimonioTypeTab === 'MATERIAL'
+                        ? "border-indigo-600 text-indigo-600 font-black"
+                        : "border-transparent text-gray-400 hover:text-gray-650"
+                    )}
+                  >
+                    <BookOpen size={13} />
+                    Materiais de Consumo
+                  </button>
+                </div>
+
+                {/* Items List */}
+                <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                  {filteredItems.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                      <Package size={32} className="mx-auto text-gray-300 mb-2" />
+                      <p className="text-xs font-bold uppercase tracking-wider">Nenhum item encontrado no acervo</p>
+                      <p className="text-[11px] text-gray-400 mt-1">Utilize o formulário ao lado para cadastrar um novo ativo.</p>
+                    </div>
+                  ) : (
+                    filteredItems.map((item) => {
+                      const isLow = item.quantity <= item.minQuantity;
+                      const itemValue = (item.unitPrice || 0) * (item.quantity || 0);
+
+                      return (
+                        <div key={item.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-all">
+                          <div className="space-y-1.5 text-left flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={cn(
+                                "w-2.5 h-2.5 rounded-full shrink-0",
+                                item.status === 'BOM' ? 'bg-emerald-500' : item.status === 'EM_FALTA' ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
+                              )} />
+                              <h4 className="font-extrabold text-gray-900 text-sm truncate">{item.name}</h4>
+
+                              {item.patrimonyCode && (
+                                <span className="text-[9px] bg-indigo-50 text-indigo-700 font-mono font-black px-2 py-0.5 rounded-md border border-indigo-100 shrink-0">
+                                  {item.patrimonyCode}
+                                </span>
+                              )}
+
+                              <span className={cn(
+                                "text-[8.5px] font-black uppercase px-2 py-0.5 rounded-md shrink-0",
+                                item.itemType === 'MATERIAL' ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"
+                              )}>
+                                {item.itemType === 'MATERIAL' ? 'Consumo' : 'Patrimônio'}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                              <span>Cat: {INVENTORY_CATEGORY_LABELS[item.category as InventoryCategory] || item.category}</span>
+                              <span>•</span>
+                              <span>Local: {item.location || 'N/A'}</span>
+                              {item.unitPrice ? (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-emerald-700 font-black">Val: R$ {itemValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                </>
+                              ) : null}
+                              <span>•</span>
+                              <span className={cn(isLow ? "text-amber-600 font-black animate-pulse" : "")}>Mínimo: {item.minQuantity} {item.unit}</span>
+                            </div>
+                          </div>
+
+                          {/* Controls */}
+                          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end shrink-0">
+                            <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-2 py-1 shadow-xs">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePatQuantity(item.id, -1)}
+                                className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                                title="Reduzir 1 unidade"
+                              >
+                                <Minus size={13} />
+                              </button>
+                              <span className="font-mono text-xs font-black text-gray-900 w-8 text-center bg-gray-50 rounded py-0.5">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePatQuantity(item.id, 1)}
+                                className="p-1 text-gray-400 hover:text-emerald-500 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                                title="Adicionar 1 unidade"
+                              >
+                                <Plus size={13} />
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleShowItemQRCode(item)}
+                              className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer border border-indigo-100"
+                              title="Ver Etiqueta QR Code"
+                            >
+                              <QrCode size={15} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePatrimonio(item.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                              title="Excluir item"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Registration Form Column */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm text-left">
+                <h3 className="text-base font-black text-gray-900 tracking-tight italic flex items-center gap-2 mb-1">
+                  <Plus className="text-indigo-600" size={18} />
+                  Cadastrar Novo Ativo / Material
                 </h3>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Materiais de consumo e patrimônio físico</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-5">Adicionar peça ao inventário da casa</p>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
+                    const name = fd.get('pName') as string;
+                    const cat = fd.get('pCat') as string;
+                    const itemType = fd.get('pType') as 'PATRIMONIO' | 'MATERIAL';
+                    const qty = Number(fd.get('pQty') || 1);
+                    const minQty = Number(fd.get('pMin') || 1);
+                    const unit = (fd.get('pUnit') as string) || 'unidade(s)';
+                    const loc = fd.get('pLoc') as string;
+                    const patCode = fd.get('pCode') as string;
+                    const unitPrice = Number(fd.get('pPrice') || 0);
+
+                    if (!name.trim()) return;
+
+                    handleAddPatrimonio({
+                      name,
+                      category: cat,
+                      itemType,
+                      quantity: qty,
+                      minQuantity: minQty,
+                      unit,
+                      location: loc,
+                      patrimonyCode: patCode,
+                      unitPrice,
+                      status: qty === 0 ? 'EM_FALTA' : 'BOM'
+                    });
+
+                    e.currentTarget.reset();
+                  }}
+                  className="space-y-4 font-sans"
+                >
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome da Peça / Item *</label>
+                    <input required name="pName" placeholder="Ex: Projetor Epson PowerLite" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Tipo de Bem</label>
+                      <select name="pType" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-2.5 py-2 text-xs font-bold text-gray-700 focus:outline-none">
+                        <option value="PATRIMONIO">Patrimônio Permanente</option>
+                        <option value="MATERIAL">Material de Consumo</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Categoria</label>
+                      <select name="pCat" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-2.5 py-2 text-xs font-bold text-gray-700 focus:outline-none">
+                        <option value="ELETRONICOS">Eletrônicos & Som</option>
+                        <option value="MOBILIARIO">Mobiliário</option>
+                        <option value="LIVRARIA">Livraria & Doutrinários</option>
+                        <option value="LIMPEZA">Limpeza</option>
+                        <option value="COZINHA">Cozinha</option>
+                        <option value="SUPRIMENTOS">Escritório</option>
+                        <option value="MANUTENCAO">Manutenção</option>
+                        <option value="OUTROS">Outros</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Localização Física na Casa</label>
+                    <input name="pLoc" placeholder="Ex: Salão Principal / Almoxarifado" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Qte Inicial</label>
+                      <input required name="pQty" type="number" defaultValue="1" min="0" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Mínimo</label>
+                      <input required name="pMin" type="number" defaultValue="1" min="0" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Unidade</label>
+                      <input name="pUnit" defaultValue="unidade(s)" placeholder="un" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Cód. Tombamento</label>
+                      <input name="pCode" placeholder={`PAT-${new Date().getFullYear()}-001`} className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none font-mono" />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Valor Unitário (R$)</label>
+                      <input name="pPrice" type="number" step="0.01" placeholder="0,00" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full mt-3 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-150 active:scale-98"
+                  >
+                    Gravar no Inventário
+                  </button>
+                </form>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleStartScanner()}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-indigo-150 active:scale-95"
-                >
-                  <QrCode size={13} />
-                  Escanear Ativo
-                </button>
+            </div>
+          </div>
+        )}
 
-                <button
-                  type="button"
-                  onClick={handlePrintAllQRCodes}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-slate-150 active:scale-95"
-                  title="Gerar cartela com todas as etiquetas de QR Code prontas para imprimir"
-                >
-                  <Printer size={13} />
-                  Imprimir Lote de QRs
-                </button>
+        {/* TAB 2: EMPRÉSTIMOS E RETIRADAS */}
+        {patrimonioMainSubTab === 'EMPRESTIMOS' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Active Loans List */}
+            <div className="lg:col-span-8 space-y-6">
+              <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6 text-left">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                      <Handshake className="text-amber-600" size={20} />
+                      Registro de Empréstimos e Retiradas
+                    </h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Equipamentos e materiais sob posse temporária de trabalhadores</p>
+                  </div>
+                </div>
 
-                <span className="text-xs font-bold text-gray-400 ml-2">Filtrar:</span>
-                <select
-                  value={patrimonioCategory}
-                  onChange={(e) => setPatrimonioCategory(e.target.value)}
-                  className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-black text-gray-700 focus:outline-none"
-                >
-                  <option value="ALL">Todos os Tipos</option>
-                  <option value="ELETRONICOS">Eletrônicos & Som</option>
-                  <option value="MOBILIARIO">Mobiliário</option>
-                  <option value="LIVRARIA">Livraria</option>
-                  <option value="LIMPEZA">Limpeza</option>
-                </select>
+                <div className="space-y-3">
+                  {patLoans.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                      <Handshake size={32} className="mx-auto text-gray-300 mb-2" />
+                      <p className="text-xs font-bold uppercase tracking-wider">Nenhum empréstimo cadastrado</p>
+                    </div>
+                  ) : (
+                    patLoans.map((loan) => {
+                      const isReturned = loan.status === 'DEVOLVIDO';
+
+                      return (
+                        <div key={loan.id} className={cn(
+                          "p-5 rounded-2xl border text-left flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all",
+                          isReturned ? "bg-gray-50/60 border-gray-100/60" : "bg-amber-50/40 border-amber-100/80"
+                        )}>
+                          <div className="space-y-1 text-left flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "text-[9px] font-black uppercase px-2 py-0.5 rounded-md",
+                                isReturned ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
+                              )}>
+                                {loan.status || 'EMPRESTADO'}
+                              </span>
+                              <h4 className="font-extrabold text-gray-900 text-sm">{loan.itemName}</h4>
+                              <span className="text-xs font-bold text-gray-500">({loan.quantity || 1} un)</span>
+                            </div>
+
+                            <div className="text-[11px] font-semibold text-gray-600 space-y-0.5">
+                              <p>Retirado por: <strong className="text-gray-900">{loan.borrowerName}</strong> {loan.borrowerSector ? `(${loan.borrowerSector})` : ''}</p>
+                              <div className="flex flex-wrap gap-4 text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+                                <span>Data Retirada: {loan.loanDate}</span>
+                                {loan.expectedReturnDate && <span>Prev. Devolução: {loan.expectedReturnDate}</span>}
+                                {loan.borrowerPhone && <span>Contato: {loan.borrowerPhone}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Loan Action Buttons */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handlePrintComodatoTerm(loan)}
+                              className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+                              title="Imprimir Termo de Comodato"
+                            >
+                              <Printer size={13} />
+                              Termo
+                            </button>
+
+                            {!isReturned && (
+                              <button
+                                type="button"
+                                onClick={() => setReturnModalLoan(loan)}
+                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
+                              >
+                                Registrar Devolução
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Visual Material vs Patrimonio Selector */}
-            <div className="flex border-b border-gray-150 justify-start gap-4 pb-1 overflow-x-auto whitespace-nowrap scrollbar-none w-full">
-              <button
-                type="button"
-                id="tab-pat-todos"
-                onClick={() => setPatrimonioTypeTab('TODOS')}
-                className={cn(
-                  "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer",
-                  patrimonioTypeTab === 'TODOS'
-                    ? "border-indigo-600 text-indigo-600 font-black"
-                    : "border-transparent text-gray-400 hover:text-gray-650"
-                )}
-              >
-                Todos os Itens
-              </button>
-              <button
-                type="button"
-                id="tab-pat-material"
-                onClick={() => setPatrimonioTypeTab('MATERIAL')}
-                className={cn(
-                  "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
-                  patrimonioTypeTab === 'MATERIAL'
-                    ? "border-indigo-600 text-indigo-600 font-black"
-                    : "border-transparent text-gray-400 hover:text-gray-650"
-                )}
-              >
-                <BookOpen size={13} />
-                Materiais de Consumo
-              </button>
-              <button
-                type="button"
-                id="tab-pat-patrimonio"
-                onClick={() => setPatrimonioTypeTab('PATRIMONIO')}
-                className={cn(
-                  "flex-shrink-0 px-4 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
-                  patrimonioTypeTab === 'PATRIMONIO'
-                    ? "border-indigo-600 text-indigo-600 font-black"
-                    : "border-transparent text-gray-400 hover:text-gray-650"
-                )}
-              >
-                <Package size={13} />
-                Patrimônio Permanente
-              </button>
+            {/* New Loan Form Column */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm text-left">
+                <h3 className="text-base font-black text-gray-900 tracking-tight italic flex items-center gap-2 mb-1">
+                  <Handshake className="text-amber-600" size={18} />
+                  Registrar Nova Retirada
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-5">Autorização de saída temporária de bens</p>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.currentTarget);
+                    const itemId = fd.get('lItemId') as string;
+                    const selectedItem = patrimonioItems.find(i => i.id === itemId);
+
+                    const itemName = selectedItem ? selectedItem.name : (fd.get('lItemCustom') as string);
+                    const borrowerName = fd.get('lBorrower') as string;
+                    const borrowerPhone = fd.get('lPhone') as string;
+                    const borrowerSector = fd.get('lSector') as string;
+                    const quantity = Number(fd.get('lQty') || 1);
+                    const expectedReturnDate = fd.get('lReturnDate') as string;
+
+                    if (!itemName || !borrowerName) return;
+
+                    handleAddLoan({
+                      itemId: itemId || '',
+                      itemName,
+                      borrowerName,
+                      borrowerPhone,
+                      borrowerSector,
+                      quantity,
+                      expectedReturnDate
+                    });
+
+                    e.currentTarget.reset();
+                  }}
+                  className="space-y-4 font-sans"
+                >
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Selecionar Ativo do Acervo</label>
+                    <select name="lItemId" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none">
+                      <option value="">Selecione um item (ou digite abaixo)...</option>
+                      {patrimonioItems.map(i => (
+                        <option key={i.id} value={i.id} disabled={i.quantity <= 0}>
+                          {i.name} — Disp: {i.quantity} {i.unit} {i.patrimonyCode ? `(${i.patrimonyCode})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Outro Nome (se não estiver na lista)</label>
+                    <input name="lItemCustom" placeholder="Ex: Projetor de Vídeo Retro" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome do Comodatário / Retirante *</label>
+                    <input required name="lBorrower" placeholder="Ex: Eduardo Roberto" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Setor Destino</label>
+                      <input name="lSector" placeholder="Ex: Doutrinária" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Quantidade</label>
+                      <input required name="lQty" type="number" defaultValue="1" min="1" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Telefone / Contato</label>
+                      <input name="lPhone" placeholder="(11) 99999-0000" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Data Prev. Devolução</label>
+                      <input name="lReturnDate" type="date" className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-none" />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full mt-3 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-amber-150 active:scale-98"
+                  >
+                    Autorizar e Dar Baixa Temporária
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: HISTÓRICO DE MOVIMENTAÇÕES */}
+        {patrimonioMainSubTab === 'HISTORICO' && (
+          <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm text-left space-y-6">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                  <Clock className="text-indigo-600" size={20} />
+                  Histórico e Registro de Audit de Estoque
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Todas as entradas, saídas, ajustes e devoluções em tempo real</p>
+              </div>
             </div>
 
-            {/* List */}
-            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-              {patrimonioItems
-                .filter(item => {
-                  const matchesCategory = patrimonioCategory === 'ALL' || item.category === patrimonioCategory;
-                  if (patrimonioTypeTab === 'PATRIMONIO') {
-                    return matchesCategory && (item.category === 'ELETRONICOS' || item.category === 'MOBILIARIO');
-                  }
-                  if (patrimonioTypeTab === 'MATERIAL') {
-                    return matchesCategory && (item.category === 'LIMPEZA' || item.category === 'LIVRARIA');
-                  }
-                  return matchesCategory;
-                })
-                .map((item) => {
-                  const isLow = item.quantity <= item.minQuantity;
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 font-sans">
+              {inventoryMovements.length === 0 ? (
+                <div className="p-12 text-center text-gray-400 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                  <Clock size={32} className="mx-auto text-gray-300 mb-2" />
+                  <p className="text-xs font-bold uppercase tracking-wider">Nenhuma movimentação registrada no audit</p>
+                </div>
+              ) : (
+                inventoryMovements.map((mov) => {
+                  const isEntrada = mov.type === 'ENTRADA';
+                  const isBaixa = mov.type === 'BAIXA' || mov.type === 'SAIDA';
+
                   return (
-                    <div key={item.id} className="p-5 bg-gray-50 rounded-2xl border border-gray-100/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-all">
+                    <div key={mov.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div className="space-y-1 text-left">
                         <div className="flex items-center gap-2">
                           <span className={cn(
-                            "w-2.5 h-2.5 rounded-full",
-                            item.status === 'BOM' ? 'bg-emerald-500' : item.status === 'EM_FALTA' ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
-                          )} />
-                          <h4 className="font-extrabold text-gray-900 text-sm">{item.name}</h4>
+                            "text-[9px] font-black uppercase px-2 py-0.5 rounded-md",
+                            isEntrada ? "bg-emerald-100 text-emerald-800" : isBaixa ? "bg-rose-100 text-rose-800" : "bg-blue-100 text-blue-800"
+                          )}>
+                            {mov.type}
+                          </span>
+                          <h4 className="font-extrabold text-gray-900 text-sm">{mov.itemName}</h4>
+                          <span className="text-xs font-black text-gray-700">({isEntrada ? '+' : '-'}{mov.quantity})</span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-3 text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                          <span>Categoria: {item.category}</span>
-                          <span>•</span>
-                          <span>Local: {item.location}</span>
-                          <span>•</span>
-                          <span className={cn(isLow ? "text-amber-600 font-black animate-pulse" : "")}>Estoque Mínimo: {item.minQuantity} {item.unit}</span>
-                        </div>
+
+                        <p className="text-[11px] text-gray-500 font-medium">
+                          Motivo: <span className="text-gray-800 font-semibold">{mov.reason || 'Ajuste de Estoque'}</span>
+                        </p>
                       </div>
 
-                      {/* Controls */}
-                      <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                        <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-2 py-1">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdatePatQuantity(item.id, -1)}
-                            className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="font-mono text-xs font-black text-gray-900 w-8 text-center bg-gray-50 rounded py-0.5">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdatePatQuantity(item.id, 1)}
-                            className="p-1 text-gray-400 hover:text-emerald-500 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                        
-                        {/* Qr Code Generator label */}
-                        <button
-                          type="button"
-                          onClick={() => handleShowItemQRCode(item)}
-                          className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer flex items-center justify-center border border-indigo-100"
-                          title="Gerar etiqueta QR Code"
-                        >
-                          <QrCode size={16} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePatrimonio(item.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      <div className="text-right text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">
+                        <p>Operador: <span className="text-gray-800 font-bold">{mov.updatedBy || 'Sistema'}</span></p>
+                        <p>{new Date(mov.timestamp || Date.now()).toLocaleString('pt-BR')}</p>
                       </div>
                     </div>
                   );
-                })}
-            </div>
-
-            {/* Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget);
-                const name = fd.get('pName') as string;
-                const cat = fd.get('pCat') as string;
-                const qty = Number(fd.get('pQty') || 1);
-                const minQty = Number(fd.get('pMin') || 1);
-                const loc = fd.get('pLoc') as string;
-                if (!name) return;
-                handleAddPatrimonio({ name, category: cat, quantity: qty, minQuantity: minQty, unit: 'unidade(s)', location: loc, status: qty === 0 ? 'EM_FALTA' : 'BOM' });
-                e.currentTarget.reset();
-              }}
-              className="mt-6 p-6 bg-indigo-50/35 rounded-3xl border border-indigo-100/50 grid grid-cols-1 sm:grid-cols-2 gap-4 text-left font-sans"
-            >
-              <div className="sm:col-span-2">
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome da Peça / Ativo</label>
-                <input required name="pName" placeholder="Ex: Microfone Sem Fio Shure" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Categoria</label>
-                <select name="pCat" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none">
-                  <option value="ELETRONICOS">Eletrônicos & Som</option>
-                  <option value="MOBILIARIO">Mobiliário</option>
-                  <option value="LIVRARIA">Livraria & Doutrinários</option>
-                  <option value="LIMPEZA">Produtos de Limpeza</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Localização Física</label>
-                <input name="pLoc" placeholder="Ex: Salão de Doutrinária" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Estoque Atual</label>
-                <input required name="pQty" type="number" defaultValue="1" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Quantidade Mínima</label>
-                <input required name="pMin" type="number" defaultValue="1" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
-              </div>
-              <button type="submit" className="sm:col-span-2 w-full mt-2 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 transition-colors cursor-pointer">
-                Catalogar Ativo
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Right Column: Loans / Borrow Tracker */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="text-left">
-              <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
-                <Users size={18} className="text-amber-600" />
-                Controle de Retiradas (Empréstimos)
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Materiais retirados para uso temporário</p>
-            </div>
-
-            <div className="space-y-3">
-              {patLoans.length > 0 ? (
-                patLoans.map((loan) => (
-                  <div key={loan.id} className="p-4 bg-amber-50/40 border border-amber-100/50 rounded-2xl text-left space-y-2">
-                    <div className="flex justify-between items-start gap-2">
-                      <h4 className="text-xs font-black text-amber-900">{loan.itemName}</h4>
-                      <button
-                        onClick={() => handleReturnLoan(loan.id)}
-                        className="text-[9px] font-black uppercase text-amber-700 hover:text-white hover:bg-amber-600 px-2 py-1 border border-amber-300 rounded-lg transition-all cursor-pointer"
-                      >
-                        Devolver
-                      </button>
-                    </div>
-                    <div className="text-[10px] text-gray-500 font-semibold space-y-1">
-                      <p>Retirado por: <strong>{loan.borrowerName}</strong></p>
-                      <p>Data: {loan.loanDate}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-6 text-center text-gray-300 italic text-xs">Nenhum empréstimo ativo registrado.</div>
+                })
               )}
             </div>
-
-            {/* Quick Loan Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget);
-                const itemName = fd.get('lItem') as string;
-                const borrowerName = fd.get('lName') as string;
-                if (!itemName || !borrowerName) return;
-                handleAddLoan({ itemName, borrowerName, loanDate: new Date().toLocaleDateString('pt-BR') });
-                e.currentTarget.reset();
-              }}
-              className="p-5 bg-gray-50 rounded-3xl border border-gray-100 space-y-4 text-left font-sans"
-            >
-              <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 italic">Registrar Nova Retirada</h4>
-              <div>
-                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Item Retirado</label>
-                <input required name="lItem" placeholder="Ex: Notebook Dell" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Nome do Responsável / Voluntário</label>
-                <input required name="lName" placeholder="Ex: Eduardo Santos" className="w-full mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none" />
-              </div>
-              <button type="submit" className="w-full py-2 bg-gray-950 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-colors cursor-pointer">
-                Autorizar Retirada
-              </button>
-            </form>
           </div>
-        </div>
+        )}
+
+        {/* TAB 4: CENTRAL DE ETIQUETAS E QR CODE */}
+        {patrimonioMainSubTab === 'ETIQUETAS' && (
+          <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm text-left space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                  <Barcode className="text-indigo-600" size={20} />
+                  Central de Etiquetas Patrimoniais em Lote
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Gerador offline de etiquetas adesivas para identificação física de bens</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handlePrintAllQRCodes}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-md shadow-indigo-150"
+              >
+                <Printer size={15} />
+                Imprimir Grade de Etiquetas A4/Carta
+              </button>
+            </div>
+
+            {/* Grid of printable QR preview cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[550px] overflow-y-auto pr-1">
+              {patrimonioItems.map((item) => (
+                <div key={item.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-200 text-center flex flex-col items-center justify-between space-y-3">
+                  <div>
+                    <span className="text-[8px] bg-indigo-50 text-indigo-700 font-mono font-black px-2 py-0.5 rounded uppercase">
+                      {item.patrimonyCode || item.id}
+                    </span>
+                    <h5 className="text-xs font-extrabold text-gray-900 mt-1 line-clamp-2">{item.name}</h5>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleShowItemQRCode(item)}
+                    className="p-3 bg-white border border-gray-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <QrCode size={36} className="text-indigo-900 mx-auto" />
+                    <span className="text-[8px] font-black uppercase text-indigo-600 mt-1 block">Ampliar QR</span>
+                  </button>
+
+                  <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest w-full flex justify-between border-t border-gray-200/60 pt-2">
+                    <span>{item.location || 'Geral'}</span>
+                    <span>{item.category}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: REGISTRAR DEVOLUÇÃO */}
+        {returnModalLoan && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 text-left space-y-5">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Devolução de Empréstimo</h4>
+                <button type="button" onClick={() => setReturnModalLoan(null)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              </div>
+
+              <div className="p-3 bg-indigo-50/50 rounded-2xl text-xs space-y-1">
+                <p>Item: <strong className="text-gray-900">{returnModalLoan.itemName}</strong></p>
+                <p>Retirado por: <strong>{returnModalLoan.borrowerName}</strong></p>
+                <p>Quantidade: <strong>{returnModalLoan.quantity} un</strong></p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Estado de Conservação na Devolução</label>
+                <select
+                  value={returnCondition}
+                  onChange={(e) => setReturnCondition(e.target.value as InventoryItemStatus)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-black text-gray-800 focus:outline-none"
+                >
+                  <option value="BOM">🟢 Perfeito Estado (Devolução Normal)</option>
+                  <option value="REGULAR">🟡 Estado Regular (Pequenos desgastes)</option>
+                  <option value="PRECISANDO_REPARO">🟠 Precisando Reparo / Manutenção</option>
+                  <option value="DANIFICADO">🔴 Danificado / Avaria</option>
+                </select>
+                <p className="text-[10px] text-gray-400">A quantidade devolvida será automaticamente reincorporada ao estoque do acervo.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReturnModalLoan(null)}
+                  className="py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleReturnLoan(returnModalLoan.id, returnCondition)}
+                  className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-emerald-150"
+                >
+                  Confirmar Devolução
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
   const renderTecnologiaDashboard = () => {
+    const openTicketsCount = techTickets.filter(t => t.status === 'ABERTO').length;
+    const inProgressTicketsCount = techTickets.filter(t => t.status === 'ATENDIMENTO').length;
+    const resolvedTicketsCount = techTickets.filter(t => t.status === 'CONCLUIDO').length;
+    const onlineInfraCount = techInfraList.filter(i => i.status === 'Online').length;
+
+    const filteredTickets = techTickets.filter(tk => {
+      const matchStatus = ticketStatusFilter === 'ALL' || tk.status === ticketStatusFilter;
+      const matchCategory = ticketCategoryFilter === 'ALL' || tk.category === ticketCategoryFilter;
+      const q = ticketSearchQuery.toLowerCase();
+      const matchQuery = !q || tk.title.toLowerCase().includes(q) || tk.description.toLowerCase().includes(q) || (tk.location && tk.location.toLowerCase().includes(q)) || (tk.number && tk.number.toLowerCase().includes(q));
+      return matchStatus && matchCategory && matchQuery;
+    });
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500">
-        {/* Left Column: Form Helpdesk */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm text-left space-y-6">
-            <div>
-              <h3 className="text-xl font-black text-gray-900 tracking-tight italic flex items-center gap-2">
-                <MessageSquare className="text-indigo-600" size={22} />
-                Abertura de Chamado
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Solicitar suporte de TI para a casa espírita</p>
+      <div className="space-y-8 animate-in fade-in duration-500 font-sans text-left">
+        {/* Navigation Bar for TI Sub-Sectors */}
+        <div className="bg-white rounded-3xl p-3 border border-gray-100 shadow-sm flex items-center gap-2 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setTechActiveSubTab('tickets')}
+            className={cn(
+              "px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              techActiveSubTab === 'tickets'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+            )}
+          >
+            <Cpu size={16} />
+            Chamados & Helpdesk
+            {openTicketsCount > 0 && (
+              <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                {openTicketsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTechActiveSubTab('infra')}
+            className={cn(
+              "px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              techActiveSubTab === 'infra'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+            )}
+          >
+            <Wifi size={16} />
+            Infraestrutura & Redes
+            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
+              {onlineInfraCount}/{techInfraList.length} Online
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTechActiveSubTab('transmissoes')}
+            className={cn(
+              "px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              techActiveSubTab === 'transmissoes'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+            )}
+          >
+            <Video size={16} />
+            Transmissões Ao Vivo & Som
+            <span className="bg-purple-100 text-purple-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
+              {techLiveStreams.length} Agendadas
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTechActiveSubTab('knowledge')}
+            className={cn(
+              "px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap",
+              techActiveSubTab === 'knowledge'
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+            )}
+          >
+            <BookOpen size={16} />
+            Base de Conhecimento & Procedimentos
+          </button>
+        </div>
+
+        {/* TAB 1: CHAMADOS & HELPDESK */}
+        {techActiveSubTab === 'tickets' && (
+          <div className="space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Chamados Abertos</p>
+                  <h3 className="text-2xl font-black text-red-600 mt-1">{openTicketsCount}</h3>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
+                  <AlertCircle size={20} />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Em Atendimento</p>
+                  <h3 className="text-2xl font-black text-amber-600 mt-1">{inProgressTicketsCount}</h3>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Clock size={20} />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Resolvidos</p>
+                  <h3 className="text-2xl font-black text-emerald-600 mt-1">{resolvedTicketsCount}</h3>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle2 size={20} />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Infraestrutura OK</p>
+                  <h3 className="text-2xl font-black text-indigo-600 mt-1">{onlineInfraCount}/{techInfraList.length}</h3>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Server size={20} />
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Assunto / Título do Problema</label>
-                <input
-                  value={newTicketTitle}
-                  onChange={(e) => setNewTicketTitle(e.target.value)}
-                  placeholder="Ex: Wi-Fi desconectando no Auditório"
-                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all font-sans"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Descrição Detalhada do Incidente</label>
-                <textarea
-                  value={newTicketDesc}
-                  onChange={(e) => setNewTicketDesc(e.target.value)}
-                  placeholder="Descreva em poucas palavras o problema, as luzes indicadoras do aparelho, ou o comportamento observado..."
-                  rows={4}
-                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all font-sans"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nível de Urgência</label>
-                <div className="grid grid-cols-3 gap-2 mt-1 font-sans">
-                  {(['BAIXA', 'MEDIA', 'ALTA'] as const).map((pr) => (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Form Helpdesk */}
+              <div className="lg:col-span-5 space-y-6">
+                <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+                  <div>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                      <MessageSquare className="text-indigo-600" size={22} />
+                      Abertura de Chamado de TI
+                    </h3>
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Solicitar suporte de hardware, software, rede ou som</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Assunto / Título do Problema *</label>
+                      <input
+                        value={newTicketTitle}
+                        onChange={(e) => setNewTicketTitle(e.target.value)}
+                        placeholder="Ex: Wi-Fi desconectando no Auditório"
+                        className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Categoria *</label>
+                        <select
+                          value={newTicketCategory}
+                          onChange={(e: any) => setNewTicketCategory(e.target.value)}
+                          className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all"
+                        >
+                          <option value="Redes e Wi-Fi">📡 Redes e Wi-Fi</option>
+                          <option value="Hardware e Computadores">💻 Hardware e PCs</option>
+                          <option value="Software e Sistemas">⚙️ Software e Sistemas</option>
+                          <option value="Som e Audiovisual">🎤 Som e Audiovisual</option>
+                          <option value="Transmissão Ao Vivo">📹 Transmissão Ao Vivo</option>
+                          <option value="Acessos e Senhas">🔑 Acessos e Senhas</option>
+                          <option value="Outros">🛠️ Outros</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Local / Sala Solicitante</label>
+                        <input
+                          value={newTicketLocation}
+                          onChange={(e) => setNewTicketLocation(e.target.value)}
+                          placeholder="Ex: Auditório Principal"
+                          className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Código Patrimonial / Aparelho (Opcional)</label>
+                      <input
+                        value={newTicketAssetTag}
+                        onChange={(e) => setNewTicketAssetTag(e.target.value)}
+                        placeholder="Ex: PAT-0012 ou Projetor Epson #2"
+                        className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-bold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Descrição Detalhada do Incidente *</label>
+                      <textarea
+                        value={newTicketDesc}
+                        onChange={(e) => setNewTicketDesc(e.target.value)}
+                        placeholder="Descreva o problema observado, luzes indicadoras do aparelho ou mensagens de erro..."
+                        rows={3}
+                        className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:bg-white focus:border-indigo-600 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nível de Urgência</label>
+                      <div className="grid grid-cols-4 gap-2 mt-1">
+                        {(['BAIXA', 'MEDIA', 'ALTA', 'CRITICA'] as const).map((pr) => (
+                          <button
+                            type="button"
+                            key={pr}
+                            onClick={() => setNewTicketPriority(pr)}
+                            className={cn(
+                              "py-2 border text-[9px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer",
+                              newTicketPriority === pr
+                                ? (pr === 'CRITICA' ? "bg-red-600 border-transparent text-white shadow-md shadow-red-500/20" : pr === 'ALTA' ? "bg-amber-600 border-transparent text-white shadow-md shadow-amber-500/20" : pr === 'MEDIA' ? "bg-indigo-600 border-transparent text-white shadow-md shadow-indigo-500/20" : "bg-gray-700 border-transparent text-white")
+                                : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50"
+                            )}
+                          >
+                            {pr}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      key={pr}
-                      onClick={() => setNewTicketPriority(pr)}
-                      className={cn(
-                        "py-2 border text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer",
-                        newTicketPriority === pr
-                          ? (pr === 'ALTA' ? "bg-red-500 border-transparent text-white shadow-lg shadow-red-500/10 hover:bg-red-600" : pr === 'MEDIA' ? "bg-amber-500 border-transparent text-white shadow-lg shadow-amber-500/10 hover:bg-amber-600" : "bg-gray-700 border-transparent text-white hover:bg-gray-800")
-                          : "bg-white border-gray-100 text-gray-400 hover:bg-gray-50"
-                      )}
+                      onClick={handleCreateTicket}
+                      className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 active:scale-98 transition-all shadow-md shadow-indigo-200 cursor-pointer"
                     >
-                      {pr}
+                      Abrir Solicitação
                     </button>
-                  ))}
+                  </div>
                 </div>
+              </div>
+
+              {/* Right Column: Active Tickets Queue */}
+              <div className="lg:col-span-7 space-y-6">
+                <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                      <h3 className="text-lg font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                        <Cpu className="text-purple-600" size={20} />
+                        Fila de Chamados e Atendimentos
+                      </h3>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Sincronização em tempo real via Firestore com log de auditoria</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                      <input
+                        value={ticketSearchQuery}
+                        onChange={(e) => setTicketSearchQuery(e.target.value)}
+                        placeholder="Buscar por código ou sala..."
+                        className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none text-gray-700"
+                      />
+                      <select
+                        value={ticketStatusFilter}
+                        onChange={(e) => setTicketStatusFilter(e.target.value)}
+                        className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-black text-gray-700 focus:outline-none"
+                      >
+                        <option value="ALL">Todos os Status</option>
+                        <option value="ABERTO">Abertos</option>
+                        <option value="ATENDIMENTO">Em Atendimento</option>
+                        <option value="CONCLUIDO">Resolvidos</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 max-h-[550px] overflow-y-auto pr-1">
+                    {filteredTickets.length === 0 ? (
+                      <div className="p-12 text-center text-gray-400 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                        <CheckCircle2 size={32} className="mx-auto text-emerald-500 mb-2" />
+                        <p className="text-xs font-bold uppercase tracking-wider">Nenhum chamado encontrado para este filtro</p>
+                      </div>
+                    ) : (
+                      filteredTickets.map((tk) => (
+                        <div key={tk.id} className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col gap-4">
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
+                                  {tk.number}
+                                </span>
+                                {tk.category && (
+                                  <span className="bg-gray-200/80 text-gray-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                    {tk.category}
+                                  </span>
+                                )}
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white shadow-xs",
+                                  tk.priority === 'CRITICA' ? 'bg-red-600' : tk.priority === 'ALTA' ? 'bg-amber-600' : tk.priority === 'MEDIA' ? 'bg-indigo-600' : 'bg-gray-500'
+                                )}>
+                                  {tk.priority}
+                                </span>
+                              </div>
+                              <h4 className="font-extrabold text-gray-900 text-sm mt-1">{tk.title}</h4>
+                              <p className="text-xs text-gray-600 mt-1 leading-relaxed">{tk.description}</p>
+
+                              {tk.resolutionNotes && (
+                                <div className="mt-2 p-2.5 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-900">
+                                  <p className="text-[10px] font-black uppercase text-emerald-700 tracking-wider">Parecer Técnico de Solução:</p>
+                                  <p className="font-medium">{tk.resolutionNotes}</p>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {tk.status === 'ABERTO' && (
+                                <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" title="Chamado pendente" />
+                              )}
+                              {tk.status === 'ATENDIMENTO' && (
+                                <span className="w-3 h-3 rounded-full bg-amber-500 animate-spin" title="Atendimento iniciado" />
+                              )}
+                              {tk.status === 'CONCLUIDO' && (
+                                <span className="w-3 h-3 rounded-full bg-emerald-500" title="Chamado concluído" />
+                              )}
+                              <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                                {tk.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-t border-gray-200/60 pt-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                            <div className="space-x-2">
+                              <span>Solicitante: <strong className="text-gray-700">{tk.senderName}</strong></span>
+                              {tk.location && <span>• Local: <strong className="text-gray-700">{tk.location}</strong></span>}
+                              {tk.technicianName && <span className="text-indigo-600">• Técnico: {tk.technicianName}</span>}
+                            </div>
+
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                              {tk.status === 'ABERTO' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartTicketAtendimento(tk.id)}
+                                  className="px-3 py-1.5 bg-purple-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-purple-700 transition-colors cursor-pointer"
+                                >
+                                  Assumir Chamado
+                                </button>
+                              )}
+                              {tk.status === 'ATENDIMENTO' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenTicketResolutionModal(tk.id)}
+                                  className="px-3 py-1.5 bg-emerald-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-colors cursor-pointer"
+                                >
+                                  Concluir Chamado
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTicket(tk.id)}
+                                className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: INFRAESTRUTURA & REDES */}
+        {techActiveSubTab === 'infra' && (
+          <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                  <Wifi className="text-indigo-600" size={20} />
+                  Monitoramento de Infraestrutura de TI e Conectividade
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Status de roteadores, servidores, mesas de som e nobreaks em tempo real</p>
               </div>
 
               <button
                 type="button"
-                onClick={handleCreateTicket}
-                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 active:scale-98 transition-all shadow-lg cursor-pointer"
+                onClick={() => {
+                  setEditingInfraId(null);
+                  setInfraNameInput('');
+                  setInfraLocationInput('');
+                  setInfraIpDetailsInput('');
+                  setInfraModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-md shadow-indigo-150"
               >
-                Abrir Solicitação
+                <Plus size={15} />
+                Cadastrar Equipamento / Ponto de Rede
               </button>
             </div>
-          </div>
-        </div>
 
-        {/* Right Column: Active Tickets */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="flex justify-between items-center border-b border-gray-50 pb-6 text-left">
-              <div>
-                <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                  <Cpu className="text-purple-600" size={22} />
-                  Fila de Chamados Ativos
-                </h3>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Controle operacional de infraestrutura log-TI</p>
-              </div>
-              <select
-                value={ticketStatusFilter}
-                onChange={(e) => setTicketStatusFilter(e.target.value)}
-                className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-black text-gray-700 focus:outline-none"
-              >
-                <option value="ALL">Todos</option>
-                <option value="ABERTO">Abertos</option>
-                <option value="ATENDIMENTO">Em Atendimento</option>
-                <option value="CONCLUIDO">Resolvidos</option>
-              </select>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {techInfraList.map((item) => {
+                const isOnline = item.status === 'Online';
+                const isAlert = item.status === 'Alerta';
+                const isOffline = item.status === 'Offline';
 
-            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 text-left">
-              {techTickets
-                .filter(tk => ticketStatusFilter === 'ALL' || tk.status === ticketStatusFilter)
-                .map((tk) => (
-                  <div key={tk.id} className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col gap-4 font-sans">
-                    <div className="flex justify-between items-start gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100">
-                            {tk.number}
-                          </span>
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white shadow-sm",
-                            tk.priority === 'ALTA' ? 'bg-red-500 shadow-red-200' : tk.priority === 'MEDIA' ? 'bg-amber-500 shadow-amber-200' : 'bg-gray-500 shadow-gray-200'
-                          )}>
-                            {tk.priority}
-                          </span>
-                        </div>
-                        <h4 className="font-extrabold text-gray-900 text-sm mt-1">{tk.title}</h4>
-                        <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{tk.description}</p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {tk.status === 'ABERTO' && (
-                          <span className="w-3 h-3 rounded-full bg-purple-500 animate-pulse" title="Chamado pendente" />
-                        )}
-                        {tk.status === 'ATENDIMENTO' && (
-                          <span className="w-3 h-3 rounded-full bg-amber-500 animate-spin" title="Atendimento iniciado" />
-                        )}
-                        {tk.status === 'CONCLUIDO' && (
-                          <span className="w-3 h-3 rounded-full bg-emerald-500" title="Chamado concluído" />
-                        )}
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                          {tk.status}
+                return (
+                  <div key={item.id} className="p-5 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {item.type}
                         </span>
-                      </div>
-                    </div>
 
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-t border-gray-100 pt-4 flex-wrap text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                      <div>
-                        <span>Aberto por: <strong>{tk.senderName}</strong></span>
-                        {tk.technicianName && <span className="ml-3 text-indigo-600">• Técnico: {tk.technicianName}</span>}
-                      </div>
-
-                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                        {tk.status === 'ABERTO' && (
-                          <button
-                            type="button"
-                            onClick={() => handleStartTicketAtendimento(tk.id)}
-                            className="px-4 py-2 bg-purple-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-purple-700 transition-colors cursor-pointer"
-                          >
-                            Assumir Chamado
-                          </button>
-                        )}
-                        {tk.status === 'ATENDIMENTO' && (
-                          <button
-                            type="button"
-                            onClick={() => handleCloseTicket(tk.id)}
-                            className="px-4 py-2 bg-emerald-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-colors cursor-pointer"
-                          >
-                            Marcar Resolvido
-                          </button>
-                        )}
                         <button
                           type="button"
-                          onClick={() => handleDeleteTicket(tk.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                          onClick={() => handleToggleInfraStatus(item)}
+                          className={cn(
+                            "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider cursor-pointer transition-all flex items-center gap-1.5",
+                            isOnline ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : isAlert ? "bg-amber-100 text-amber-800 hover:bg-amber-200" : isOffline ? "bg-rose-100 text-rose-800 hover:bg-rose-200" : "bg-gray-200 text-gray-700"
+                          )}
+                          title="Clique para alternar status do ativo"
                         >
-                          <Trash2 size={15} />
+                          <span className={cn("w-2 h-2 rounded-full", isOnline ? "bg-emerald-500 animate-pulse" : isAlert ? "bg-amber-500" : "bg-rose-500")} />
+                          {item.status}
                         </button>
+                      </div>
+
+                      <h4 className="font-extrabold text-gray-900 text-sm">{item.name}</h4>
+                      <p className="text-xs text-gray-500">📍 Local: <strong className="text-gray-800">{item.location}</strong></p>
+                      {item.ipOrDetails && (
+                        <p className="text-xs font-mono bg-white p-2 rounded-xl border border-gray-200 text-gray-700">
+                          {item.ipOrDetails}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200/60 text-[10px] text-gray-400 font-bold uppercase">
+                      <span>Verificado: {item.lastChecked}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteInfraItem(item.id)}
+                        className="text-gray-400 hover:text-red-500 cursor-pointer p-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: TRANSMISSÕES AO VIVO & SOM */}
+        {techActiveSubTab === 'transmissoes' && (
+          <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                  <Video className="text-purple-600" size={20} />
+                  Escala de Operadores & Checklist de Transmissão Ao Vivo
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Gestão de áudio, vídeo e transmissão do auditório para as redes sociais</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingLiveStreamId(null);
+                  setLiveTitleInput('');
+                  setLiveSpeakerInput('');
+                  setLiveDateInput('');
+                  setLiveTimeInput('');
+                  setLiveOperatorAudioInput('');
+                  setLiveOperatorVideoInput('');
+                  setLiveUrlInput('');
+                  setLiveStreamModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-md shadow-purple-150"
+              >
+                <Plus size={15} />
+                Agendar Nova Transmissão
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {techLiveStreams.map((stream) => (
+                <div key={stream.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col lg:flex-row justify-between gap-6">
+                  <div className="space-y-3 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-purple-100 text-purple-800 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase">
+                        {stream.platform}
+                      </span>
+                      <span className="text-xs font-bold text-gray-400">
+                        🗓️ {formatDateBR(stream.date)} às {stream.time}
+                      </span>
+                    </div>
+
+                    <h4 className="font-black text-gray-900 text-base">{stream.title}</h4>
+                    <p className="text-xs text-gray-600">🎙️ Expositor(a): <strong className="text-gray-900">{stream.speaker}</strong></p>
+
+                    <div className="grid grid-cols-2 gap-3 max-w-md pt-1 text-xs">
+                      <div className="p-2.5 bg-white rounded-xl border border-gray-200">
+                        <p className="text-[9px] font-black uppercase text-gray-400">Operador de Som:</p>
+                        <p className="font-bold text-gray-800">{stream.operatorAudio}</p>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-xl border border-gray-200">
+                        <p className="text-[9px] font-black uppercase text-gray-400">Operador de Câmera/OBS:</p>
+                        <p className="font-bold text-gray-800">{stream.operatorVideo}</p>
                       </div>
                     </div>
                   </div>
-                ))}
+
+                  {/* Pre-flight Checklist */}
+                  <div className="space-y-3 border-t lg:border-t-0 lg:border-l border-gray-200/80 pt-4 lg:pt-0 lg:pl-6 shrink-0 lg:w-72">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Checklist Pré-Transmissão:</p>
+                    
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleChecklistKey(stream, 'audioOk')}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer",
+                          stream.checklist?.audioOk ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                        )}
+                      >
+                        <span>🎤 Som & Microfones Testados</span>
+                        <span>{stream.checklist?.audioOk ? '✓' : '○'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleChecklistKey(stream, 'videoOk')}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer",
+                          stream.checklist?.videoOk ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                        )}
+                      >
+                        <span>📹 Câmeras & Quadro OBS OK</span>
+                        <span>{stream.checklist?.videoOk ? '✓' : '○'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleChecklistKey(stream, 'networkOk')}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer",
+                          stream.checklist?.networkOk ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                        )}
+                      >
+                        <span>📡 Conexão de Internet OK</span>
+                        <span>{stream.checklist?.networkOk ? '✓' : '○'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleChecklistKey(stream, 'slidesOk')}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer",
+                          stream.checklist?.slidesOk ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                        )}
+                      >
+                        <span>💻 Slides / Mídia no Datashow</span>
+                        <span>{stream.checklist?.slidesOk ? '✓' : '○'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      {stream.streamUrl && (
+                        <a
+                          href={stream.streamUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-black text-purple-600 hover:underline flex items-center gap-1"
+                        >
+                          <ExternalLink size={12} /> Link da Live
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLiveStream(stream.id)}
+                        className="text-gray-400 hover:text-red-500 cursor-pointer ml-auto"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* TAB 4: BASE DE CONHECIMENTO */}
+        {techActiveSubTab === 'knowledge' && (
+          <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
+                  <BookOpen className="text-indigo-600" size={20} />
+                  Base de Conhecimento & Procedimentos Rápidos de TI
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Guias passo-a-passo para voluntários e trabalhadores da casa espírita</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingKnowledgeId(null);
+                  setKnowledgeTitleInput('');
+                  setKnowledgeCategoryInput('Geral');
+                  setKnowledgeProblemInput('');
+                  setKnowledgeSolutionInput('');
+                  setKnowledgeStepsInput('');
+                  setKnowledgeModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-md shadow-indigo-150"
+              >
+                <Plus size={15} />
+                Adicionar Guia / FAQ
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {techKnowledgeList.map((item) => (
+                <div key={item.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                      {item.category}
+                    </span>
+
+                    <h4 className="font-extrabold text-gray-900 text-base">{item.title}</h4>
+
+                    <div className="p-3 bg-white rounded-2xl border border-gray-200/80 text-xs text-gray-700 space-y-1">
+                      <p className="font-bold text-gray-900">⚠️ Sintoma / Problema:</p>
+                      <p>{item.problem}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Passo a Passo de Resolução:</p>
+                      <ul className="space-y-1.5 text-xs text-gray-700">
+                        {item.steps.map((step, idx) => (
+                          <li key={idx} className="bg-white p-2.5 rounded-xl border border-gray-100 font-medium">
+                            {step}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-200/60 text-[10px] font-bold text-gray-400 uppercase">
+                    <span>Atualizado em: {item.updatedAt}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteKnowledgeItem(item.id)}
+                      className="text-gray-400 hover:text-red-500 cursor-pointer p-1"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: PARECER TÉCNICO DE RESOLUÇÃO DE CHAMADO */}
+        {resolvingTicketId && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 text-left space-y-5">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Parecer Técnico de Resolução</h4>
+                <button type="button" onClick={() => setResolvingTicketId(null)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Descrição das Ações Realizadas e Solução Aplicada *</label>
+                <textarea
+                  value={resolutionNotesInput}
+                  onChange={(e) => setResolutionNotesInput(e.target.value)}
+                  placeholder="Ex: Trocado cabo HDMI do projetor por modelo blindado de 5 metros e atualizado driver da impressora térmica."
+                  rows={4}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:bg-white focus:border-indigo-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setResolvingTicketId(null)}
+                  className="py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmTicketResolution}
+                  className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-emerald-150"
+                >
+                  Confirmar Solução
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: CADASTRO DE EQUIPAMENTO / INFRAESTRUTURA */}
+        {infraModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 text-left space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Cadastrar / Editar Ponto de Infraestrutura</h4>
+                <button type="button" onClick={() => setInfraModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome do Equipamento / Ponto *</label>
+                  <input
+                    value={infraNameInput}
+                    onChange={(e) => setInfraNameInput(e.target.value)}
+                    placeholder="Ex: Roteador Wi-Fi Mezanino"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Tipo</label>
+                    <select
+                      value={infraTypeInput}
+                      onChange={(e: any) => setInfraTypeInput(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    >
+                      <option value="Roteador Wi-Fi">Roteador Wi-Fi</option>
+                      <option value="Servidor">Servidor</option>
+                      <option value="Mesa de Som">Mesa de Som</option>
+                      <option value="Projetor/TV">Projetor/TV</option>
+                      <option value="Nobreak">Nobreak</option>
+                      <option value="Link Internet">Link Internet</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Localização</label>
+                    <input
+                      value={infraLocationInput}
+                      onChange={(e) => setInfraLocationInput(e.target.value)}
+                      placeholder="Ex: Sala de TI / CPD"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">IP / Detalhes de Conexão</label>
+                  <input
+                    value={infraIpDetailsInput}
+                    onChange={(e) => setInfraIpDetailsInput(e.target.value)}
+                    placeholder="Ex: 192.168.1.1 (Fibra 500MB Dedicated)"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setInfraModalOpen(false)}
+                  className="py-2.5 bg-gray-100 text-gray-600 rounded-xl font-black text-xs uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveInfraItem}
+                  className="py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase cursor-pointer shadow-md shadow-indigo-150"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: NOVA TRANSMISSÃO AO VIVO */}
+        {liveStreamModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 text-left space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Agendar Transmissão de Áudio/Vídeo</h4>
+                <button type="button" onClick={() => setLiveStreamModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Título da Transmissão / Evento *</label>
+                  <input
+                    value={liveTitleInput}
+                    onChange={(e) => setLiveTitleInput(e.target.value)}
+                    placeholder="Ex: Palestra Pública: O Evangelho Segundo o Espiritismo"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Expositor(a) *</label>
+                    <input
+                      value={liveSpeakerInput}
+                      onChange={(e) => setLiveSpeakerInput(e.target.value)}
+                      placeholder="Ex: Raul Teixeira"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Plataforma</label>
+                    <select
+                      value={livePlatformInput}
+                      onChange={(e: any) => setLivePlatformInput(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    >
+                      <option value="YouTube">YouTube</option>
+                      <option value="Instagram">Instagram</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Interno">Circuito Interno (TVs)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Data</label>
+                    <input
+                      type="date"
+                      value={liveDateInput}
+                      onChange={(e) => setLiveDateInput(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Horário</label>
+                    <input
+                      type="time"
+                      value={liveTimeInput}
+                      onChange={(e) => setLiveTimeInput(e.target.value)}
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Operador de Som</label>
+                    <input
+                      value={liveOperatorAudioInput}
+                      onChange={(e) => setLiveOperatorAudioInput(e.target.value)}
+                      placeholder="Ex: Marcos Vinícius"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Operador de Câmeras/OBS</label>
+                    <input
+                      value={liveOperatorVideoInput}
+                      onChange={(e) => setLiveOperatorVideoInput(e.target.value)}
+                      placeholder="Ex: Gabriel Chaves"
+                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Link da Transmissão (Opcional)</label>
+                  <input
+                    value={liveUrlInput}
+                    onChange={(e) => setLiveUrlInput(e.target.value)}
+                    placeholder="https://youtube.com/live/..."
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setLiveStreamModalOpen(false)}
+                  className="py-2.5 bg-gray-100 text-gray-600 rounded-xl font-black text-xs uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveLiveStream}
+                  className="py-2.5 bg-purple-600 text-white rounded-xl font-black text-xs uppercase cursor-pointer shadow-md shadow-purple-150"
+                >
+                  Agendar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: CADASTRO BASE DE CONHECIMENTO */}
+        {knowledgeModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 text-left space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Adicionar Guia de Procedimento / FAQ</h4>
+                <button type="button" onClick={() => setKnowledgeModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Título do Procedimento *</label>
+                  <input
+                    value={knowledgeTitleInput}
+                    onChange={(e) => setKnowledgeTitleInput(e.target.value)}
+                    placeholder="Ex: Como Conectar o Microfone Sem Fio"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Categoria</label>
+                  <input
+                    value={knowledgeCategoryInput}
+                    onChange={(e) => setKnowledgeCategoryInput(e.target.value)}
+                    placeholder="Ex: Som e Audiovisual, Redes, Software"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Sintoma / Problema Frequente *</label>
+                  <input
+                    value={knowledgeProblemInput}
+                    onChange={(e) => setKnowledgeProblemInput(e.target.value)}
+                    placeholder="Ex: Áudio cortando ou luz vermelha de bateria piscando"
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Passos de Resolução (Um por linha) *</label>
+                  <textarea
+                    value={knowledgeStepsInput}
+                    onChange={(e) => setKnowledgeStepsInput(e.target.value)}
+                    placeholder="1. Abra o compartimento do microfone&#10;2. Substitua por 2 pilhas AA recarregáveis&#10;3. Verifique o sinal no receptor do rack"
+                    rows={4}
+                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-semibold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setKnowledgeModalOpen(false)}
+                  className="py-2.5 bg-gray-100 text-gray-600 rounded-xl font-black text-xs uppercase cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveKnowledgeItem}
+                  className="py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase cursor-pointer shadow-md shadow-indigo-150"
+                >
+                  Salvar Guia
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
   const renderObrasDashboard = () => {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500">
-        {/* Left Column: Projects timeline */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="border-b border-gray-50 pb-6 text-left">
-              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                <Wrench className="text-indigo-600" size={22} />
-                Gestão e Expansores de Infraestrutura Física
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Construções, reformas e adequação civil estrutural</p>
-            </div>
-
-            <div className="space-y-8 text-left">
-              {obraProjects.length > 0 ? (
-                obraProjects.map((ob) => (
-                  <div key={ob.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 space-y-6 font-sans">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div>
-                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-black uppercase tracking-widest border border-indigo-150">
-                          {ob.location}
-                        </span>
-                        <h4 className="font-extrabold text-gray-950 text-lg mt-2 leading-none">{ob.name}</h4>
-                        {ob.notes && <p className="text-xs text-gray-500 mt-2 font-medium leading-relaxed">{ob.notes}</p>}
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-[#a8a29e]">Prazo Estimado</span>
-                        <span className="text-xs font-black text-indigo-900 mt-1">{ob.estimatedEndDate}</span>
-                      </div>
-                    </div>
-
-                    {/* Progress slider */}
-                    <div className="space-y-2 col-span-2">
-                      <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider">
-                        <span className="text-gray-400">Progresso Geral</span>
-                        <span className="text-indigo-600">{ob.percentage}% Concluído</span>
-                      </div>
-                      <div className="w-full bg-gray-200/60 h-3 rounded-full overflow-hidden relative">
-                        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full rounded-full transition-all duration-700" style={{ width: `${ob.percentage}%` }} />
-                      </div>
-                    </div>
-
-                    {/* Financial Gauge */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200/50">
-                      <div className="p-4 bg-white border border-gray-150 rounded-2xl flex justify-between items-center shadow-inner">
-                        <div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-[#a8a29e]">Orçamento Planejado</p>
-                          <p className="font-extrabold text-gray-700 text-sm mt-1">R$ {ob.budgetPlanned.toLocaleString('pt-BR')}</p>
-                        </div>
-                        <Coins className="text-gray-300" size={24} />
-                      </div>
-                      <div className={cn(
-                        "p-4 border rounded-2xl flex justify-between items-center shadow-inner",
-                        ob.budgetActual > ob.budgetPlanned ? "bg-red-50 border-red-100" : "bg-white border-gray-150"
-                      )}>
-                        <div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-[#a8a29e]">Despesa Executada</p>
-                          <p className={cn("font-black text-sm mt-1", ob.budgetActual > ob.budgetPlanned ? "text-red-600" : "text-emerald-600")}>
-                            R$ {ob.budgetActual.toLocaleString('pt-BR')}
-                          </p>
-                        </div>
-                        <DollarSign className={cn(ob.budgetActual > ob.budgetPlanned ? "text-red-300 animate-bounce" : "text-emerald-300")} size={24} />
-                      </div>
-                    </div>
-
-                    {/* Stages list */}
-                    <div className="space-y-3">
-                      <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Etapas do Planejamento</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {ob.stages.map((st, sidx) => (
-                          <div 
-                            key={sidx}
-                            onClick={() => handleToggleStageStatus(ob.id, sidx)}
-                            className={cn(
-                              "p-4 rounded-2xl border transition-all cursor-pointer select-none text-left relative overflow-hidden group/stage",
-                              st.status === 'CONCLUIDO' 
-                                ? "bg-emerald-50/40 border-emerald-100 text-emerald-950" 
-                                : st.status === 'EM_ANDAMENTO' 
-                                  ? "bg-amber-50/40 border-amber-100 text-amber-950" 
-                                  : "bg-white border-gray-150 text-gray-400 hover:border-indigo-200"
-                            )}
-                          >
-                            <div className="flex items-center gap-2">
-                              {st.status === 'CONCLUIDO' ? (
-                                <CheckCircle2 size={14} className="text-emerald-600" />
-                              ) : st.status === 'EM_ANDAMENTO' ? (
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                              ) : (
-                                <span className="w-2.5 h-2.5 rounded-full bg-gray-200 border border-gray-300" />
-                              )}
-                              <span className="font-extrabold text-[11px] leading-tight truncate">{st.name}</span>
-                            </div>
-                            <div className="mt-2 text-[9px] font-bold uppercase tracking-wider text-gray-400 flex justify-between">
-                              <span>Prazo: {st.duration}</span>
-                              <span className="italic">@{st.responsible.split(' ')[0]}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Add cost input directly */}
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const val = Number(new FormData(e.currentTarget).get('addedVal'));
-                        if (!val) return;
-                        handleUpdateObraBudget(ob.id, val);
-                        e.currentTarget.reset();
-                      }}
-                      className="p-4 bg-white border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm"
-                    >
-                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Lançar Nova Fatura / Nota Técnica:</span>
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <input name="addedVal" type="number" required placeholder="Valor R$ (Ex: 850)" className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none w-full sm:w-36" />
-                        <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-colors shrink-0 cursor-pointer">
-                          Confirmar Gasto
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                ))
-              ) : (
-                <div className="p-10 text-center text-gray-300 italic text-xs">Nenhum projeto de reforma em andamento.</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Register construction */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm text-left space-y-6">
-            <div>
-              <h3 className="text-lg font-black text-gray-900 tracking-tight italic flex items-center gap-2">
-                <Plus size={20} className="text-indigo-600" />
-                Novo Projeto Estrutural
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Registrar uma nova obra para controle administrativo</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Identificador / Nome da Obra</label>
-                <input
-                  value={newObraName}
-                  onChange={(e) => setNewObraName(e.target.value)}
-                  placeholder="Ex: Reforma da Calçada Externa"
-                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none font-sans"
-                />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Localização Física / Anexo</label>
-                <input
-                  value={newObraLocation}
-                  onChange={(e) => setNewObraLocation(e.target.value)}
-                  placeholder="Ex: Anexo B (Entrada Externa)"
-                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none font-sans"
-                />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase text-gray-400 tracking-wider">Orçamento Estimado (R$)</label>
-                <input
-                  value={newObraBudget}
-                  onChange={(e) => setNewObraBudget(e.target.value)}
-                  placeholder="Ex: 5000"
-                  type="number"
-                  className="w-full mt-1 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none font-sans"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleCreateObra}
-                className="w-full py-3 bg-gray-950 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-colors cursor-pointer"
-              >
-                Lançar Projeto
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <ObrasDashboard currentUser={currentUser} />;
   };
 
   const renderLimpezaDashboard = () => {
@@ -6384,642 +8314,1051 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
   };
 
   const renderEstudosDashboard = () => {
+    const defaultSpiritistBooks = [
+      { id: 'kb1', name: 'O Livro dos Espíritos', type: 'LIVRO BASE', author: 'Allan Kardec', size: '3.2 MB', desc: 'Princípios da Doutrina Espírita sobre a imortalidade da alma e a natureza dos espíritos.' },
+      { id: 'kb2', name: 'O Livro dos Médiuns', type: 'LIVRO BASE', author: 'Allan Kardec', size: '2.9 MB', desc: 'Guia dos médiuns e dos doutrinadores. Ensino especial sobre as manifestações.' },
+      { id: 'kb3', name: 'O Evangelho Segundo o Espiritismo', type: 'LIVRO BASE', author: 'Allan Kardec', size: '2.5 MB', desc: 'A explicação das máximas morais do Cristo em concordância com o Espiritismo.' },
+      { id: 'kb4', name: 'O Céu e o Inferno', type: 'LIVRO BASE', author: 'Allan Kardec', size: '2.1 MB', desc: 'A justiça divina segundo o Espiritismo. Exame comparativo das penas e gozos.' },
+      { id: 'kb5', name: 'A Gênese', type: 'LIVRO BASE', author: 'Allan Kardec', size: '2.8 MB', desc: 'Os milagres e as predições segundo o Espiritismo.' },
+      { id: 'feb1', name: 'Apostila ESDE - Tomo Único (FEB)', type: 'APOSTILA FEB', author: 'Federação Espírita Brasileira', size: '14.2 MB', desc: 'Programa oficial do Estudo Sistematizado da Doutrina Espírita.' },
+      { id: 'feb2', name: 'EADE - Roteiros de Estudo Aprofundado', type: 'APOSTILA FEB', author: 'Federação Espírita Brasileira', size: '11.5 MB', desc: 'Subdvisões de ensino sobre o Pensamento Espírita e Aprofundamento Doutrinário.' },
+      { id: 'feb3', name: 'Estudo e Prática da Mediunidade (EEM)', type: 'APOSTILA FEB', author: 'Federação Espírita Brasileira', size: '9.8 MB', desc: 'Roteiros práticos e teóricos para grupos de desenvolvimento mediúnico.' }
+    ];
+
+    const alertStudentsCount = studyStudents.filter(s => s.status.includes('Alerta')).length;
+    const approvedStudentsCount = studyStudents.filter(s => s.status.includes('Aprovado') || s.status.includes('Concluído')).length;
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500 font-sans">
-        {/* Left Column: Register Course or Class */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Círculo Curricular de Estudos Espíritas */}
-          <div className="bg-white rounded-[40px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6 text-left">
-            <div className="border-b border-gray-50 pb-5">
-              <h3 className="text-lg font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                <Compass className="text-indigo-600" size={20} />
-                Círculo Curricular de Estudos Espíritas
-              </h3>
-              <p className="text-xs text-slate-400 font-medium font-sans mt-1">
-                Visualização dinâmica e edição imediata dos nossos ciclos e ramos de estudos doutrinários. Clique nas fatias para editar seus títulos.
-              </p>
+      <div className="space-y-8 animate-in fade-in duration-500 font-sans">
+        {/* Top Header Summary Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-[28px] border border-gray-100 shadow-sm flex items-center gap-4 text-left">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+              <BookOpen size={22} />
             </div>
-
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              {/* Left Column: Interactive Wheel SVG */}
-              <div className="relative shrink-0 flex items-center justify-center bg-gray-50/50 p-4 rounded-[32px] border border-gray-100">
-                {studyCategories.length === 0 ? (
-                  <div className="w-[200px] h-[200px] flex items-center justify-center text-xs text-gray-400 italic">
-                    Nenhuma categoria registrada.
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <svg width="240" height="240" viewBox="0 0 300 300" className="drop-shadow-sm select-none">
-                      {/* Inner Circular holes background */}
-                      <circle cx="150" cy="150" r="130" fill="transparent" stroke="#f1f5f9" strokeWidth="2" />
-                      <circle cx="150" cy="150" r="62" fill="#ffffff" stroke="#f1f5f9" strokeWidth="2" />
-
-                      {/* Render mathematical slice segments */}
-                      {studyCategories.map((cat, i) => {
-                        const total = studyCategories.length;
-                        const cx = 150;
-                        const cy = 150;
-                        const r_out = 115;
-                        const r_in = 66;
-
-                        // Calculate angles start & end
-                        const startAngle = -Math.PI / 2 + (i / total) * 2 * Math.PI;
-                        const endAngle = -Math.PI / 2 + ((i + 1) / total) * 2 * Math.PI;
-
-                        // Inner/Outer Arc Coordinates
-                        const x1_out = cx + r_out * Math.cos(startAngle);
-                        const y1_out = cy + r_out * Math.sin(startAngle);
-                        const x2_out = cx + r_out * Math.cos(endAngle);
-                        const y2_out = cy + r_out * Math.sin(endAngle);
-
-                        const x1_in = cx + r_in * Math.cos(startAngle);
-                        const y1_in = cy + r_in * Math.sin(startAngle);
-                        const x2_in = cx + r_in * Math.cos(endAngle);
-                        const y2_in = cy + r_in * Math.sin(endAngle);
-
-                        const midAngle = (startAngle + endAngle) / 2;
-                        const r_text = (r_out + r_in) / 2;
-                        const x_text = cx + r_text * Math.cos(midAngle);
-                        const y_text = cy + r_text * Math.sin(midAngle);
-
-                        // Flags (since sectors are always < 180 degrees if total > 2)
-                        const largeArcFlag = total === 1 ? 1 : 0;
-
-                        // Generate path representation
-                        let pathD = "";
-                        if (total === 1) {
-                          // Single cycle, render full donut
-                          pathD = `
-                            M ${cx} ${cy - r_out}
-                            A ${r_out} ${r_out} 0 1 1 ${cx} ${cy + r_out}
-                            A ${r_out} ${r_out} 0 1 1 ${cx} ${cy - r_out}
-                            Z
-                          `;
-                        } else {
-                          pathD = `
-                            M ${x1_in} ${y1_in}
-                            L ${x1_out} ${y1_out}
-                            A ${r_out} ${r_out} 0 ${largeArcFlag} 1 ${x2_out} ${y2_out}
-                            L ${x2_in} ${y2_in}
-                            A ${r_in} ${r_in} 0 ${largeArcFlag} 0 ${x1_in} ${y1_in}
-                            Z
-                          `;
-                        }
-
-                        // Colors palette rotation
-                        const palettes = [
-                          { fill: '#3b82f6', fillHover: '#2563eb', stroke: '#1e3a8a', labelColor: '#1d4ed8' }, // Blue
-                          { fill: '#a855f7', fillHover: '#9333ea', stroke: '#581c87', labelColor: '#6b21a8' }, // Purple
-                          { fill: '#10b981', fillHover: '#059669', stroke: '#064e3b', labelColor: '#047857' }, // Emerald
-                          { fill: '#f59e0b', fillHover: '#d97706', stroke: '#78350f', labelColor: '#b45309' }, // Amber
-                          { fill: '#ec4899', fillHover: '#db2777', stroke: '#701a75', labelColor: '#be185d' }, // Pink
-                          { fill: '#14b8a6', fillHover: '#0d9488', stroke: '#115e59', labelColor: '#0f766e' }  // Teal
-                        ];
-                        const palette = palettes[i % palettes.length];
-
-                        const isSelected = selectedCategoryWheelId === cat.id || (selectedCategoryWheelId === null && i === 0);
-                        const isHovered = hoveredCategoryWheelId === cat.id;
-
-                        return (
-                          <g 
-                            key={cat.id} 
-                            className="cursor-pointer transition-all"
-                            onClick={() => setSelectedCategoryWheelId(cat.id)}
-                            onMouseEnter={() => setHoveredCategoryWheelId(cat.id)}
-                            onMouseLeave={() => setHoveredCategoryWheelId(null)}
-                          >
-                            <path
-                              d={pathD}
-                              fill={isSelected ? palette.fillHover : isHovered ? palette.fill : palette.fill}
-                              fillOpacity={isSelected ? 0.95 : isHovered ? 0.8 : 0.45}
-                              stroke={isSelected ? '#1e293b' : '#ffffff'}
-                              strokeWidth={isSelected ? 3 : 1.5}
-                              className="transition-all duration-200"
-                            />
-                            {/* Category code centered inside segment slice */}
-                            <text
-                              x={x_text}
-                              y={y_text + 4}
-                              textAnchor="middle"
-                              fill={isSelected ? '#ffffff' : palette.labelColor}
-                              className="text-[9.5px] font-black tracking-wider uppercase font-mono select-none pointer-events-none"
-                            >
-                              {cat.id}
-                            </text>
-                          </g>
-                        );
-                      })}
-
-                      {/* Central Hole Details */}
-                      <g className="pointer-events-none select-none">
-                        <text x="150" y="142" textAnchor="middle" className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">
-                          Ciclo Ativo
-                        </text>
-                        {(() => {
-                          const activeId = selectedCategoryWheelId || studyCategories[0]?.id;
-                          const activeCat = studyCategories.find(c => c.id === activeId);
-                          return (
-                            <>
-                              <text x="150" y="162" textAnchor="middle" className="text-lg font-black text-slate-800 tracking-tight">
-                                {activeId || "ESDE"}
-                              </text>
-                              <text x="150" y="178" textAnchor="middle" className="text-[8.5px] font-bold text-[#10b981] bg-emerald-50 px-1 py-0.5 rounded-full select-none">
-                                {studyCourses.filter(c => c.category === activeId).length} Cursos
-                              </text>
-                            </>
-                          );
-                        })()}
-                      </g>
-                    </svg>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: Fast rename editor for the specific highlighted cycle */}
-              <div className="flex-1 w-full space-y-4">
-                {(() => {
-                  const activeId = selectedCategoryWheelId || studyCategories[0]?.id;
-                  const activeCat = studyCategories.find(c => c.id === activeId);
-                  if (!activeCat) {
-                    return <div className="text-xs text-gray-400 italic">Selecione uma fatia para ver e editar.</div>;
-                  }
-
-                  return (
-                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-3xl space-y-3.5 relative">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 rounded-lg text-[9px] font-mono font-black text-indigo-700">
-                          ID DO CICLO: {activeCat.id}
-                        </span>
-                        <span className="text-[9.5px] text-gray-400 font-bold uppercase select-none">
-                          Fatia Selecionada
-                        </span>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold uppercase text-gray-500 block">
-                          Nome do Ciclo / Estudo Curricular
-                        </label>
-                        <input
-                          type="text"
-                          value={activeCat.name}
-                          onChange={(e) => handleUpdateCategory(activeCat.id, e.target.value)}
-                          placeholder="Informe o nome oficial deste ciclo"
-                          className="w-full h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none transition-all block"
-                        />
-                      </div>
-
-                      <p className="text-[10px] text-gray-450 leading-relaxed italic mt-1 font-sans">
-                        💡 <strong>Edição Em Tempo Real:</strong> Todas as fatias do círculo curricular atualizam automaticamente na base de dados assim que você altera o título acima.
-                      </p>
-                    </div>
-                  );
-                })()}
-
-                {/* Horizontal Quick-Click Badges for ease on desktop/mobile */}
-                <div className="space-y-1.5 pt-1">
-                  <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest block">Navegadores de Ciclo</span>
-                  <div className="flex flex-wrap gap-1.5 font-sans">
-                    {studyCategories.map((cat, idx) => {
-                      const isActive = selectedCategoryWheelId === cat.id || (selectedCategoryWheelId === null && idx === 0);
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setSelectedCategoryWheelId(cat.id)}
-                          className={cn(
-                            "px-2.5 py-1.5 rounded-xl border font-bold text-[10.5px] transition-all cursor-pointer whitespace-nowrap",
-                            isActive 
-                              ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200" 
-                              : "bg-white border-gray-150 text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                          )}
-                        >
-                          {cat.id}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Total de Cursos</p>
+              <p className="text-xl font-black text-gray-900">{studyCourses.length} Registrados</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="border-b border-gray-50 pb-6 text-left">
-              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                <BookOpen className="text-indigo-600" size={22} />
-                Gestão de Cursos e Estudos
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Planejamento Pedagógico e Grade Curricular</p>
+          <div className="bg-white p-5 rounded-[28px] border border-gray-100 shadow-sm flex items-center gap-4 text-left">
+            <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl">
+              <Compass size={22} />
             </div>
-
-            {/* Course Launch Form */}
-            <div className="bg-slate-50 rounded-[32px] p-6 border border-slate-100 text-left space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic flex items-center gap-1.5 select-none text-[11px]">
-                <Plus size={14} className="text-indigo-600" />
-                {editingCourseId ? 'Editar Curso / Grupo de Estudos' : 'Criar Novo Curso ou Grupo de Estudos'}
-              </h4>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Nome do Curso</label>
-                  <input
-                    value={newCourseName}
-                    onChange={(e) => setNewCourseName(e.target.value)}
-                    placeholder="Ex: ESDE II - Estudo do Pensamento Espírita"
-                    className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex justify-between items-center">
-                      <label className="text-[11px] font-bold uppercase text-gray-500 block">Ciclo Curricular</label>
-                      <button
-                        type="button"
-                        onClick={() => setIsManagingCategories(!isManagingCategories)}
-                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
-                        title="Modificar as opções deste ciclo/círculo curricular"
-                      >
-                        {isManagingCategories ? "Fechar" : "Gerenciar"}
-                      </button>
-                    </div>
-                    <select
-                      value={newCourseCategory || (studyCategories[0]?.id || 'ESDE')}
-                      onChange={(e) => setNewCourseCategory(e.target.value)}
-                      className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none transition-colors cursor-pointer"
-                    >
-                      {studyCategories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold uppercase text-gray-500 block">Carga Horária (Sessões)</label>
-                    <input
-                      value={newCourseHours}
-                      onChange={(e) => setNewCourseHours(e.target.value)}
-                      placeholder="Ex: 40"
-                      className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition-colors"
-                    />
-                  </div>
-                </div>
-
-                {/* Inline Category Manager */}
-                {isManagingCategories && (
-                  <div className="bg-white p-4 rounded-2xl border border-indigo-150 space-y-3 shadow-inner">
-                    <h5 className="text-[10px] font-black uppercase tracking-wider text-indigo-700 flex items-center justify-between">
-                      <span>Gerenciar Ciclos / Círculo Curricular</span>
-                    </h5>
-                    
-                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                      {studyCategories.map(cat => (
-                        <div key={cat.id} className="flex gap-2 items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-100">
-                          <span className="font-mono font-black text-[9px] text-[#22c55e] bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
-                            {cat.id}
-                          </span>
-                          <input
-                            type="text"
-                            value={cat.name}
-                            onChange={(e) => handleUpdateCategory(cat.id, e.target.value)}
-                            className="flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-gray-200 focus:border-indigo-500 focus:outline-none px-1 py-0.5 text-[11px] font-bold text-gray-800"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(cat.id)}
-                            className="p-1 text-gray-400 hover:text-red-650 cursor-pointer rounded hover:bg-red-50"
-                            title="Remover"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-2.5 border-t border-dashed border-gray-200 space-y-2">
-                       <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest">Adicionar Novo Ciclo</p>
-                       <div className="grid grid-cols-12 gap-2">
-                         <input
-                           type="text"
-                           placeholder="Sigla/ID (Ex: EAE)"
-                           value={newCategoryID}
-                           onChange={(e) => setNewCategoryID(e.target.value.toUpperCase())}
-                           className="col-span-4 h-8 bg-slate-50 border border-gray-200 rounded-lg px-2 text-[10.5px] font-semibold text-gray-800 focus:outline-none focus:border-indigo-500"
-                         />
-                         <input
-                           type="text"
-                           placeholder="Nome do Ciclo"
-                           value={newCategoryName}
-                           onChange={(e) => setNewCategoryName(e.target.value)}
-                           className="col-span-8 h-8 bg-slate-50 border border-gray-200 rounded-lg px-2 text-[10.5px] font-semibold text-gray-800 focus:outline-none focus:border-indigo-500"
-                         />
-                       </div>
-                       <button
-                         type="button"
-                         onClick={() => {
-                           if (!newCategoryID.trim() || !newCategoryName.trim()) {
-                             alert("Por favor, preencha a sigla e o nome da categoria.");
-                             return;
-                           }
-                           handleAddCategory(newCategoryID, newCategoryName);
-                         }}
-                         className="w-full h-8 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-colors cursor-pointer border border-indigo-100"
-                       >
-                         Incluir Ciclo Curricular
-                       </button>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!newCourseName.trim()) {
-                      alert("Por favor, preencha o nome do curso.");
-                      return;
-                    }
-                    handleAddCourseAndClass(newCourseName, newCourseCategory, "Sábado, 15h00");
-                    setNewCourseName('');
-                  }}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer"
-                >
-                  {editingCourseId ? 'Salvar Alterações' : 'Registrar e Gerar Turma Padrão'}
-                </button>
-                {editingCourseId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingCourseId(null);
-                      setNewCourseName('');
-                      setNewCourseCategory('ESDE');
-                      setNewCourseHours('40');
-                    }}
-                    className="w-full py-2 bg-gray-150 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all cursor-pointer"
-                  >
-                    Cancelar Edição
-                  </button>
-                )}
-              </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Turmas Ativas</p>
+              <p className="text-xl font-black text-gray-900">{studyClasses.length} Turmas</p>
             </div>
+          </div>
 
-            {/* Active Class Groups */}
-            <div className="space-y-3 pt-4 border-t border-gray-50 text-left font-sans">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic">Grade Ativa de Turmas</h4>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                {studyClasses.map((cls) => {
-                  const course = studyCourses.find(c => c.id === cls.courseId);
-                  return (
-                    <div key={cls.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex justify-between items-center hover:bg-gray-100/40 transition-all font-sans">
-                      <div className="flex-1 min-w-0 pr-2">
-                        <h5 className="font-extrabold text-sm text-gray-950 leading-none truncate">{cls.name}</h5>
-                        <div className="flex flex-wrap gap-2 items-center text-[9px] font-black uppercase tracking-wider text-gray-400 mt-2">
-                          <span>Facilitador: {cls.facilitator}</span>
-                          <span>•</span>
-                          <span>{cls.schedule}</span>
-                          <span>•</span>
-                          <span>{cls.room}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="px-3 py-1 bg-white border border-gray-200 rounded-xl font-mono text-xs font-black text-indigo-700 whitespace-nowrap">
-                          {studyStudents.filter(st => st.classId === cls.id).length} / {cls.maxQty} Alunos
-                        </span>
-                        <div className="flex gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (course) {
-                                setEditingCourseId(course.id);
-                                setNewCourseName(course.name);
-                                setNewCourseCategory(course.category || 'ESDE');
-                                setNewCourseHours(String(course.hours || 40));
-                              } else {
-                                setEditingCourseId(cls.id);
-                                setNewCourseName(cls.name.split(' - ')[0]);
-                                setNewCourseCategory('ESDE');
-                                setNewCourseHours('40');
-                              }
-                            }}
-                            className="p-1.5 bg-white border border-gray-150 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer text-gray-500"
-                            title="Editar Curso"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const cid = course ? course.id : cls.courseId || cls.id;
-                              const cname = course ? course.name : cls.name;
-                              handleDeleteCourse(cid, cname);
-                            }}
-                            className="p-1.5 bg-white border border-gray-150 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors cursor-pointer text-gray-500"
-                            title="Excluir Curso"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          <div className="bg-white p-5 rounded-[28px] border border-gray-100 shadow-sm flex items-center gap-4 text-left">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+              <Users size={22} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Alunos Matriculados</p>
+              <p className="text-xl font-black text-gray-900">{studyStudents.length} Alunos</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-[28px] border border-gray-100 shadow-sm flex items-center gap-4 text-left">
+            <div className={`p-3 rounded-2xl ${alertStudentsCount > 0 ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Status / Acolhimento</p>
+              <p className="text-xl font-black text-gray-900">
+                {alertStudentsCount > 0 ? `${alertStudentsCount} em Alerta` : `${approvedStudentsCount} Aprovados`}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Students Profile and Attendance Logs */}
-        <div className="lg:col-span-6 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="border-b border-gray-50 pb-6 text-left">
-              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                <Users className="text-emerald-600" size={22} />
-                Gestão de Alunos e Diário de Frequência
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Acompanhamento de Estudantes e Faltas</p>
-            </div>
+        {/* Sub-Tabs Navigation Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-[24px] border border-gray-100 shadow-sm">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setEstudosSubTab('ciclos')}
+              className={cn(
+                "flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer",
+                estudosSubTab === 'ciclos'
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              )}
+            >
+              <Compass size={16} />
+              <span>📚 Ciclos & Cursos (ESDE/EADE)</span>
+            </button>
 
-            {/* Add Student Quick Form */}
-            <div className="bg-emerald-50 rounded-[32px] p-6 border border-emerald-100 text-left space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-emerald-800 italic flex items-center gap-1.5 select-none text-[11px]">
-                <Plus size={14} className="text-emerald-600" />
-                {editingStudentId ? 'Editar Matrícula de Aluno' : 'Matricular Aluno em Turma'}
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Nome do Aluno</label>
-                  <input
-                    value={newStudentName}
-                    onChange={(e) => setNewStudentName(e.target.value)}
-                    placeholder="Ex: Clara Ribeiro Santos"
-                    className="w-full mt-1.5 h-10 bg-white border border-emerald-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-emerald-500 transition-colors"
-                  />
+            <button
+              type="button"
+              onClick={() => setEstudosSubTab('alunos')}
+              className={cn(
+                "flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer",
+                estudosSubTab === 'alunos'
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              )}
+            >
+              <Users size={16} />
+              <span>🎓 Matrículas & Alunos ({studyStudents.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setEstudosSubTab('chamada')}
+              className={cn(
+                "flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer",
+                estudosSubTab === 'chamada'
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              )}
+            >
+              <Calendar size={16} />
+              <span>📝 Diário de Classe & Chamada</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setEstudosSubTab('biblioteca')}
+              className={cn(
+                "flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer",
+                estudosSubTab === 'biblioteca'
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+              )}
+            >
+              <BookOpen size={16} />
+              <span>📖 Biblioteca Pedagógica</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 pr-2">
+            <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+              Área de Ensino Doutrinário
+            </span>
+          </div>
+        </div>
+
+        {/* SUB-TAB 1: CICLOS & CURSOS */}
+        {estudosSubTab === 'ciclos' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left font-sans">
+            {/* Left Column: Interactive Donut Wheel & Fast Cycle Rename */}
+            <div className="lg:col-span-6 space-y-6">
+              <div className="bg-white rounded-[40px] border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+                <div className="border-b border-gray-50 pb-5">
+                  <h3 className="text-lg font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                    <Compass className="text-indigo-600" size={20} />
+                    Círculo Curricular de Estudos Espíritas
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium mt-1">
+                    Visualização dos nossos ciclos de estudo. Clique nas fatias para filtrar a grade de turmas abaixo ou renomear.
+                  </p>
                 </div>
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Vincular à Turma</label>
-                  <select
-                    value={newStudentClassId}
-                    onChange={(e) => setNewStudentClassId(e.target.value)}
-                    className="w-full mt-1.5 h-10 bg-white border border-emerald-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer mr-2"
-                  >
-                    <option value="">Selecione...</option>
-                    {studyClasses.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                  <div className="relative shrink-0 flex items-center justify-center bg-gray-50/50 p-4 rounded-[32px] border border-gray-100">
+                    {studyCategories.length === 0 ? (
+                      <div className="w-[200px] h-[200px] flex items-center justify-center text-xs text-gray-400 italic">
+                        Nenhuma categoria registrada.
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <svg width="240" height="240" viewBox="0 0 300 300" className="drop-shadow-sm select-none">
+                          <circle cx="150" cy="150" r="130" fill="transparent" stroke="#f1f5f9" strokeWidth="2" />
+                          <circle cx="150" cy="150" r="62" fill="#ffffff" stroke="#f1f5f9" strokeWidth="2" />
+
+                          {studyCategories.map((cat, i) => {
+                            const total = studyCategories.length;
+                            const cx = 150;
+                            const cy = 150;
+                            const r_out = 115;
+                            const r_in = 66;
+
+                            const startAngle = -Math.PI / 2 + (i / total) * 2 * Math.PI;
+                            const endAngle = -Math.PI / 2 + ((i + 1) / total) * 2 * Math.PI;
+
+                            const x1_out = cx + r_out * Math.cos(startAngle);
+                            const y1_out = cy + r_out * Math.sin(startAngle);
+                            const x2_out = cx + r_out * Math.cos(endAngle);
+                            const y2_out = cy + r_out * Math.sin(endAngle);
+
+                            const x1_in = cx + r_in * Math.cos(startAngle);
+                            const y1_in = cy + r_in * Math.sin(startAngle);
+                            const x2_in = cx + r_in * Math.cos(endAngle);
+                            const y2_in = cy + r_in * Math.sin(endAngle);
+
+                            const midAngle = (startAngle + endAngle) / 2;
+                            const r_text = (r_out + r_in) / 2;
+                            const x_text = cx + r_text * Math.cos(midAngle);
+                            const y_text = cy + r_text * Math.sin(midAngle);
+
+                            const largeArcFlag = total === 1 ? 1 : 0;
+
+                            let pathD = "";
+                            if (total === 1) {
+                              pathD = `
+                                M ${cx} ${cy - r_out}
+                                A ${r_out} ${r_out} 0 1 1 ${cx} ${cy + r_out}
+                                A ${r_out} ${r_out} 0 1 1 ${cx} ${cy - r_out}
+                                Z
+                              `;
+                            } else {
+                              pathD = `
+                                M ${x1_in} ${y1_in}
+                                L ${x1_out} ${y1_out}
+                                A ${r_out} ${r_out} 0 ${largeArcFlag} 1 ${x2_out} ${y2_out}
+                                L ${x2_in} ${y2_in}
+                                A ${r_in} ${r_in} 0 ${largeArcFlag} 0 ${x1_in} ${y1_in}
+                                Z
+                              `;
+                            }
+
+                            const palettes = [
+                              { fill: '#3b82f6', fillHover: '#2563eb', labelColor: '#1d4ed8' },
+                              { fill: '#a855f7', fillHover: '#9333ea', labelColor: '#6b21a8' },
+                              { fill: '#10b981', fillHover: '#059669', labelColor: '#047857' },
+                              { fill: '#f59e0b', fillHover: '#d97706', labelColor: '#b45309' },
+                              { fill: '#ec4899', fillHover: '#db2777', labelColor: '#be185d' }
+                            ];
+                            const palette = palettes[i % palettes.length];
+
+                            const isSelected = selectedCategoryWheelId === cat.id;
+                            const isHovered = hoveredCategoryWheelId === cat.id;
+
+                            return (
+                              <g 
+                                key={cat.id} 
+                                className="cursor-pointer transition-all"
+                                onClick={() => setSelectedCategoryWheelId(selectedCategoryWheelId === cat.id ? null : cat.id)}
+                                onMouseEnter={() => setHoveredCategoryWheelId(cat.id)}
+                                onMouseLeave={() => setHoveredCategoryWheelId(null)}
+                              >
+                                <path
+                                  d={pathD}
+                                  fill={isSelected ? palette.fillHover : isHovered ? palette.fill : palette.fill}
+                                  fillOpacity={isSelected ? 0.95 : isHovered ? 0.8 : 0.5}
+                                  stroke={isSelected ? '#1e293b' : '#ffffff'}
+                                  strokeWidth={isSelected ? 3 : 1.5}
+                                  className="transition-all duration-200"
+                                />
+                                <text
+                                  x={x_text}
+                                  y={y_text + 4}
+                                  textAnchor="middle"
+                                  fill={isSelected ? '#ffffff' : palette.labelColor}
+                                  className="text-[9.5px] font-black tracking-wider uppercase font-mono select-none pointer-events-none"
+                                >
+                                  {cat.id}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          <g className="pointer-events-none select-none">
+                            <text x="150" y="142" textAnchor="middle" className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">
+                              {selectedCategoryWheelId ? "Filtro Ativo" : "Todos os Ciclos"}
+                            </text>
+                            <text x="150" y="162" textAnchor="middle" className="text-lg font-black text-slate-800 tracking-tight">
+                              {selectedCategoryWheelId || "ESDE"}
+                            </text>
+                            <text x="150" y="178" textAnchor="middle" className="text-[8.5px] font-bold text-[#10b981] bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                              {selectedCategoryWheelId 
+                                ? `${studyCourses.filter(c => c.category === selectedCategoryWheelId).length} Cursos` 
+                                : `${studyCourses.length} Cursos Totais`}
+                            </text>
+                          </g>
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 w-full space-y-4">
+                    {(() => {
+                      const activeId = selectedCategoryWheelId || studyCategories[0]?.id;
+                      const activeCat = studyCategories.find(c => c.id === activeId);
+                      if (!activeCat) return null;
+
+                      return (
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-3xl space-y-3 relative">
+                          <div className="flex items-center justify-between">
+                            <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 rounded-lg text-[9px] font-mono font-black text-indigo-700">
+                              ID DO CICLO: {activeCat.id}
+                            </span>
+                            {selectedCategoryWheelId && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCategoryWheelId(null)}
+                                className="text-[9.5px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                              >
+                                Limpar Filtro
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold uppercase text-gray-500 block">
+                              Nome do Ciclo / Estudo Curricular
+                            </label>
+                            <input
+                              type="text"
+                              value={activeCat.name}
+                              onChange={(e) => handleUpdateCategory(activeCat.id, e.target.value)}
+                              placeholder="Informe o nome oficial deste ciclo"
+                              className="w-full h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none transition-all block"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest block">Filtrar Ciclo Doutrinário</span>
+                      <div className="flex flex-wrap gap-1.5 font-sans">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategoryWheelId(null)}
+                          className={cn(
+                            "px-2.5 py-1.5 rounded-xl border font-bold text-[10.5px] transition-all cursor-pointer whitespace-nowrap",
+                            selectedCategoryWheelId === null 
+                              ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200" 
+                              : "bg-white border-gray-150 text-gray-500 hover:bg-gray-50"
+                          )}
+                        >
+                          TODOS
+                        </button>
+                        {studyCategories.map((cat) => {
+                          const isActive = selectedCategoryWheelId === cat.id;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setSelectedCategoryWheelId(cat.id)}
+                              className={cn(
+                                "px-2.5 py-1.5 rounded-xl border font-bold text-[10.5px] transition-all cursor-pointer whitespace-nowrap",
+                                isActive 
+                                  ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200" 
+                                  : "bg-white border-gray-150 text-gray-500 hover:bg-gray-50"
+                              )}
+                            >
+                              {cat.id}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!newStudentName.trim() || !newStudentClassId) {
-                      alert("Preencha o nome e selecione a turma!");
-                      return;
-                    }
-                    handleAddStudyStudent(newStudentName, "(11) 99122-3344", newStudentClassId);
-                    setNewStudentName('');
-                  }}
-                  className="sm:col-span-6 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 transition-colors cursor-pointer"
-                >
-                  {editingStudentId ? 'Salvar Alterações' : 'Matricular Aluno'}
-                </button>
-                {editingStudentId && (
+              </div>
+
+              {/* Course Registration Form */}
+              <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+                <div className="border-b border-gray-50 pb-5">
+                  <h3 className="text-lg font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                    <Plus className="text-indigo-600" size={20} />
+                    {editingCourseId ? 'Editar Curso ou Grupo de Estudos' : 'Criar Novo Curso / Grupo de Estudos'}
+                  </h3>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Planejamento Pedagógico e Grade Curricular</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[11px] font-bold uppercase text-gray-500 block">Nome do Curso</label>
+                    <input
+                      value={newCourseName}
+                      onChange={(e) => setNewCourseName(e.target.value)}
+                      placeholder="Ex: ESDE II - Estudo do Pensamento Espírita"
+                      className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex justify-between items-center">
+                        <label className="text-[11px] font-bold uppercase text-gray-500 block">Ciclo Curricular</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsManagingCategories(!isManagingCategories)}
+                          className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                        >
+                          {isManagingCategories ? "Fechar" : "Gerenciar"}
+                        </button>
+                      </div>
+                      <select
+                        value={newCourseCategory || (studyCategories[0]?.id || 'ESDE')}
+                        onChange={(e) => setNewCourseCategory(e.target.value)}
+                        className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                      >
+                        {studyCategories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold uppercase text-gray-500 block">Carga Horária (Aulas)</label>
+                      <input
+                        value={newCourseHours}
+                        onChange={(e) => setNewCourseHours(e.target.value)}
+                        placeholder="Ex: 40"
+                        className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {isManagingCategories && (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-indigo-150 space-y-3">
+                      <h5 className="text-[10px] font-black uppercase tracking-wider text-indigo-700">Gerenciar Categorias de Ciclos</h5>
+                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                        {studyCategories.map(cat => (
+                          <div key={cat.id} className="flex gap-2 items-center justify-between text-xs bg-white p-2 rounded-xl border border-slate-200">
+                            <span className="font-mono font-black text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                              {cat.id}
+                            </span>
+                            <input
+                              type="text"
+                              value={cat.name}
+                              onChange={(e) => handleUpdateCategory(cat.id, e.target.value)}
+                              className="flex-1 min-w-0 bg-transparent border-b border-transparent focus:border-indigo-500 px-1 text-[11px] font-bold text-gray-800"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-dashed border-gray-200 grid grid-cols-12 gap-2">
+                        <input
+                          type="text"
+                          placeholder="ID (Ex: EAE)"
+                          value={newCategoryID}
+                          onChange={(e) => setNewCategoryID(e.target.value.toUpperCase())}
+                          className="col-span-4 h-8 bg-white border border-gray-200 rounded-lg px-2 text-[10.5px] font-semibold text-gray-800"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nome do Ciclo"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          className="col-span-8 h-8 bg-white border border-gray-200 rounded-lg px-2 text-[10.5px] font-semibold text-gray-800"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!newCategoryID.trim() || !newCategoryName.trim()) return;
+                            handleAddCategory(newCategoryID, newCategoryName);
+                          }}
+                          className="col-span-12 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-[9px] uppercase tracking-widest cursor-pointer"
+                        >
+                          Incluir Ciclo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingStudentId(null);
-                      setNewStudentName('');
-                      setNewStudentClassId('');
-                      setNewStudentPhone('');
+                      if (!newCourseName.trim()) {
+                        alert("Por favor, informe o nome do curso.");
+                        return;
+                      }
+                      handleAddCourseAndClass(newCourseName, newCourseCategory, "Sábado, 15h00");
+                      setNewCourseName('');
                     }}
-                    className="sm:col-span-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-colors cursor-pointer text-center"
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer shadow-md"
                   >
-                    Cancelar Edição
+                    {editingCourseId ? 'Salvar Alterações' : 'Registrar e Gerar Turma Padrão'}
                   </button>
-                )}
-              </div>
-            </div>
-
-            {/* Students list and attendance checker */}
-            <div className="space-y-4 text-left font-sans">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic">Registro de Diário de Classe de Alunos</h4>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                {studyStudents.map((st) => {
-                  const targetClass = studyClasses.find(cl => cl.id === st.classId);
-                  return (
-                    <div key={st.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-gray-100/40 transition-all font-sans">
-                      <div className="space-y-1 flex-1 min-w-0">
-                        <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full font-bold text-[8px] uppercase tracking-wider block w-max">
-                          {targetClass ? targetClass.name : 'Sem turma'}
-                        </span>
-                        <h5 className="font-extrabold text-sm text-gray-950 leading-none pt-1 truncate">{st.name}</h5>
-                        <div className="flex gap-2 items-center text-[9px] font-bold text-gray-450 uppercase tracking-wider pt-1">
-                          <span>Status: <strong className={st.status.includes('Alerta') ? 'text-rose-600' : 'text-emerald-600'}>{st.status}</strong></span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-row items-center gap-3 shrink-0 self-end sm:self-auto font-sans">
-                        {/* Attendance Grid Checklist */}
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="text-[8.5px] font-black tracking-widest uppercase text-gray-400">Frequência</span>
-                          <div className="flex gap-1 mt-0.5">
-                            {st.presence.map((pres: boolean, index: number) => (
-                              <button
-                                key={index}
-                                onClick={() => handleToggleStudyPresence(st.id, index)}
-                                className={cn(
-                                  "w-6 h-6 rounded-lg text-[9px] font-black flex items-center justify-center transition-all cursor-pointer border",
-                                  pres 
-                                    ? "bg-emerald-50 border-emerald-150 text-emerald-700 hover:bg-emerald-100" 
-                                    : "bg-red-50 border-red-150 text-red-700 hover:bg-red-100"
-                                )}
-                                title={`Aula ${index + 1}: ${pres ? 'Presente' : 'Ausente'}`}
-                              >
-                                {pres ? 'P' : 'F'}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-1 border-l border-gray-200 pl-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingStudentId(st.id);
-                              setNewStudentName(st.name);
-                              setNewStudentClassId(st.classId);
-                              setNewStudentPhone(st.phone || '');
-                            }}
-                            className="p-1.5 bg-white border border-gray-150 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer text-gray-500"
-                            title="Editar Matrícula"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteStudyStudent(st.id, st.name)}
-                            className="p-1.5 bg-white border border-gray-150 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors cursor-pointer text-gray-500"
-                            title="Remover Aluno"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Row 3: Educational Materials */}
-            <div className="pt-6 border-t border-gray-50 text-left font-sans">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
-                <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic">Apostilas e Arquivos de Apoio</h4>
-                
-                {/* Upload Section */}
-                <div className="shrink-0">
-                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 rounded-xl font-bold text-[10px] uppercase tracking-wider cursor-pointer border border-indigo-150 transition-colors">
-                    <UploadCloud size={13} />
-                    Subir Arquivo / PDF
-                    <input 
-                      type="file" 
-                      onChange={handleStudyMaterialUpload} 
-                      className="hidden" 
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.txt"
-                    />
-                  </label>
                 </div>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Right Column: Active Classes List */}
+            <div className="lg:col-span-6 space-y-6">
+              <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+                <div className="border-b border-gray-50 pb-5 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                      <BookOpen className="text-indigo-600" size={22} />
+                      Grade Ativa de Turmas
+                    </h3>
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">
+                      {selectedCategoryWheelId ? `Filtrado por: ${selectedCategoryWheelId}` : 'Exibindo Todas as Turmas'}
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full font-extrabold text-xs">
+                    {studyClasses.filter(cls => {
+                      if (!selectedCategoryWheelId) return true;
+                      const c = studyCourses.find(course => course.id === cls.courseId);
+                      return c?.category === selectedCategoryWheelId;
+                    }).length} Turmas
+                  </span>
+                </div>
+
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                  {studyClasses
+                    .filter(cls => {
+                      if (!selectedCategoryWheelId) return true;
+                      const c = studyCourses.find(course => course.id === cls.courseId);
+                      return c?.category === selectedCategoryWheelId;
+                    })
+                    .map((cls) => {
+                      const course = studyCourses.find(c => c.id === cls.courseId);
+                      const classStudentsCount = studyStudents.filter(st => st.classId === cls.id).length;
+
+                      return (
+                        <div key={cls.id} className="p-5 bg-gray-50 border border-gray-150 rounded-2xl space-y-3 hover:bg-gray-100/50 transition-all">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider">
+                                {course?.category || 'ESDE'}
+                              </span>
+                              <h5 className="font-extrabold text-base text-gray-950 mt-1">{cls.name}</h5>
+                            </div>
+                            <span className="px-3 py-1 bg-white border border-gray-200 rounded-xl font-mono text-xs font-black text-indigo-700 whitespace-nowrap shadow-xs">
+                              {classStudentsCount} / {cls.maxQty} Alunos
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-3 items-center text-[10px] font-bold uppercase tracking-wider text-gray-500 pt-1 border-t border-gray-200/60">
+                            <span>Facilitador: <strong className="text-gray-800">{cls.facilitator}</strong></span>
+                            <span>•</span>
+                            <span>Horário: <strong className="text-gray-800">{cls.schedule}</strong></span>
+                            <span>•</span>
+                            <span>Sala: <strong className="text-gray-800">{cls.room}</strong></span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEstudosSubTab('chamada');
+                                setBatchClassId(cls.id);
+                              }}
+                              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Calendar size={13} />
+                              <span>Fazer Chamada da Turma</span>
+                            </button>
+
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (course) {
+                                    setEditingCourseId(course.id);
+                                    setNewCourseName(course.name);
+                                    setNewCourseCategory(course.category || 'ESDE');
+                                    setNewCourseHours(String(course.hours || 40));
+                                  }
+                                }}
+                                className="p-2 bg-white border border-gray-200 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 rounded-xl transition-colors cursor-pointer"
+                                title="Editar Curso"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const cid = course ? course.id : cls.courseId;
+                                  handleDeleteCourse(cid, cls.name);
+                                }}
+                                className="p-2 bg-white border border-gray-200 hover:bg-rose-50 text-gray-600 hover:text-rose-600 rounded-xl transition-colors cursor-pointer"
+                                title="Excluir Curso"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUB-TAB 2: ALUNOS & MATRÍCULAS */}
+        {estudosSubTab === 'alunos' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left font-sans">
+            {/* Left Column: Register / Edit Student */}
+            <div className="lg:col-span-5 space-y-6">
+              <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+                <div className="border-b border-gray-50 pb-5">
+                  <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                    <Users className="text-emerald-600" size={22} />
+                    {editingStudentId ? 'Editar Matrícula de Aluno' : 'Matricular Novo Aluno'}
+                  </h3>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Inscrição em Turmas do Centro Espírita</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[11px] font-bold uppercase text-gray-500 block">Nome Completo do Aluno</label>
+                    <input
+                      value={newStudentName}
+                      onChange={(e) => setNewStudentName(e.target.value)}
+                      placeholder="Ex: Clara Ribeiro Santos"
+                      className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-emerald-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold uppercase text-gray-500 block">Telefone / WhatsApp</label>
+                    <input
+                      value={newStudentPhone}
+                      onChange={(e) => setNewStudentPhone(e.target.value)}
+                      placeholder="Ex: (11) 98765-4321"
+                      className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-emerald-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold uppercase text-gray-500 block">Vincular à Turma</label>
+                    <select
+                      value={newStudentClassId}
+                      onChange={(e) => setNewStudentClassId(e.target.value)}
+                      className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:border-emerald-500 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">Selecione uma turma...</option>
+                      {studyClasses.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newStudentName.trim() || !newStudentClassId) {
+                        alert("Preencha o nome do aluno e selecione a turma correspondente!");
+                        return;
+                      }
+                      handleAddStudyStudent(newStudentName, newStudentPhone || "(11) 99122-3344", newStudentClassId);
+                    }}
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer shadow-md"
+                  >
+                    {editingStudentId ? 'Salvar Alterações de Matrícula' : 'Confirmar Matrícula do Aluno'}
+                  </button>
+
+                  {editingStudentId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingStudentId(null);
+                        setNewStudentName('');
+                        setNewStudentPhone('');
+                        setNewStudentClassId('');
+                      }}
+                      className="w-full py-2 bg-gray-150 text-gray-700 rounded-xl font-bold text-[10px] uppercase tracking-widest cursor-pointer"
+                    >
+                      Cancelar Edição
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Search, Filter & Students List */}
+            <div className="lg:col-span-7 space-y-6">
+              <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+                <div className="border-b border-gray-50 pb-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                        <Users className="text-indigo-600" size={22} />
+                        Quadro Geral de Alunos
+                      </h3>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Busca, Controle de Frequência e Acolhimento</p>
+                    </div>
+                  </div>
+
+                  {/* Search and Class Filter Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        value={studyStudentSearch}
+                        onChange={(e) => setStudyStudentSearch(e.target.value)}
+                        placeholder="Buscar por nome do aluno..."
+                        className="w-full h-10 pl-9 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <select
+                      value={studyStudentClassFilter}
+                      onChange={(e) => setStudyStudentClassFilter(e.target.value)}
+                      className="h-10 bg-gray-50 border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="">Todas as Turmas</option>
+                      {studyClasses.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
+                  {studyStudents
+                    .filter(st => {
+                      const matchSearch = st.name.toLowerCase().includes(studyStudentSearch.toLowerCase());
+                      const matchClass = !studyStudentClassFilter || st.classId === studyStudentClassFilter;
+                      return matchSearch && matchClass;
+                    })
+                    .map((st) => {
+                      const targetClass = studyClasses.find(cl => cl.id === st.classId);
+                      const targetCourse = studyCourses.find(c => c.id === targetClass?.courseId);
+                      const isAlert = st.status.includes('Alerta');
+                      const isApproved = st.status.includes('Concluído') || st.status.includes('Aprovado');
+
+                      const presentsCount = (st.presence || []).filter(Boolean).length;
+                      const totalLessons = (st.presence || []).length;
+                      const attendanceRatio = totalLessons > 0 ? Math.round((presentsCount / totalLessons) * 100) : 100;
+
+                      return (
+                        <div key={st.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl space-y-3 hover:bg-gray-100/50 transition-all">
+                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                            <div className="space-y-1">
+                              <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full font-bold text-[9px] uppercase tracking-wider inline-block">
+                                {targetClass ? targetClass.name : 'Sem Turma'}
+                              </span>
+                              <h5 className="font-extrabold text-base text-gray-950">{st.name}</h5>
+                              <p className="text-[10px] font-medium text-gray-500">
+                                Contacto: {st.phone || '(11) 99122-3344'} • Matrícula: {st.enrollmentDate || 'Ativa'}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col sm:items-end gap-1">
+                              <span className={cn(
+                                "px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border",
+                                isAlert 
+                                  ? "bg-rose-50 border-rose-200 text-rose-700"
+                                  : isApproved
+                                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                  : "bg-blue-50 border-blue-200 text-blue-700"
+                              )}>
+                                {st.status} ({attendanceRatio}% Frequência)
+                              </span>
+
+                              {/* Presence squares */}
+                              <div className="flex gap-1 mt-1">
+                                {(st.presence || []).map((pres: boolean, index: number) => (
+                                  <button
+                                    key={index}
+                                    type="button"
+                                    onClick={() => handleToggleStudyPresence(st.id, index)}
+                                    className={cn(
+                                      "w-6 h-6 rounded-lg text-[9px] font-black flex items-center justify-center transition-all cursor-pointer border",
+                                      pres 
+                                        ? "bg-emerald-100 border-emerald-200 text-emerald-800" 
+                                        : "bg-rose-100 border-rose-200 text-rose-800"
+                                    )}
+                                    title={`Aula ${index + 1}: ${pres ? 'Presente' : 'Ausente'}`}
+                                  >
+                                    {pres ? 'P' : 'F'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons: WhatsApp Fraternal Outreach & Certificate */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-200/60">
+                            <div className="flex items-center gap-2">
+                              {isAlert && (
+                                <a
+                                  href={`https://wa.me/55${(st.phone || '11991223344').replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${st.name}, tudo bem? Sentimos sua falta nas aulas de ${targetCourse?.name || 'Estudos Espíritas'} no Centro Espírita. Como podemos te apoiar?`)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                                >
+                                  <MessageSquare size={13} />
+                                  <span>WhatsApp Acolhimento</span>
+                                </a>
+                              )}
+
+                              {isApproved && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCertificateStudent(st)}
+                                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                                >
+                                  <Award size={13} />
+                                  <span>Ver / Gerar Certificado</span>
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingStudentId(st.id);
+                                  setNewStudentName(st.name);
+                                  setNewStudentClassId(st.classId);
+                                  setNewStudentPhone(st.phone || '');
+                                }}
+                                className="p-2 bg-white border border-gray-200 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 rounded-xl transition-colors cursor-pointer"
+                                title="Editar Aluno"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStudyStudent(st.id, st.name)}
+                                className="p-2 bg-white border border-gray-200 hover:bg-rose-50 text-gray-600 hover:text-rose-600 rounded-xl transition-colors cursor-pointer"
+                                title="Remover Aluno"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUB-TAB 3: DIÁRIO DE CLASSE & CHAMADA EM LOTE */}
+        {estudosSubTab === 'chamada' && (
+          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6 text-left font-sans">
+            <div className="border-b border-gray-50 pb-5">
+              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                <Calendar className="text-indigo-600" size={22} />
+                Diário de Classe & Registro de Chamada em Lote
+              </h3>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">
+                Selecione a turma, informe a data e tema da aula para marcar a frequência do grupo
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+              <div>
+                <label className="text-[11px] font-bold uppercase text-gray-500 block">Selecione a Turma</label>
+                <select
+                  value={batchClassId}
+                  onChange={(e) => {
+                    setBatchClassId(e.target.value);
+                    const initAtt: Record<string, boolean> = {};
+                    studyStudents.filter(st => st.classId === e.target.value).forEach(st => {
+                      initAtt[st.id] = true;
+                    });
+                    setBatchAttendance(initAtt);
+                  }}
+                  className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="">Escolha a turma...</option>
+                  {studyClasses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold uppercase text-gray-500 block">Data da Aula</label>
+                <input
+                  type="date"
+                  value={batchDate}
+                  onChange={(e) => setBatchDate(e.target.value)}
+                  className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold uppercase text-gray-500 block">Tema Ministrado</label>
+                <input
+                  type="text"
+                  value={batchTopic}
+                  onChange={(e) => setBatchTopic(e.target.value)}
+                  placeholder="Ex: O Livro dos Espíritos - Q. 1 a 10"
+                  className="w-full mt-1.5 h-10 bg-white border border-gray-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {batchClassId ? (
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                  <div className="flex items-center gap-2">
+                    <Users className="text-indigo-600" size={18} />
+                    <span className="text-xs font-extrabold text-indigo-950">
+                      Alunos Matriculados: {studyStudents.filter(st => st.classId === batchClassId).length}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allPres: Record<string, boolean> = {};
+                      studyStudents.filter(st => st.classId === batchClassId).forEach(st => {
+                        allPres[st.id] = true;
+                      });
+                      setBatchAttendance(allPres);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                  >
+                    Marcar Todos Presentes
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto pr-2">
+                  {studyStudents.filter(st => st.classId === batchClassId).map((st) => {
+                    const isPresent = batchAttendance[st.id] !== false;
+
+                    return (
+                      <div key={st.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between">
+                        <div>
+                          <h5 className="font-extrabold text-sm text-gray-900">{st.name}</h5>
+                          <span className="text-[10px] font-bold text-gray-400">
+                            {isPresent ? '🟢 Presente' : '🔴 Ausente'}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBatchAttendance(prev => ({ ...prev, [st.id]: !isPresent }));
+                          }}
+                          className={cn(
+                            "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border",
+                            isPresent 
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                              : "bg-rose-100 text-rose-700 border-rose-300"
+                          )}
+                        >
+                          {isPresent ? 'PRESENTE' : 'AUSENTE'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveBatchAttendance}
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md cursor-pointer mt-4"
+                >
+                  Registrar Chamada e Gravar Diário de Classe
+                </button>
+              </div>
+            ) : (
+              <div className="p-12 text-center text-gray-400 italic bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+                Selecione uma turma no campo acima para carregar a lista de alunos e realizar a chamada.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SUB-TAB 4: BIBLIOTECA PEDAGÓGICA & APOSTILAS */}
+        {estudosSubTab === 'biblioteca' && (
+          <div className="space-y-8 text-left font-sans">
+            {/* Codificação Espírita & FEB Presets */}
+            <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-50 pb-5">
+                <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                  <BookOpen className="text-indigo-600" size={22} />
+                  Obras Básicas da Codificação (Kardec) & FEB
+                </h3>
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">
+                  Acervo essencial para formação de grupos de estudo e preceptores
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {defaultSpiritistBooks.map((book) => (
+                  <div key={book.id} className="p-5 bg-slate-50 border border-slate-150 rounded-3xl space-y-3 flex flex-col justify-between hover:bg-slate-100/60 transition-all">
+                    <div>
+                      <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg text-[8.5px] font-mono font-black uppercase tracking-wider">
+                        {book.type}
+                      </span>
+                      <h5 className="font-extrabold text-sm text-gray-900 mt-2 leading-snug">{book.name}</h5>
+                      <p className="text-[10px] text-gray-500 font-medium mt-1 leading-relaxed line-clamp-2">{book.desc}</p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      <span className="text-[9px] font-bold text-gray-400">{book.author}</span>
+                      <button
+                        type="button"
+                        onClick={() => alert(`Acessando o livro em PDF: ${book.name}`)}
+                        className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-indigo-50 text-indigo-700 rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Download size={12} />
+                        <span>PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Uploaded Materials */}
+            <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
+              <div className="border-b border-gray-50 pb-5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
+                    <UploadCloud className="text-indigo-600" size={22} />
+                    Materiais Pedagógicos Internos da Casa
+                  </h3>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Apostilas, Apresentações em PDF e Roteiros</p>
+                </div>
+
+                <label className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-md transition-all">
+                  <UploadCloud size={16} />
+                  <span>Subir Novo Arquivo / PDF</span>
+                  <input 
+                    type="file" 
+                    onChange={handleStudyMaterialUpload} 
+                    className="hidden" 
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.txt"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {studyMaterials.map((mat) => (
-                  <div key={mat.id} className="p-3.5 bg-slate-50 border border-slate-150 rounded-2xl flex items-center justify-between hover:bg-slate-100/40 transition-colors">
-                    <div className="text-left select-none max-w-[80%]">
+                  <div key={mat.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex items-center justify-between hover:bg-gray-100/50 transition-all">
+                    <div className="text-left select-none max-w-[75%] space-y-1">
                       <p className="font-extrabold text-xs text-gray-900 leading-snug truncate" title={mat.name}>{mat.name}</p>
-                      <span className="text-[9px] font-bold uppercase text-gray-400 tracking-wider block mt-1">
-                        {mat.type} • {mat.author} {mat.size ? `• ${mat.size}` : ''} {mat.duration ? `• ${mat.duration}` : ''}
+                      <span className="text-[9px] font-bold uppercase text-gray-400 tracking-wider block">
+                        {mat.type} • {mat.author} {mat.size ? `• ${mat.size}` : ''}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+
+                    <div className="flex items-center gap-1.5">
                       <a
                         href={mat.url || '#'}
                         download={mat.name}
                         onClick={(e) => {
                           if (!mat.url) {
                             e.preventDefault();
-                            alert(`Fazendo download do material simulado: ${mat.name}`);
+                            alert(`Fazendo download do material: ${mat.name}`);
                           }
                         }}
-                        className="p-1.5 border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all cursor-pointer text-gray-500 inline-flex items-center justify-center"
-                        title="Fazer download"
+                        className="p-2 border border-gray-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all cursor-pointer text-gray-600"
+                        title="Download"
                       >
-                        <Download size={12} />
+                        <Download size={14} />
                       </a>
                       <button
                         type="button"
                         onClick={() => handleDeleteStudyMaterial(mat.id, mat.name)}
-                        className="p-1.5 border border-slate-200 bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                        title="Excluir Material"
+                        className="p-2 border border-gray-200 bg-white text-gray-600 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors cursor-pointer"
+                        title="Excluir"
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -7027,881 +9366,1087 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* MODAL DE CERTIFICADO DE CONCLUSÃO DO ALUNO */}
+        {certificateStudent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-2xl rounded-[36px] p-8 sm:p-10 border border-indigo-100 shadow-2xl space-y-6 text-center font-sans relative">
+              <button
+                type="button"
+                onClick={() => setCertificateStudent(null)}
+                className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-800 bg-gray-100 rounded-full cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="mx-auto w-16 h-16 bg-amber-100 text-amber-800 rounded-3xl flex items-center justify-center border-2 border-amber-300 shadow-sm">
+                <Award size={36} />
+              </div>
+
+              <div className="space-y-2 border-b border-gray-100 pb-6">
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                  Centro Espírita - Diretoria de Ensino
+                </span>
+                <h3 className="text-2xl font-black text-gray-900 tracking-tight">Certificado de Conclusão de Ciclo</h3>
+                <p className="text-xs text-gray-500 font-medium">Reconhecimento de aproveitamento e frequência doutrinária</p>
+              </div>
+
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl space-y-4 text-center">
+                <p className="text-xs text-gray-600 leading-relaxed font-sans">
+                  Certificamos que o(a) estudante <strong className="text-gray-900 text-sm font-black underline">{certificateStudent.name}</strong> concluiu com êxito o programa de estudos do curso:
+                </p>
+
+                <h4 className="text-lg font-black text-indigo-950 uppercase tracking-wide">
+                  {studyClasses.find(c => c.id === certificateStudent.classId)?.name || 'Estudo Sistematizado da Doutrina Espírita'}
+                </h4>
+
+                <div className="flex items-center justify-center gap-6 pt-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                  <span>Frequência: <strong className="text-emerald-700">100% Aprovado</strong></span>
+                  <span>•</span>
+                  <span>Emissão: <strong className="text-gray-800">{new Date().toLocaleDateString('pt-BR')}</strong></span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert(`Iniciando impressão do Certificado de ${certificateStudent.name}`);
+                    window.print();
+                  }}
+                  className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Printer size={16} />
+                  <span>Imprimir / Salvar PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCertificateStudent(null)}
+                  className="py-3.5 px-6 bg-gray-150 hover:bg-gray-200 text-gray-800 rounded-2xl font-bold text-xs uppercase tracking-wider cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
   const renderEvangelizacaoDashboard = () => {
+    // Filter kids based on search term and cycle filter
+    const filteredKids = evangelizacaoKids.filter(kid => {
+      const matchSearch = evaSearchTerm === '' || 
+        kid.name.toLowerCase().includes(evaSearchTerm.toLowerCase()) ||
+        (kid.responsible && kid.responsible.toLowerCase().includes(evaSearchTerm.toLowerCase())) ||
+        (kid.parentName && kid.parentName.toLowerCase().includes(evaSearchTerm.toLowerCase()));
+      
+      if (!matchSearch) return false;
+      if (evaCycleFilter === 'TODOS') return true;
+      const room = evangelizacaoRooms.find(r => r.id === kid.roomId);
+      if (evaCycleFilter === 'INFANTIL') return kid.age <= 12 || (room?.cycle || room?.name || '').toUpperCase().includes('1º') || (room?.cycle || room?.name || '').toUpperCase().includes('MATERNAL') || (room?.cycle || room?.name || '').toUpperCase().includes('JARDIM');
+      if (evaCycleFilter === 'MOCIDADE') return kid.age > 12 || (room?.cycle || room?.name || '').toUpperCase().includes('MOCIDADE') || (room?.cycle || room?.name || '').toUpperCase().includes('JUVENTUDE');
+      return true;
+    });
+
+    const totalKidsCount = evangelizacaoKids.length;
+    const presentTodayCount = evangelizacaoKids.filter(k => k.presenceToday).length;
+    const infantilCount = evangelizacaoKids.filter(k => k.age <= 12).length;
+    const mocidadeCount = evangelizacaoKids.filter(k => k.age > 12).length;
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in duration-500 font-sans">
-        {/* Left Column: Register/Control Kids */}
-        <div className="lg:col-span-6 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="border-b border-gray-50 pb-6 text-left">
-              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                <Smile className="text-purple-600" size={22} />
-                Evangelização Infantil & Juventude
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Ficha de Frequência e Acolhimento de Menores</p>
+      <div className="space-y-6 animate-in fade-in duration-500 font-sans text-left">
+        {/* Top Header Banner */}
+        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-[32px] p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-xs font-bold uppercase tracking-widest">
+              <Smile size={14} className="text-purple-300" />
+              <span>Diretoria de Evangelização & Juventude FEB</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white italic">
+              Evangelização Infantil & Mocidade Espírita
+            </h2>
+            <p className="text-xs sm:text-sm text-purple-200/80 font-medium leading-relaxed">
+              Formação moral cristã-espírita de crianças e jovens, com registros em nuvem Firestore, controle de assiduidade, localização dos responsáveis durante as reuniões e projetos fraternos.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap md:flex-col gap-3 shrink-0 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={exportEvaRelatorioGeralPDF}
+              className="px-5 py-3 bg-white hover:bg-purple-50 text-purple-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <FileText size={16} className="text-purple-700" />
+              <span>Baixar Relatório Setorial (PDF)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Top Sub-Tab Navigation Header */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-200 font-sans">
+          <button
+            type="button"
+            onClick={() => setEvangelizacaoSubTab('jovens')}
+            className={cn(
+              "px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer",
+              evangelizacaoSubTab === 'jovens'
+                ? "bg-purple-700 text-white shadow-md shadow-purple-200"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            )}
+          >
+            <Smile size={16} />
+            <span>👥 Alunos & Matrículas ({totalKidsCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setEvangelizacaoSubTab('ciclos')}
+            className={cn(
+              "px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer",
+              evangelizacaoSubTab === 'ciclos'
+                ? "bg-purple-700 text-white shadow-md shadow-purple-200"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            )}
+          >
+            <Users size={16} />
+            <span>🏫 Ciclos FEB ({evangelizacaoRooms.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setEvangelizacaoSubTab('diario_aulas')}
+            className={cn(
+              "px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer",
+              evangelizacaoSubTab === 'diario_aulas'
+                ? "bg-purple-700 text-white shadow-md shadow-purple-200"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            )}
+          >
+            <BookOpen size={16} />
+            <span>📖 Diário de Aulas ({evangelizacaoAulas.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setEvangelizacaoSubTab('projetos_juventude')}
+            className={cn(
+              "px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer",
+              evangelizacaoSubTab === 'projetos_juventude'
+                ? "bg-purple-700 text-white shadow-md shadow-purple-200"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            )}
+          >
+            <Sparkles size={16} />
+            <span>🎭 Juventude & Projetos ({evangelizacaoProjetos.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setEvangelizacaoSubTab('certificados_pdf')}
+            className={cn(
+              "px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer",
+              evangelizacaoSubTab === 'certificados_pdf'
+                ? "bg-purple-700 text-white shadow-md shadow-purple-200"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            )}
+          >
+            <Award size={16} />
+            <span>📜 Certificados & Emissão PDF</span>
+          </button>
+        </div>
+
+        {/* SUB-TAB 1: ALUNOS & MATRÍCULAS */}
+        {evangelizacaoSubTab === 'jovens' && (
+          <div className="space-y-6">
+            {/* Stat Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Total Matrocinados</span>
+                <p className="text-2xl font-black text-purple-950 mt-1">{totalKidsCount}</p>
+                <span className="text-[10px] text-purple-600 font-bold">Inscritos na Casa Espírita</span>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Presentes Hoje</span>
+                <p className="text-2xl font-black text-emerald-600 mt-1">{presentTodayCount}</p>
+                <span className="text-[10px] text-emerald-600 font-bold">{totalKidsCount > 0 ? Math.round((presentTodayCount/totalKidsCount)*100) : 0}% de Frequência</span>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Evangelização Infantil</span>
+                <p className="text-2xl font-black text-blue-900 mt-1">{infantilCount}</p>
+                <span className="text-[10px] text-blue-600 font-bold">Faixa de 3 a 12 anos</span>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Mocidade / Juventude</span>
+                <p className="text-2xl font-black text-indigo-900 mt-1">{mocidadeCount}</p>
+                <span className="text-[10px] text-indigo-600 font-bold">Faixa de 13 a 18 anos</span>
+              </div>
             </div>
 
-            {/* Register Kid Form */}
-            <div className="bg-purple-50/50 rounded-[32px] p-6 border border-purple-100 text-left space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-purple-800 italic flex items-center justify-between select-none text-[11px]">
-                <span className="flex items-center gap-1.5">
-                  <Plus size={14} className="text-purple-600" />
-                  {editingKidId ? 'Editar Matrícula de Evangelizando / Jovem' : 'Matricular Criança / Jovem (Evangelização e Juventude)'}
-                </span>
-                {editingKidId && (
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setEditingKidId(null);
-                      setNewKidName('');
-                      setNewKidResponsible('');
-                      setNewKidRoomId('');
-                      setNewKidAllergies('');
-                      setNewKidAge(6);
-                      setNewKidPhone('');
-                      setNewKidPhoneType('whatsapp');
-                      setNewKidPhone2('');
-                      setNewKidPhoneType2('whatsapp');
-                      setNewKidRelationship('Pai');
-                      setNewKidStudentPhone('');
-                      setNewKidStudentPhoneType('whatsapp');
-                    }}
-                    className="text-[9px] text-[#2563eb] hover:text-[#1d4ed8] uppercase tracking-wider font-bold italic hover:underline cursor-pointer"
-                  >
-                    cancelar
-                  </button>
-                )}
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Nome do Aluno/Menor</label>
-                  <input
-                    value={newKidName}
-                    onChange={(e) => setNewKidName(e.target.value)}
-                    placeholder="Ex: Lucas Silva"
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Idade</label>
-                  <input
-                    type="number"
-                    value={newKidAge || ''}
-                    onChange={(e) => setNewKidAge(Number(e.target.value) || 0)}
-                    placeholder="Ex: 8"
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-purple-500 transition-colors"
-                  />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Form to enroll/edit student */}
+              <div className="lg:col-span-5 bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm space-y-4">
+                <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                  <h3 className="text-sm font-black text-purple-950 uppercase tracking-wider flex items-center gap-2">
+                    <Plus size={16} className="text-purple-600" />
+                    {editingKidId ? 'Editar Dados da Matrícula' : 'Nova Matrícula (Evangelizando / Jovem)'}
+                  </h3>
+                  {editingKidId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingKidId(null);
+                        setNewKidName('');
+                        setNewKidResponsible('');
+                        setNewKidRoomId('');
+                        setNewKidAllergies('');
+                        setNewKidAge(15);
+                        setNewKidPhone('');
+                        setNewKidNotes('');
+                      }}
+                      className="text-[10px] font-bold text-red-600 hover:underline cursor-pointer"
+                    >
+                      Cancelar Edição
+                    </button>
+                  )}
                 </div>
 
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Opção de Ciclo / Turma</label>
-                  <select
-                    value={newKidRoomId}
-                    onChange={(e) => setNewKidRoomId(e.target.value)}
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-purple-500 transition-colors cursor-pointer"
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Nome Completo do Aluno/Jovem *</label>
+                    <input
+                      type="text"
+                      value={newKidName}
+                      onChange={(e) => setNewKidName(e.target.value)}
+                      placeholder="Ex: Arthur Dias Souza"
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Idade *</label>
+                      <input
+                        type="number"
+                        value={newKidAge || ''}
+                        onChange={(e) => setNewKidAge(Number(e.target.value) || 0)}
+                        placeholder="Ex: 8"
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Ciclo / Turma FEB *</label>
+                      <select
+                        value={newKidRoomId}
+                        onChange={(e) => setNewKidRoomId(e.target.value)}
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600 cursor-pointer"
+                      >
+                        <option value="">Selecione a Turma...</option>
+                        {evangelizacaoRooms.map(r => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Nome do Responsável Legal *</label>
+                    <input
+                      type="text"
+                      value={newKidResponsible}
+                      onChange={(e) => setNewKidResponsible(e.target.value)}
+                      placeholder="Ex: Fernanda de Souza Santos"
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Telefone WhatsApp *</label>
+                      <input
+                        type="text"
+                        value={newKidPhone}
+                        onChange={(e) => setNewKidPhone(e.target.value)}
+                        placeholder="Ex: (11) 98124-5511"
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Local do Resp. no Centro</label>
+                      <input
+                        type="text"
+                        value={newKidNotes}
+                        onChange={(e) => setNewKidNotes(e.target.value)}
+                        placeholder="Ex: Auditório Principal, Sala Passe"
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Alergias ou Cuidados Especiais de Saúde</label>
+                    <input
+                      type="text"
+                      value={newKidAllergies}
+                      onChange={(e) => setNewKidAllergies(e.target.value)}
+                      placeholder="Ex: Alergia a glúten, asma, etc., ou Nenhuma"
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newKidName.trim() || !newKidRoomId) {
+                        alert("Preencha o nome do aluno e selecione a turma!");
+                        return;
+                      }
+                      handleRegisterEvaKid(
+                        newKidName,
+                        newKidAge,
+                        newKidRoomId,
+                        newKidResponsible,
+                        newKidPhone,
+                        newKidPhoneType,
+                        newKidPhone2,
+                        newKidPhoneType2,
+                        newKidRelationship,
+                        newKidStudentPhone,
+                        newKidStudentPhoneType,
+                        newKidStudentEmail,
+                        newKidAllergies,
+                        newKidInterests,
+                        newKidSchool,
+                        newKidNotes
+                      );
+                    }}
+                    className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md mt-2"
                   >
-                    <option value="">Selecione a Turma...</option>
-                    {evangelizacaoRooms.map(room => (
-                      <option key={room.id} value={room.id}>{room.name}</option>
+                    {editingKidId ? 'Salvar Edição do Aluno' : 'Confirmar Matrícula em Nuvem'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Search bar and Enrolled Students Card Grid */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* Search and Cycle Filter Bar */}
+                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row gap-3 justify-between items-center">
+                  <div className="relative flex-1 w-full">
+                    <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="text"
+                      value={evaSearchTerm}
+                      onChange={(e) => setEvaSearchTerm(e.target.value)}
+                      placeholder="Buscar por nome do aluno ou responsável..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEvaCycleFilter('TODOS')}
+                      className={cn("px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border cursor-pointer", evaCycleFilter === 'TODOS' ? "bg-purple-100 border-purple-300 text-purple-900" : "bg-slate-50 border-slate-200 text-gray-600")}
+                    >
+                      Todos ({evangelizacaoKids.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEvaCycleFilter('INFANTIL')}
+                      className={cn("px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border cursor-pointer", evaCycleFilter === 'INFANTIL' ? "bg-purple-100 border-purple-300 text-purple-900" : "bg-slate-50 border-slate-200 text-gray-600")}
+                    >
+                      Infantil ({infantilCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEvaCycleFilter('MOCIDADE')}
+                      className={cn("px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border cursor-pointer", evaCycleFilter === 'MOCIDADE' ? "bg-purple-100 border-purple-300 text-purple-900" : "bg-slate-50 border-slate-200 text-gray-600")}
+                    >
+                      Mocidade ({mocidadeCount})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Enrolled Students Card Grid */}
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                  {filteredKids.length === 0 ? (
+                    <div className="p-8 text-center bg-white rounded-3xl border border-dashed border-gray-200 text-gray-400 text-xs font-medium">
+                      Nenhum aluno encontrado para os filtros selecionados.
+                    </div>
+                  ) : (
+                    filteredKids.map((kid) => {
+                      const room = evangelizacaoRooms.find(r => r.id === kid.roomId);
+                      const respName = kid.responsible || kid.parentName || 'Não Informado';
+                      const respPhone = kid.phone || kid.parentPhone || '';
+                      return (
+                        <div key={kid.id} className="p-5 bg-white border border-gray-200 rounded-3xl shadow-sm hover:border-purple-200 transition-all font-sans space-y-3">
+                          <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2 border-b border-gray-100 pb-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-0.5 bg-purple-100 text-purple-900 rounded-full font-extrabold text-[9px] uppercase tracking-wider">
+                                  {room ? room.name : 'Ciclo Geral'}
+                                </span>
+                                {kid.presenceToday && (
+                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                    <CheckCircle2 size={10} /> Presente Hoje
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="font-extrabold text-base text-gray-950 mt-1.5">{kid.name} <span className="text-xs text-gray-400 font-normal">({kid.age} anos)</span></h4>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Responsável: <strong className="text-gray-800">{respName}</strong>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleEvaPresence(kid.id)}
+                                className={cn(
+                                  "px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all border cursor-pointer",
+                                  kid.presenceToday
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                    : "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100"
+                                )}
+                              >
+                                {kid.presenceToday ? "🟢 Registrar Falta" : "⚪ Check-in Presença"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingKidId(kid.id);
+                                  setNewKidName(kid.name);
+                                  setNewKidAge(kid.age || 6);
+                                  setNewKidRoomId(kid.roomId);
+                                  setNewKidResponsible(respName);
+                                  setNewKidPhone(respPhone);
+                                  setNewKidNotes(kid.notes || kid.parentLocationInHouse || '');
+                                  setNewKidAllergies(kid.allergies || kid.allergiesOrMedicalInfo || '');
+                                }}
+                                className="p-2 bg-slate-100 hover:bg-purple-100 hover:text-purple-700 rounded-xl text-gray-600 transition-colors cursor-pointer"
+                                title="Editar Matrícula"
+                              >
+                                <Pencil size={14} />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEvaKid(kid.id, kid.name)}
+                                className="p-2 bg-slate-100 hover:bg-red-100 hover:text-red-700 rounded-xl text-gray-600 transition-colors cursor-pointer"
+                                title="Cancelar Matrícula"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Secondary info bar */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-gray-600">
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-150 flex items-center gap-2">
+                              <MapPin size={14} className="text-indigo-600 shrink-0" />
+                              <span className="truncate">Local do Resp: <strong>{kid.notes || kid.parentLocationInHouse || 'Auditório Principal'}</strong></span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-150 flex items-center gap-2">
+                              <Phone size={14} className="text-emerald-600 shrink-0" />
+                              <span className="truncate">Tel: <strong>{respPhone || '(11) 90000-0000'}</strong></span>
+                              {respPhone && (
+                                <a
+                                  href={`https://wa.me/55${respPhone.replace(/\D/g, '')}?text=Olá%20${encodeURIComponent(respName)},%20paz%20e%20bem!%20Mensagem%20da%20Evangelização%20Espírita.`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-auto px-2 py-0.5 bg-emerald-600 text-white rounded font-bold text-[9px] hover:bg-emerald-700 cursor-pointer"
+                                >
+                                  WhatsApp
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Virtues & Charity Badges ("Selos de Virtude") */}
+                          <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap text-[10px]">
+                            <span className="font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                              <Sparkles size={12} className="text-amber-500" /> Selos de Virtudes:
+                            </span>
+
+                            <div className="flex gap-1.5 flex-wrap">
+                              {['Estrela de Assiduidade', 'Cooperação Fraterna', 'Leitura do Evangelho', 'Acolhimento ao Colega'].map(badge => {
+                                const has = (kid.badges || []).includes(badge);
+                                return (
+                                  <button
+                                    key={badge}
+                                    type="button"
+                                    onClick={() => handleToggleEvaBadge(kid.id, badge)}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer border",
+                                      has
+                                        ? "bg-amber-100 border-amber-300 text-amber-900 shadow-sm"
+                                        : "bg-slate-50 border-slate-200 text-gray-400 hover:bg-slate-100"
+                                    )}
+                                  >
+                                    {has ? `⭐ ${badge}` : `+ ${badge}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUB-TAB 2: CICLOS FEB & SALAS */}
+        {evangelizacaoSubTab === 'ciclos' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: List of FEB Rooms */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm space-y-4">
+                  <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                    <h3 className="text-sm font-black text-purple-950 uppercase tracking-wider flex items-center gap-2">
+                      <Users size={16} className="text-purple-600" />
+                      Ciclos Doutrinários e Turmas Registradas
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3">
+                    {evangelizacaoRooms.map(room => {
+                      const roomKidsCount = evangelizacaoKids.filter(k => k.roomId === room.id).length;
+                      const leadersName = room.leaders || room.evangelistaName || 'Evangelizador Responsável';
+                      const locRoom = room.room || room.locationRoom || 'Sala A';
+                      return (
+                        <div key={room.id} className="p-5 bg-slate-50 border border-slate-200 rounded-3xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-white hover:border-purple-200 transition-all font-sans">
+                          <div className="space-y-1">
+                            <span className="px-2.5 py-0.5 bg-purple-100 text-purple-900 font-extrabold text-[9px] uppercase tracking-wider rounded-full">
+                              {room.cycle || room.category || 'FEB'}
+                            </span>
+                            <h4 className="font-extrabold text-base text-gray-950">{room.name}</h4>
+                            <p className="text-xs text-gray-500">
+                              Evangelizadores: <strong className="text-gray-800">{leadersName}</strong>
+                            </p>
+                            <p className="text-[11px] text-gray-400">
+                              Sala: <strong>{locRoom}</strong> • Horário: {room.schedule || room.ageRange || 'Sábados'}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right">
+                              <span className="text-lg font-black text-purple-900">{roomKidsCount}</span>
+                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Alunos</p>
+                            </div>
+
+                            <div className="flex gap-1 border-l border-slate-200 pl-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingRoomId(room.id);
+                                  setNewRoomName(room.name);
+                                  setNewRoomLeaders(leadersName);
+                                  setNewRoomLocation(locRoom);
+                                  setNewRoomSchedule(room.schedule || '');
+                                }}
+                                className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-purple-50 text-gray-600 cursor-pointer"
+                                title="Editar Turma"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEvaRoom(room.id, room.name)}
+                                className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-red-50 text-gray-600 cursor-pointer"
+                                title="Excluir Turma"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Form to create/edit FEB room */}
+              <div className="lg:col-span-5 bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm space-y-4">
+                <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                  <h3 className="text-sm font-black text-purple-950 uppercase tracking-wider flex items-center gap-2">
+                    <Plus size={16} className="text-purple-600" />
+                    {editingRoomId ? 'Editar Ciclo / Sala' : 'Cadastrar Novo Ciclo de Evangelização'}
+                  </h3>
+                  {editingRoomId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRoomId(null);
+                        setNewRoomName('');
+                        setNewRoomLeaders('');
+                      }}
+                      className="text-[10px] font-bold text-red-600 hover:underline cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Nome do Ciclo / Turma *</label>
+                    <input
+                      type="text"
+                      value={newRoomName}
+                      onChange={(e) => setNewRoomName(e.target.value)}
+                      placeholder="Ex: Maternal (3 a 4 anos)"
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Evangelizador(es) Responsável(eis) *</label>
+                    <input
+                      type="text"
+                      value={newRoomLeaders}
+                      onChange={(e) => setNewRoomLeaders(e.target.value)}
+                      placeholder="Ex: Sandra & Helena"
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Sala / Local</label>
+                      <input
+                        type="text"
+                        value={newRoomLocation}
+                        onChange={(e) => setNewRoomLocation(e.target.value)}
+                        placeholder="Ex: Sala Infantil A"
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Horário / Encontros</label>
+                      <input
+                        type="text"
+                        value={newRoomSchedule}
+                        onChange={(e) => setNewRoomSchedule(e.target.value)}
+                        placeholder="Ex: Sábados, 15:00"
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newRoomName.trim()) {
+                        alert("Preencha o nome do ciclo!");
+                        return;
+                      }
+                      handleAddEvaRoom(newRoomName, newRoomCategory, newRoomSchedule, newRoomLocation, newRoomLeaders);
+                    }}
+                    className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md mt-2"
+                  >
+                    {editingRoomId ? 'Salvar Edições do Ciclo' : 'Cadastrar Ciclo em Nuvem'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUB-TAB 3: DIÁRIO DE AULAS FEB */}
+        {evangelizacaoSubTab === 'diario_aulas' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Form to log new lesson plan */}
+              <div className="lg:col-span-5 bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm space-y-4">
+                <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                  <h3 className="text-sm font-black text-purple-950 uppercase tracking-wider flex items-center gap-2">
+                    <BookOpen size={16} className="text-purple-600" />
+                    {editingAulaId ? 'Editar Plano de Aula' : 'Novo Plano de Aula / Diário Doutrinário'}
+                  </h3>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Turma / Ciclo *</label>
+                    <select
+                      value={newAulaRoomId}
+                      onChange={(e) => setNewAulaRoomId(e.target.value)}
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600 cursor-pointer"
+                    >
+                      <option value="">Selecione a Turma...</option>
+                      {evangelizacaoRooms.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Data *</label>
+                      <input
+                        type="date"
+                        value={newAulaDate}
+                        onChange={(e) => setNewAulaDate(e.target.value)}
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Referência Doutrinária</label>
+                      <input
+                        type="text"
+                        value={newAulaReference}
+                        onChange={(e) => setNewAulaReference(e.target.value)}
+                        placeholder="Ex: O Livre-Arbítrio Q. 843"
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Tema Ministrado *</label>
+                    <input
+                      type="text"
+                      value={newAulaTopic}
+                      onChange={(e) => setNewAulaTopic(e.target.value)}
+                      placeholder="Ex: O Livre-Arbítrio e a Lei de Causa e Efeito"
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Objetivos da Aula</label>
+                    <textarea
+                      rows={2}
+                      value={newAulaSummary}
+                      onChange={(e) => setNewAulaSummary(e.target.value)}
+                      placeholder="Resumo dos objetivos pedagógicos espíritas para esta faixa etária..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Dinâmica / Atividade Prática</label>
+                    <textarea
+                      rows={2}
+                      value={newAulaDynamic}
+                      onChange={(e) => setNewAulaDynamic(e.target.value)}
+                      placeholder="Descreva a dinâmica de grupo, desenho, roda de conversa..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveEvaAula}
+                    className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md mt-2"
+                  >
+                    Salvar Plano de Aula em Nuvem
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Archive of lessons */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm space-y-4">
+                  <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                    <h3 className="text-sm font-black text-purple-950 uppercase tracking-wider flex items-center gap-2">
+                      <BookOpen size={16} className="text-purple-600" />
+                      Acervo de Planos de Aula Registrados ({evangelizacaoAulas.length})
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1">
+                    {evangelizacaoAulas.length === 0 ? (
+                      <p className="text-center text-xs text-gray-400 py-6">Nenhum plano de aula registrado ainda.</p>
+                    ) : (
+                      evangelizacaoAulas.map((aula) => {
+                        const room = evangelizacaoRooms.find(r => r.id === aula.roomId);
+                        const themeName = aula.theme || aula.topic || 'Tema de Aula';
+                        const refDoc = aula.doctrineReference || aula.reference || 'Kardec';
+                        return (
+                          <div key={aula.id} className="p-5 bg-slate-50 border border-slate-200 rounded-3xl space-y-3 font-sans hover:bg-white hover:border-purple-200 transition-all">
+                            <div className="flex justify-between items-start gap-2 border-b border-slate-200 pb-2">
+                              <div>
+                                <span className="px-2.5 py-0.5 bg-purple-100 text-purple-900 font-extrabold text-[9px] uppercase tracking-wider rounded-full">
+                                  {room ? room.name : 'Ciclo FEB'}
+                                </span>
+                                <h4 className="font-extrabold text-base text-gray-950 mt-1">{themeName}</h4>
+                                <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                                  Data: {formatDateBR(aula.date)} • Ref: <span className="text-purple-800 font-bold">{refDoc}</span>
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEvaAula(aula.id, themeName)}
+                                className="p-2 text-gray-400 hover:text-red-600 cursor-pointer"
+                                title="Excluir Aula"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+
+                            <p className="text-xs text-gray-600 leading-relaxed">
+                              <strong>Objetivos:</strong> {aula.objective || aula.summary}
+                            </p>
+                            <p className="text-xs text-gray-600 leading-relaxed bg-white p-2.5 rounded-xl border border-slate-200">
+                              <strong>Dinâmica:</strong> {aula.activities || aula.dynamic}
+                            </p>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUB-TAB 4: JUVENTUDE & PROJETOS FRATERNOS */}
+        {evangelizacaoSubTab === 'projetos_juventude' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Register Project */}
+              <div className="lg:col-span-5 bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm space-y-4">
+                <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                  <h3 className="text-sm font-black text-purple-950 uppercase tracking-wider flex items-center gap-2">
+                    <Sparkles size={16} className="text-purple-600" />
+                    Novo Projeto / Ação Social da Mocidade
+                  </h3>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Título da Ação ou Projeto *</label>
+                    <input
+                      type="text"
+                      value={newProjetoTitle}
+                      onChange={(e) => setNewProjetoTitle(e.target.value)}
+                      placeholder="Ex: Operação Auta de Souza - Campanha do Quilo"
+                      className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Coordenador / Jovem Líder</label>
+                      <input
+                        type="text"
+                        value={newProjetoCoordinator}
+                        onChange={(e) => setNewProjetoCoordinator(e.target.value)}
+                        placeholder="Ex: Lucas & Amanda"
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-gray-600 block mb-1">Data Prevista</label>
+                      <input
+                        type="date"
+                        value={newProjetoStartDate}
+                        onChange={(e) => setNewProjetoStartDate(e.target.value)}
+                        className="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-gray-600 block mb-1">Descrição das Atividades</label>
+                    <textarea
+                      rows={3}
+                      value={newProjetoDescription}
+                      onChange={(e) => setNewProjetoDescription(e.target.value)}
+                      placeholder="Detalhes sobre a arrecadação, ensaios de teatro ou visitas fraternas..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-semibold text-gray-900 focus:outline-none focus:border-purple-600"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveEvaProjeto}
+                    className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md mt-2"
+                  >
+                    Salvar Projeto em Nuvem
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Projects grid */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm space-y-4">
+                  <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                    <h3 className="text-sm font-black text-purple-950 uppercase tracking-wider flex items-center gap-2">
+                      <Sparkles size={16} className="text-purple-600" />
+                      Projetos Fraternos da Juventude ({evangelizacaoProjetos.length})
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1">
+                    {evangelizacaoProjetos.map((proj) => {
+                      const projTitle = proj.title || 'Projeto';
+                      const projLeader = proj.coordinator || proj.responsible || 'Mocidade';
+                      const projDate = proj.startDate || proj.date || 'Ativo';
+                      return (
+                        <div key={proj.id} className="p-5 bg-slate-50 border border-slate-200 rounded-3xl space-y-3 font-sans hover:bg-white hover:border-purple-200 transition-all">
+                          <div className="flex justify-between items-start gap-2 border-b border-slate-200 pb-2">
+                            <div>
+                              <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-900 font-extrabold text-[9px] uppercase tracking-wider rounded-full">
+                                {proj.category || 'Mocidade'}
+                              </span>
+                              <h4 className="font-extrabold text-base text-gray-950 mt-1">{projTitle}</h4>
+                              <p className="text-xs text-gray-500 font-semibold mt-0.5">
+                                Líder: <strong>{projLeader}</strong> • Data: {projDate}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider",
+                                proj.status === 'EM_ANDAMENTO' || proj.status === 'Em Execução' ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                              )}>
+                                {proj.status === 'EM_ANDAMENTO' ? 'Em Execução' : proj.status || 'Ativo'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEvaProjeto(proj.id, projTitle)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 cursor-pointer"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-gray-600 leading-relaxed bg-white p-3 rounded-2xl border border-slate-200">
+                            {proj.description}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUB-TAB 5: CERTIFICADOS & RELATÓRIOS PDF */}
+        {evangelizacaoSubTab === 'certificados_pdf' && (
+          <div className="space-y-6">
+            <div className="bg-white p-8 rounded-[32px] border border-gray-200 shadow-sm space-y-6">
+              <div className="border-b border-gray-100 pb-4 text-center max-w-xl mx-auto space-y-2">
+                <div className="mx-auto w-12 h-12 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center">
+                  <Award size={28} />
+                </div>
+                <h3 className="text-xl font-black text-gray-950 tracking-tight">Emissão de Certificados e Relatórios Doutrinários</h3>
+                <p className="text-xs text-gray-500 font-medium">Gere e imprima em formato PDF os Certificados de Assiduidade e Vivência Moral do Setor de Evangelização e Juventude.</p>
+              </div>
+
+              {/* Certificate Generator Card */}
+              <div className="max-w-2xl mx-auto bg-slate-50 border border-slate-200 p-6 sm:p-8 rounded-[32px] space-y-6">
+                <div className="space-y-2">
+                  <label className="font-bold text-xs text-gray-700 block">Selecione o Evangelizando / Jovem *</label>
+                  <select
+                    value={certificateStudent?.id || ''}
+                    onChange={(e) => {
+                      const selected = evangelizacaoKids.find(k => k.id === e.target.value);
+                      if (selected) {
+                        setCertificateStudent(selected);
+                      }
+                    }}
+                    className="w-full h-11 bg-white border border-slate-300 rounded-2xl px-4 text-xs font-bold text-gray-900 focus:outline-none focus:border-purple-600 cursor-pointer shadow-sm"
+                  >
+                    <option value="">Escolha um aluno matriculado...</option>
+                    {evangelizacaoKids.map(k => (
+                      <option key={k.id} value={k.id}>{k.name} ({k.age} anos) - {evangelizacaoRooms.find(r => r.id === k.roomId)?.name || 'Ciclo'}</option>
                     ))}
                   </select>
                 </div>
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Alergias ou Observações Médicas</label>
-                  <input
-                    value={newKidAllergies}
-                    onChange={(e) => setNewKidAllergies(e.target.value)}
-                    placeholder="Alergia, asma, etc., ou escreva Nenhuma"
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
 
-                <div className="sm:col-span-6 border-t border-purple-100 pt-3 mt-1">
-                  <span className="text-[10px] font-black tracking-widest text-purple-750 uppercase">Informações do Responsável</span>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Nome do Responsável Legal</label>
-                  <input
-                    value={newKidResponsible}
-                    onChange={(e) => setNewKidResponsible(e.target.value)}
-                    placeholder="Ex: Fernanda Dias"
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Grau de Parentesco do Resp.</label>
-                  <select
-                    value={newKidRelationship}
-                    onChange={(e) => setNewKidRelationship(e.target.value)}
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-purple-500 transition-colors cursor-pointer"
-                  >
-                    <option value="Mãe">Mãe</option>
-                    <option value="Pai">Pai</option>
-                    <option value="Avô / Avó">Avô / Avó</option>
-                    <option value="Tio / Tia">Tio / Tia</option>
-                    <option value="Responsável Legal">Responsável Legal</option>
-                    <option value="Outro">Outro / Tutor</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Telefone do Responsável (Principal)</label>
-                  <input
-                    value={newKidPhone}
-                    onChange={(e) => setNewKidPhone(e.target.value)}
-                    placeholder="Ex: (11) 98124-5511"
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Tipo do Telefone 1 (Resp.)</label>
-                  <select
-                    value={newKidPhoneType}
-                    onChange={(e) => setNewKidPhoneType(e.target.value as 'whatsapp' | 'telefone')}
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-purple-500 transition-colors cursor-pointer"
-                  >
-                    <option value="whatsapp">🟢 WhatsApp (Mensagens)</option>
-                    <option value="telefone">📞 Apenas Telefone (Ligação)</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Telefone do Responsável 2</label>
-                  <input
-                    value={newKidPhone2}
-                    onChange={(e) => setNewKidPhone2(e.target.value)}
-                    placeholder="Ex: (11) 98124-5522"
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Tipo do Telefone 2 (Resp.)</label>
-                  <select
-                    value={newKidPhoneType2}
-                    onChange={(e) => setNewKidPhoneType2(e.target.value as 'whatsapp' | 'telefone')}
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-purple-500 transition-colors cursor-pointer"
-                  >
-                    <option value="whatsapp">🟢 WhatsApp (Mensagens)</option>
-                    <option value="telefone">📞 Apenas Telefone (Ligação)</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-6 border-t border-purple-100 pt-3 mt-1">
-                  <span className="text-[10px] font-black tracking-widest text-purple-750 uppercase">Contato do Estudante / Jovem</span>
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Telefone do Aluno (Se houver)</label>
-                  <input
-                    value={newKidStudentPhone}
-                    onChange={(e) => setNewKidStudentPhone(e.target.value)}
-                    placeholder="Ex: (11) 97111-2233"
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-purple-500 transition-colors"
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <label className="text-[11px] font-bold uppercase text-gray-500 block">Tipo do Telefone (Aluno)</label>
-                  <select
-                    value={newKidStudentPhoneType}
-                    onChange={(e) => setNewKidStudentPhoneType(e.target.value as 'whatsapp' | 'telefone')}
-                    className="w-full mt-1.5 h-10 bg-white border border-purple-200 rounded-xl px-3 text-xs font-semibold text-gray-800 focus:outline-none focus:border-purple-500 transition-colors cursor-pointer"
-                  >
-                    <option value="whatsapp">🟢 WhatsApp (Mensagens)</option>
-                    <option value="telefone">📞 Apenas Telefone (Ligação)</option>
-                  </select>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!newKidName.trim() || !newKidRoomId) {
-                      alert("Preencha o nome do menor/estudante e selecione o ciclo!");
-                      return;
-                    }
-                    handleRegisterEvaKid(
-                      newKidName, 
-                      newKidAge, 
-                      newKidRoomId, 
-                      newKidResponsible, 
-                      newKidPhone, 
-                      newKidPhoneType,
-                      newKidPhone2,
-                      newKidPhoneType2,
-                      newKidRelationship,
-                      newKidStudentPhone,
-                      newKidStudentPhoneType,
-                      newKidAllergies
-                    );
-                  }}
-                  className="sm:col-span-6 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-purple-700 transition-colors cursor-pointer mt-3"
-                >
-                  {editingKidId ? 'Salvar Edições' : 'Matricular Evangelizando / Jovem'}
-                </button>
-              </div>
-            </div>
-
-            {/* Kids list with dynamic presence check-in for the day */}
-            <div className="space-y-4 text-left font-sans">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic">Presenças do Dia (Check-in Evangelização)</h4>
-              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
-                {evangelizacaoKids.map((kid) => {
-                  const targetRoom = evangelizacaoRooms.find(r => r.id === kid.roomId);
-                  return (
-                    <div key={kid.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-gray-100/40 transition-all font-sans">
-                      <div className="flex-1 min-w-0">
-                        <span className="px-2 py-0.5 bg-purple-50 border border-purple-100 text-purple-700 rounded-full font-bold text-[8px] uppercase tracking-wider block w-max">
-                          {targetRoom ? targetRoom.name : 'Simulador Intermediário'}
-                        </span>
-                        <h5 className="font-extrabold text-sm text-gray-950 leading-none pt-1.5">{kid.name} ({kid.age} anos)</h5>
-                        <p className="text-[10px] text-gray-400 mt-1 truncate" title={kid.responsible}>
-                          Resp: <strong>{kid.responsible}</strong> ({kid.relationship || 'Pai'}) • Alergias: <strong className={kid.allergies !== 'Nenhuma' ? 'text-red-650 font-bold' : ''}>{kid.allergies}</strong>
-                        </p>
-                        <div className="mt-1.5 flex flex-wrap gap-2 text-[9px]">
-                          {kid.phone && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-md font-mono font-bold select-all">
-                              👤 Resp 1: {kid.phone} {kid.phoneType === 'whatsapp' ? '💬 [WhatsApp]' : '📞 [Ligação]'}
-                            </span>
-                          )}
-                          {kid.phone2 && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-md font-mono font-bold select-all">
-                              👤 Resp 2: {kid.phone2} {kid.phoneType2 === 'whatsapp' ? '💬 [WhatsApp]' : '📞 [Ligação]'}
-                            </span>
-                          )}
-                          {kid.studentPhone && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-md font-mono font-bold select-all">
-                              🧑‍🎓 Aluno: {kid.studentPhone} {kid.studentPhoneType === 'whatsapp' ? '💬 [WhatsApp]' : '📞 [Ligação]'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0 justify-end items-center shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleEvaPresence(kid.id)}
-                          className={cn(
-                            "px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all border cursor-pointer font-sans whitespace-nowrap",
-                            kid.presenceToday
-                              ? "bg-emerald-50 border-emerald-150 text-emerald-700 hover:bg-emerald-100"
-                              : "bg-amber-50 border-amber-150 text-amber-750 hover:bg-amber-100"
-                          )}
-                        >
-                          {kid.presenceToday ? "Presente" : "Falta"}
-                        </button>
-                        <div className="flex gap-1 pl-1 border-l border-gray-200">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingKidId(kid.id);
-                              setNewKidName(kid.name);
-                              setNewKidAge(kid.age || 6);
-                              setNewKidRoomId(kid.roomId);
-                              setNewKidResponsible(kid.responsible || '');
-                              setNewKidAllergies(kid.allergies || '');
-                              setNewKidPhone(kid.phone || '');
-                              setNewKidPhoneType(kid.phoneType || 'whatsapp');
-                              setNewKidPhone2(kid.phone2 || '');
-                              setNewKidPhoneType2(kid.phoneType2 || 'whatsapp');
-                              setNewKidRelationship(kid.relationship || 'Pai');
-                              setNewKidStudentPhone(kid.studentPhone || '');
-                              setNewKidStudentPhoneType(kid.studentPhoneType || 'whatsapp');
-                            }}
-                            className="p-1 px-1.5 bg-white border border-gray-150 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer text-gray-500"
-                            title="Editar Matrícula"
-                          >
-                            <Pencil size={11} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteEvaKid(kid.id, kid.name)}
-                            className="p-1 px-1.5 bg-white border border-gray-150 hover:bg-red-50 hover:text-red-650 rounded-lg transition-colors cursor-pointer text-gray-500"
-                            title="Remover Criança"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Evangelizacao Rooms and Gamification/Lessons */}
-        <div className="lg:col-span-6 space-y-6">
-          <div className="bg-white rounded-[40px] border border-gray-100 p-8 shadow-sm space-y-6">
-            <div className="border-b border-gray-50 pb-6 text-left">
-              <h3 className="text-xl font-black text-gray-900 italic tracking-tight flex items-center gap-2">
-                <Award className="text-indigo-600" size={22} />
-                Salas de Aula e Plano Pedagógico
-              </h3>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Evangelizadores e Programas de Estudo por Ciclo</p>
-            </div>
-
-            {/* Ciclos listing */}
-            <div className="space-y-4 text-left">
-              {evangelizacaoRooms.map((room) => (
-                <div key={room.id} className="p-5 bg-gray-50 border border-gray-150 rounded-3xl flex justify-between items-center hover:bg-gray-100/40 transition-all font-sans">
-                  <div>
-                    <h4 className="font-extrabold text-sm text-gray-950 leading-none">{room.name}</h4>
-                    <p className="text-[10px] text-gray-400 mt-2 font-bold uppercase tracking-wider">
-                      Evangelizadores: <strong className="text-indigo-800">{room.leaders}</strong> • {room.schedule}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-1">Sala: {room.room}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-[11px] font-black text-[#5b21b6] font-mono shadow-sm">
-                      {evangelizacaoKids.filter(k => k.roomId === room.id).length} Kid(s)
+                {certificateStudent && (
+                  <div className="bg-white border-2 border-amber-200 p-6 rounded-3xl space-y-4 text-center shadow-md animate-in fade-in duration-300">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                      Pré-Visualização do Documento
                     </span>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRoomId(room.id);
-                          setNewRoomName(room.name);
-                          setNewRoomLeaders(room.leaders);
-                          setNewRoomLocation(room.room);
-                          setNewRoomSchedule(room.schedule);
-                        }}
-                        className="p-1.5 bg-white border border-gray-150 hover:bg-purple-100 hover:text-purple-700 rounded-lg transition-colors cursor-pointer text-gray-500"
-                        title="Editar Ciclo de Evangelização"
-                      >
-                        <Pencil size={11} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteEvaRoom(room.id, room.name)}
-                        className="p-1.5 bg-white border border-gray-150 hover:bg-red-50 hover:text-red-650 rounded-lg transition-colors cursor-pointer text-gray-500"
-                        title="Excluir Ciclo"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+
+                    <div className="space-y-2 pt-2">
+                      <h4 className="text-xl font-black text-purple-950 italic">Certificado de Assiduidade e Dedicação Moral</h4>
+                      <p className="text-xs text-gray-600 leading-relaxed font-sans max-w-lg mx-auto">
+                        Certificamos com fraterna alegria que o(a) estudante <strong className="text-gray-950 text-sm font-extrabold underline">{certificateStudent.name}</strong> frequentou com assiduidade o programa do ciclo <strong className="text-purple-900">{evangelizacaoRooms.find(r => r.id === certificateStudent.roomId)?.name || 'Evangelização Espírita'}</strong>.
+                      </p>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
 
-            {/* Custom Form to Add or Edit Evangelização Cycles / Rooms */}
-            <div className="bg-purple-50/50 rounded-[32px] p-5 border border-purple-100 text-left space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-purple-800 italic flex items-center justify-between select-none">
-                <span>{editingRoomId ? 'Editar Ciclo / Faixa Etária' : 'Adicionar Novo Ciclo de Estudos'}</span>
-                {editingRoomId && (
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setEditingRoomId(null);
-                      setNewRoomName('');
-                      setNewRoomLeaders('');
-                      setNewRoomLocation('Sala Infantil A');
-                      setNewRoomSchedule('Sábados, 15:00');
-                    }}
-                    className="text-[9px] text-emerald-600 uppercase tracking-wider font-bold italic hover:underline cursor-pointer"
-                  >
-                    cancelar
-                  </button>
+                    <div className="flex justify-center items-center gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider pt-2 border-t border-gray-100">
+                      <span>Data: {new Date().toLocaleDateString('pt-BR')}</span>
+                      <span>•</span>
+                      <span>Assiduidade: <strong className="text-emerald-700">Aprovado</strong></span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        alert(`Iniciando a geração e impressão do Certificado para ${certificateStudent.name}...`);
+                        window.print();
+                      }}
+                      className="w-full py-3.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Printer size={16} />
+                      <span>Imprimir / Gerar PDF do Certificado</span>
+                    </button>
+                  </div>
                 )}
-              </h4>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-gray-500 block">Nome do Ciclo</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Maternal (3 a 5 anos)"
-                      value={newRoomName}
-                      onChange={(e) => setNewRoomName(e.target.value)}
-                      className="w-full mt-1 h-8 bg-white border border-purple-200 rounded-xl px-2.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-purple-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-gray-500 block">Evangelizadores</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Sandra & Helena"
-                      value={newRoomLeaders}
-                      onChange={(e) => setNewRoomLeaders(e.target.value)}
-                      className="w-full mt-1 h-8 bg-white border border-purple-200 rounded-xl px-2.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-purple-400"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-gray-500 block">Horário</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Sábados, 15:00"
-                      value={newRoomSchedule}
-                      onChange={(e) => setNewRoomSchedule(e.target.value)}
-                      className="w-full mt-1 h-8 bg-white border border-purple-200 rounded-xl px-2.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-purple-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-gray-500 block">Local / Sala de Aula</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Sala Infantil A"
-                      value={newRoomLocation}
-                      onChange={(e) => setNewRoomLocation(e.target.value)}
-                      className="w-full mt-1 h-8 bg-white border border-purple-200 rounded-xl px-2.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-purple-400"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!newRoomName.trim()) {
-                      alert("Por favor, preencha o nome do ciclo.");
-                      return;
-                    }
-                    handleAddEvaRoom(newRoomName, newRoomSchedule, newRoomLocation, newRoomLeaders || 'Coordenador(a)');
-                  }}
-                  className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer"
-                >
-                  {editingRoomId ? 'Salvar Edições do Ciclo' : 'Cadastrar Ciclo / Turma'}
-                </button>
-              </div>
-            </div>
 
-            {/* Row 3: Educational lessons dynamic plans */}
-            <div className="pt-6 border-t border-gray-50 text-left font-sans">
-              <h4 className="text-xs font-black uppercase tracking-widest text-[#a8a29e] italic mb-4">Metodologia e Incentivos Fraternos (Selos de Caridade)</h4>
-              <div className="p-5 bg-[#faf5ff] border border-[#f3e8ff] rounded-3xl space-y-3 font-sans">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 rounded-xl text-purple-700">
-                    <Sparkles size={16} />
-                  </div>
-                  <div>
-                    <h5 className="font-extrabold text-xs text-gray-900">Educação com Carinho e Evangelização Dinâmica</h5>
-                    <p className="text-[10px] text-gray-400 mt-0.5 font-medium">Distribuição simbólica de selos de dedicação, cooperação e amizade cristã.</p>
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-wrap pt-1 font-sans">
-                  <span className="px-2.5 py-1 bg-white border border-purple-150 text-purple-700 font-bold text-[9px] uppercase tracking-wider rounded-lg">⭐ Estrela de Sintonia</span>
-                  <span className="px-2.5 py-1 bg-white border border-purple-150 text-purple-700 font-bold text-[9px] uppercase tracking-wider rounded-lg">🤝 Cooperação Fraterna</span>
-                  <span className="px-2.5 py-1 bg-white border border-purple-150 text-purple-700 font-bold text-[9px] uppercase tracking-wider rounded-lg">📖 Leitura Doce</span>
+                {/* Relatório Geral Button */}
+                <div className="pt-4 border-t border-slate-200 text-center">
+                  <button
+                    type="button"
+                    onClick={exportEvaRelatorioGeralPDF}
+                    className="w-full py-3.5 bg-purple-900 hover:bg-purple-950 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <FileText size={16} />
+                    <span>Gerar Relatório Estatístico do Setor Completo (PDF)</span>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     );
   };
 
   const renderMediunicaDashboard = () => {
-    return (
-      <div className="space-y-8 animate-in fade-in duration-500 font-sans">
-        {/* Top Header: Sub-sector Banner */}
-        <div className="bg-slate-950 rounded-[40px] border border-slate-800 p-8 shadow-xl text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 text-slate-800 opacity-20 pointer-events-none select-none">
-            <Lock size={120} />
-          </div>
-          <div className="relative z-10 text-left space-y-4">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-rose-950/40 border border-rose-900/30 text-rose-500 rounded-full font-black text-[10px] uppercase tracking-widest">
-              <ShieldAlert size={14} className="text-rose-500 animate-pulse" />
-              Setor Restrito & Destinado à Coordenação Mediúnica
-            </div>
-            <h2 className="text-3xl font-black italic tracking-tight text-slate-100 uppercase">
-              Área de Gestão & Prática Mediúnica
-            </h2>
-            <p className="text-sm text-slate-400 max-w-3xl font-medium leading-relaxed">
-              Controle absoluto e sigiloso de reuniões desobsessivas, fluidoterapia, escalas de dialogadores e sustentadores, estudos especializados, diário fraterno e as diretrizes do Livro dos Médiuns.
-            </p>
-          </div>
-        </div>
+    return <MediunicoDashboard currentUser={currentUser} />;
+  };
 
-        {/* 10 tab buttons for a massive, multi-faceted layout */}
-        <div className="flex border-b border-gray-150 pb-2.5 gap-2 overflow-x-auto scrollbar-none w-full whitespace-nowrap">
-          {[
-            { id: 'reunioes', label: 'Reuniões', icon: Calendar, color: 'text-indigo-600 bg-indigo-50' },
-            { id: 'trabalhadores', label: 'Quadro de Médiuns', icon: Users, color: 'text-rose-600 bg-rose-50' },
-            { id: 'frequencia', label: 'Assiduidade', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50' },
-            { id: 'escalas', label: 'Escalas', icon: Clock, color: 'text-purple-600 bg-purple-50' },
-            { id: 'estudos', label: 'Formação', icon: BookOpen, color: 'text-amber-600 bg-amber-50' },
-            { id: 'encaminhamentos', label: 'Encaminhamentos', icon: ShieldAlert, color: 'text-cyan-600 bg-cyan-50' },
-            { id: 'salas', label: 'Ambientes', icon: MapPin, color: 'text-teal-600 bg-teal-50' },
-            { id: 'biblioteca', label: 'Biblioteca', icon: FileText, color: 'text-sky-600 bg-sky-50' },
-            { id: 'acolhimento', label: 'Acolhimento', icon: Smile, color: 'text-fuchsia-600 bg-fuchsia-50' },
-            { id: 'seguranca', label: 'Segurança & Logs', icon: Lock, color: 'text-slate-600 bg-slate-50' }
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = mediunicaActiveTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setMediunicaActiveTab(item.id as any);
-                  // Log sub-tab access simulated
-                  const newLog = {
-                    id: 'ml_' + Date.now(),
-                    timestamp: new Date().toISOString(),
-                    user: currentUser?.email || 'carlostecal35@gmail.com',
-                    action: 'Acesso à Aba: ' + item.label,
-                    details: `Navegou para o subsetor de ${item.label.toLowerCase()} mediúnica.`
-                  };
-                  const updatedLogs = [newLog, ...mediunicaLogs];
-                  setMediunicaLogs(updatedLogs);
-                  localStorage.setItem('medi_logs', JSON.stringify(updatedLogs));
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 px-4.5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer border flex-shrink-0",
-                  isActive 
-                    ? "bg-slate-950 border-slate-950 text-white shadow-md duration-300"
-                    : "bg-white hover:bg-gray-50 text-gray-500 border-gray-100 hover:text-gray-900 duration-300"
-                )}
-              >
-                <div className={cn("p-1 rounded-md", isActive ? "bg-white/20 text-white" : item.color)}>
-                  <Icon size={13} />
-                </div>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
+  const unusedOldMediunica = () => (
+    <div>
 
-        {/* Content based on selected active tab */}
-        {mediunicaActiveTab === 'reunioes' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
-            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-wider bg-rose-50 border border-rose-100 text-rose-600 px-2 py-0.5 rounded-md">Atividade Crítica</span>
-                <h3 className="text-xl font-black text-gray-950 mt-2">Reuniões Mediúnicas Ativas</h3>
-                <p className="text-xs text-gray-400 mt-1 font-semibold">Portas fechadas, sigilo ético absoluto e harmonia espiritual.</p>
-              </div>
 
-              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                {mediunicaGroups.map((group) => (
-                  <div key={group.id} className="p-5 bg-gray-50 hover:bg-white border border-gray-200/60 hover:border-gray-300 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-rose-950 text-rose-400 border border-rose-900/40 rounded-full font-black text-[8px] uppercase tracking-wider block w-max">
-                          {group.id === 'mg1' ? 'MÁXIMO SIGILO' : 'RESTRITO A CONVIDADOS'}
-                        </span>
-                        <span className="text-[10px] bg-slate-200 text-slate-700 font-extrabold px-1.5 py-0.5 rounded uppercase">
-                          {group.room || 'Fluídos B'}
-                        </span>
-                      </div>
-                      <h4 className="font-extrabold text-slate-900 text-base mt-2 leading-tight">{group.name}</h4>
-                      <p className="text-xs text-slate-500 font-bold mt-1">Dirigente Geral: {group.leader}</p>
-                      <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider mt-1.5">{group.schedule}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2 shrink-0">
-                      <span className="px-3.5 py-1.5 bg-slate-950 text-white rounded-xl font-mono text-[10px] font-black uppercase tracking-wide">
-                        {group.count || 5} Obreiros Escalados
-                      </span>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Remover reunião "${group.name}"? Isso fechará os encaminhamentos espirituais associados.`)) {
-                            const updated = mediunicaGroups.filter(g => g.id !== group.id);
-                            setMediunicaGroups(updated);
-                            localStorage.setItem('medi_groups', JSON.stringify(updated));
-                          }
-                        }}
-                        className="text-red-500 hover:text-red-700 p-2 text-xs font-bold uppercase tracking-wider text-right self-end"
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
-              <div className="border-b border-gray-150 pb-4">
-                <h3 className="text-lg font-black text-gray-950 leading-none">Cadastrar Reunião Mediúnica</h3>
-                <p className="text-xs text-gray-400 font-medium mt-1">Definir critérios de segurança, requisitos e sala autorizada.</p>
-              </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Título de Reunião</label>
-                  <input
-                    value={newMediGroupTitle}
-                    onChange={(e) => setNewMediGroupTitle(e.target.value)}
-                    placeholder="Ex: Grupo Mediúnico Eurípedes"
-                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
-                  />
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Dirigente Responsável</label>
-                    <input
-                      value={newMediGroupLeader}
-                      onChange={(e) => setNewMediGroupLeader(e.target.value)}
-                      placeholder="Ex: Clara de Assis"
-                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Horários / Dia</label>
-                    <input
-                      value={newMediGroupSchedule}
-                      onChange={(e) => setNewMediGroupSchedule(e.target.value)}
-                      placeholder="Ex: Terças, 19h30"
-                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
-                    />
-                  </div>
-                </div>
 
-                <button
-                  onClick={() => {
-                    if (!newMediGroupTitle.trim() || !newMediGroupLeader.trim()) {
-                      alert("Insira título e dirigente responsável para prosseguir.");
-                      return;
-                    }
-                    handleAddMediGroup(newMediGroupTitle, newMediGroupLeader, newMediGroupSchedule || "Quinta, 20h00");
-                    setNewMediGroupTitle('');
-                    setNewMediGroupLeader('');
-                    setNewMediGroupSchedule('');
-                  }}
-                  className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
-                >
-                  Registrar Reunião (Regime Confidencial)
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {mediunicaActiveTab === 'trabalhadores' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
-            <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
-              <div>
-                <h3 className="text-xl font-black text-gray-950">Médiuns e Trabalhadores Integrantes</h3>
-                <p className="text-xs text-gray-400 mt-1 font-semibold">Organização hierárquica por funções doutrinárias e formação espírita.</p>
-              </div>
 
-              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                {mediunicaMembers.map((mem) => {
-                  const targetGroup = mediunicaGroups.find(g => g.id === mem.groupId);
-                  return (
-                    <div key={mem.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-indigo-100 transition-all">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {(mem.role || 'Médium').split(' / ').map((r: string, rIdx: number) => (
-                            <span key={rIdx} className={cn(
-                              "px-2 py-0.5 font-bold text-[8px] uppercase tracking-wider rounded-md border",
-                              r === 'Dirigente' || r === 'Coordenador' ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                              r === 'Dialogador' || r === 'Dialogador / Esclarecedor' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
-                              r === 'Sustentador Mental' || r === 'Sustentador' ? 'bg-slate-50 text-slate-700 border-slate-205' :
-                              'bg-indigo-50 text-indigo-700 border-indigo-100'
-                            )}>
-                              {r}
-                            </span>
-                          ))}
-                          <span className={cn(
-                            "text-[8px] font-black uppercase px-2 py-0.5 rounded-full ml-1",
-                            mem.status === 'Inativo' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                          )}>
-                            {mem.status || 'Ativo'}
-                          </span>
-                        </div>
-                        <h4 className="font-extrabold text-sm sm:text-base text-gray-900 mt-2">{mem.name}</h4>
-                        <p className="text-[10px] text-gray-400 mt-1 font-bold">Tempo de Trabalho: {mem.time || '2 anos'} • {mem.formacao || 'ESDE'}</p>
-                        <p className="text-[10px] text-indigo-600 font-extrabold mt-1">Reunião: {targetGroup ? targetGroup.name : 'Sem Reunião Fixa'}</p>
-                      </div>
 
-                      <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 mt-3 sm:mt-0">
-                        <button
-                          onClick={() => {
-                            // Toggle active
-                            const updated = mediunicaMembers.map(m => {
-                              if (m.id === mem.id) {
-                                return { ...m, status: m.status === 'Inativo' ? 'Ativo' : 'Inativo' };
-                              }
-                              return m;
-                            });
-                            setMediunicaMembers(updated);
-                            localStorage.setItem('medi_members', JSON.stringify(updated));
-                          }}
-                          className="px-2 py-1.5 bg-white border border-gray-150 text-[9px] font-black uppercase text-gray-600 rounded-md hover:bg-gray-50 cursor-pointer"
-                        >
-                          Alterar Status
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Deseja desligar ${mem.name} da equipe mediúnica?`)) {
-                              const updated = mediunicaMembers.filter(m => m.id !== mem.id);
-                              setMediunicaMembers(updated);
-                              localStorage.setItem('medi_members', JSON.stringify(updated));
-                            }
-                          }}
-                          className="text-red-550 hover:text-red-700 p-2 cursor-pointer"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
 
-            <div className="lg:col-span-12 xl:col-span-5 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
-              <div className="border-b border-gray-150 pb-4">
-                <h3 className="text-lg font-black text-gray-950 leading-none">Inscrever Trabalhador</h3>
-                <p className="text-xs text-gray-400 font-medium mt-1">Registrar qualificação doutrinária para escalonamento.</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Nome Completo</label>
-                  <input
-                    value={newMediWorkerName}
-                    onChange={(e) => setNewMediWorkerName(e.target.value)}
-                    placeholder="Ex: Francisco de Assis Nogueira"
-                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-600 transition-colors text-gray-800"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Tempo de Atividade</label>
-                    <input
-                      value={newMediWorkerTime}
-                      onChange={(e) => setNewMediWorkerTime(e.target.value)}
-                      placeholder="Ex: 3 anos"
-                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:border-indigo-600 font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Formação / Cursos</label>
-                    <input
-                      value={newMediWorkerFormacao}
-                      onChange={(e) => setNewMediWorkerFormacao(e.target.value)}
-                      placeholder="Ex: ESDE Completo"
-                      className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider block mb-1.5">Função Principal & Faculdades Mediúnicas (Selecione todas que se aplicam)</label>
-                  <div className="space-y-1.5 bg-gray-50 p-2.5 rounded-2xl border border-gray-150 max-h-[220px] overflow-y-auto">
-                    {[
-                      { value: "Médium de Psicofonia", label: "Médium de Psicofonia", desc: "Canal de psicofonia (falante) e manifestação oral" },
-                      { value: "Médium de Psicografia", label: "Médium de Psicografia", desc: "Escrita mediúnica e recebimento de mensagens" },
-                      { value: "Médium de Passes", label: "Médium de Passes", desc: "Doador de cura fluídica e passes magnéticos/espirituais" },
-                      { value: "Médium de Vidência/Audiência", label: "Médium de Vidência / Audiência", desc: "Percepção visual e auditiva do plano espiritual" },
-                      { value: "Dialogador", label: "Dialogador / Esclarecedor", desc: "Doutrinação, diálogo fraterno e esclarecimento de desencarnados" },
-                      { value: "Sustentador Mental", label: "Sustentador Mental", desc: "Concentrar fluidos, prece ativa, vibração e harmonia geral" },
-                      { value: "Coordenador", label: "Coordenador / Dirigente", desc: "Liderar a mesa mediúnica e conduzir os trabalhos" },
-                      { value: "Recepção / Apoio", label: "Atendimento Fraterno & Recepção", desc: "Entrevistas, acolhimento inicial e suporte ao assistido" },
-                      { value: "Apoio de Sala", label: "Apoio Técnico / Sala", desc: "Secretaria do grupo, controle de leituras e apoio físico" }
-                    ].map((opt) => {
-                      const isChecked = selectedMediRoles.includes(opt.value);
-                      return (
-                        <label 
-                          key={opt.value} 
-                          className={cn(
-                            "flex items-start gap-2.5 p-2 rounded-xl border transition-all cursor-pointer hover:bg-white select-none",
-                            isChecked 
-                              ? "bg-white border-indigo-200 ring-1 ring-indigo-200 shadow-sm" 
-                              : "border-transparent bg-transparent text-gray-600"
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedMediRoles([...selectedMediRoles, opt.value]);
-                              } else {
-                                setSelectedMediRoles(selectedMediRoles.filter(r => r !== opt.value));
-                              }
-                            }}
-                            className="mt-0.5 w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
-                          />
-                          <div className="space-y-0.5 border-none">
-                            <span className="text-[10px] font-extrabold text-gray-800 leading-none block">{opt.label}</span>
-                            <span className="text-[8px] text-gray-400 font-medium leading-none block">{opt.desc}</span>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Vincular a Reunião</label>
-                  <select
-                    value={newMediWorkerGroup}
-                    onChange={(e) => setNewMediWorkerGroup(e.target.value)}
-                    className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:border-indigo-600"
-                  >
-                    {mediunicaGroups.map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Observações / Compromisso Fraterno</label>
-                  <textarea
-                    value={newMediWorkerNotes}
-                    onChange={(e) => setNewMediWorkerNotes(e.target.value)}
-                    placeholder="Indique relatos de sensibilidade ou recomendações..."
-                    className="w-full mt-1 min-h-[60px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-800 focus:outline-none focus:border-indigo-600"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!newMediWorkerName.trim()) {
-                      alert("O nome do trabalhador é obrigatório.");
-                      return;
-                    }
-                    if (selectedMediRoles.length === 0) {
-                      alert("Por favor, selecione ao menos uma função ou faculdade mediúnica para o trabalhador.");
-                      return;
-                    }
-                    const newWorker = {
-                      id: 'mm_' + Date.now(),
-                      name: newMediWorkerName,
-                      role: selectedMediRoles.join(' / '),
-                      groupId: newMediWorkerGroup,
-                      time: newMediWorkerTime,
-                      formacao: newMediWorkerFormacao,
-                      status: 'Ativo',
-                      presence: [true, true, true],
-                      notes: newMediWorkerNotes || 'Inscrito na equipe ativa.'
-                    };
-                    const updated = [...mediunicaMembers, newWorker];
-                    setMediunicaMembers(updated);
-                    localStorage.setItem('medi_members', JSON.stringify(updated));
-
-                    // Reset form
-                    setNewMediWorkerName('');
-                    setNewMediWorkerNotes('');
-                    setSelectedMediRoles(['Médium de Psicofonia']);
-                    alert("Trabalhador registrado com sucesso!");
-                  }}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer block text-center"
-                >
-                  Registrar Médium no Quadro
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {mediunicaActiveTab === 'frequencia' && (
           <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-10 shadow-sm text-left space-y-6 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-gray-100">
               <div>
-                <h3 className="text-xl font-black text-gray-900">Diário de Presenças &amp; Frequência Individual</h3>
+                <h3 className="text-xl font-black text-gray-900">Diário de Presenças & Frequência Individual</h3>
                 <p className="text-xs text-gray-455 mt-1 font-semibold">Registro e acompanhamento assíduo das equipes para garantia da harmonia vibratória.</p>
               </div>
               <div className="p-3.5 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-800 text-xs font-bold leading-relaxed max-w-sm">
@@ -8003,7 +10548,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                   <div key={esc.id} className="p-5 bg-gray-50 border border-gray-150 hover:border-indigo-200 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all">
                     <div>
                       <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md block w-max uppercase tracking-wider">
-                        Data: {esc.date}
+                        Data: {formatDateBR(esc.date)}
                       </span>
                       <h4 className="font-extrabold text-slate-900 text-sm sm:text-base mt-2">{esc.groupName}</h4>
                       <p className="text-xs text-slate-500 mt-1">Dirigente Geral: <strong className="text-slate-700">{esc.leader}</strong></p>
@@ -8148,7 +10693,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
             <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
               <div>
-                <h3 className="text-xl font-black text-gray-950">Formações &amp; Cursos Mediúnicos Regulares</h3>
+                <h3 className="text-xl font-black text-gray-950">Formações & Cursos Mediúnicos Regulares</h3>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">Capacitação teórica e prática com base rigorosa nas obras fundamentais de Allan Kardec.</p>
               </div>
 
@@ -8610,7 +11155,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
         {mediunicaActiveTab === 'biblioteca' && (
           <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-10 shadow-sm text-left space-y-6 animate-in fade-in duration-300">
             <div>
-              <h3 className="text-xl font-black text-gray-900">Biblioteca &amp; Acervo Doutrinário Recomendado</h3>
+              <h3 className="text-xl font-black text-gray-900">Biblioteca & Acervo Doutrinário Recomendado</h3>
               <p className="text-xs text-gray-450 mt-1 font-semibold">Leituras complementares oficiais e compilações recomendadas para alinhamento metodológico das equipes.</p>
             </div>
 
@@ -8650,7 +11195,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left animate-in fade-in duration-300">
             <div className="lg:col-span-12 xl:col-span-7 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
               <div>
-                <h3 className="text-xl font-black text-gray-950">Acompanhamento &amp; Harmonização Fraterna de Obreiros</h3>
+                <h3 className="text-xl font-black text-gray-950">Acompanhamento & Harmonização Fraterna de Obreiros</h3>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">Espaço dedicado exclusivamente ao amparo emocional das equipes mediúnicas frente a estresses individuais e familiares.</p>
               </div>
 
@@ -8793,7 +11338,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               <div>
                 <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
                   <Lock className="text-rose-600 animate-pulse" size={22} />
-                  Criptografia Inteira de Dados &amp; Auditoria de Acesso
+                  Criptografia Inteira de Dados & Auditoria de Acesso
                 </h3>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">Rastreamento sistêmico completo de quem lê, altera ou exporta dados espirituais confidenciais.</p>
               </div>
@@ -8899,20 +11444,224 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           </div>
         )}
       </div>
-    );
+  );
+
+  const exportArteProgramPDF = (evento: ArteEvento) => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("CENTRO ESPÍRITA MIRANTE DA PAZ", 105, 18, { align: "center" });
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "normal");
+    doc.text(`PROGRAMAÇÃO: ${evento.name.toUpperCase()}`, 105, 26, { align: "center" });
+    
+    doc.setLineWidth(0.5);
+    doc.line(14, 30, 196, 30);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("INFORMAÇÕES DO EVENTO ARTÍSTICO", 14, 38);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text(`Tema / Mensagem: ${evento.theme}`, 14, 45);
+    doc.text(`Data: ${formatDateBR(evento.date)}    |    Local: ${evento.local}`, 14, 51);
+    doc.text(`Responsável: ${evento.coordinator}    |    Público Estimado: ${evento.estimate}`, 14, 57);
+
+    const tableBody: (string | number)[][] = [];
+    if (evento.programSchedule) {
+      const lines = evento.programSchedule.split('\n').filter(l => l.trim());
+      lines.forEach((line, idx) => {
+        tableBody.push([`Ordem ${idx + 1}`, line]);
+      });
+    } else {
+      tableBody.push(["1", "Apresentação de Abertura / Prece Harmônica"]);
+      tableBody.push(["2", "Apresentações Musicais e Corais"]);
+      tableBody.push(["3", "Declamação Poética & Expressão"]);
+      tableBody.push(["4", "Peça Teatral Espírita"]);
+      tableBody.push(["5", "Prece Final e Encerramento Vibracional"]);
+    }
+
+    autoTable(doc, {
+      startY: 65,
+      head: [["Ordem / Momento", "Apresentação / Descrição da Atividade"]],
+      body: tableBody,
+      headStyles: { fillColor: [79, 70, 229] },
+      styles: { fontSize: 9, cellPadding: 4 }
+    });
+
+    if (evento.observations) {
+      const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : 120;
+      doc.setFont("helvetica", "bold");
+      doc.text("INSTRUÇÕES & OBSERVAÇÕES TÉCNICAS:", 14, finalY);
+      doc.setFont("helvetica", "normal");
+      doc.text(doc.splitTextToSize(evento.observations, 180), 14, finalY + 6);
+    }
+
+    doc.save(`Programa_Sarau_${evento.name.replace(/\s+/g, '_')}.pdf`);
+  };
+
+  const exportArteCatalogPDF = () => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("CENTRO ESPÍRITA MIRANTE DA PAZ - SEÇÃO DE ARTE", 105, 18, { align: "center" });
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text("CATÁLOGO DO ACERVO MUSICAL E ROTEIROS DOUTRINÁRIOS", 105, 25, { align: "center" });
+    
+    doc.setLineWidth(0.5);
+    doc.line(14, 29, 196, 29);
+
+    const songRows = arteMusicas.map(s => [s.name, s.author, s.theme, s.category, s.key, s.duration]);
+    
+    autoTable(doc, {
+      startY: 35,
+      head: [["Composição / Música", "Autor", "Tema", "Categoria", "Tom", "Duração"]],
+      body: songRows.length > 0 ? songRows : [["Nenhuma música registrada", "-", "-", "-", "-", "-"]],
+      headStyles: { fillColor: [16, 185, 129] },
+      styles: { fontSize: 8, cellPadding: 3 }
+    });
+
+    const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 12 : 120;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("CATÁLOGO DE PEÇAS TEATRAIS & ROTEIROS", 14, finalY);
+
+    const pieceRows = artePecas.map(p => [p.name, p.author, p.theme, p.duration, p.message]);
+
+    autoTable(doc, {
+      startY: finalY + 5,
+      head: [["Peça / Script", "Autor", "Eixo Temático", "Duração", "Mensagem Central"]],
+      body: pieceRows.length > 0 ? pieceRows : [["Nenhum roteiro registrado", "-", "-", "-", "-"]],
+      headStyles: { fillColor: [14, 165, 233] },
+      styles: { fontSize: 8, cellPadding: 3 }
+    });
+
+    doc.save(`Acervo_Arte_Espirita_Mirante.pdf`);
   };
 
   const renderArteDashboard = () => {
+    const query = arteSearch.toLowerCase().trim();
+
+    const filteredGroups = arteGroups.filter(g => 
+      !query || g.name.toLowerCase().includes(query) || g.modality.toLowerCase().includes(query) || g.coordinator.toLowerCase().includes(query)
+    );
+
+    const filteredSongs = arteMusicas.filter(s => 
+      !query || s.name.toLowerCase().includes(query) || s.author.toLowerCase().includes(query) || s.theme.toLowerCase().includes(query) || s.category.toLowerCase().includes(query)
+    );
+
+    const filteredPieces = artePecas.filter(p => 
+      !query || p.name.toLowerCase().includes(query) || p.author.toLowerCase().includes(query) || p.theme.toLowerCase().includes(query)
+    );
+
+    const filteredEnsaios = arteEnsaios.filter(e => 
+      !query || e.activity.toLowerCase().includes(query) || e.local.toLowerCase().includes(query) || (e.groupName && e.groupName.toLowerCase().includes(query))
+    );
+
+    const filteredEventos = arteEventos.filter(ev => 
+      !query || ev.name.toLowerCase().includes(query) || ev.theme.toLowerCase().includes(query) || ev.local.toLowerCase().includes(query)
+    );
+
     return (
       <div className="space-y-8 animate-in fade-in duration-500 font-sans">
+        {/* KPI Dashboard Indicators */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 text-left">
+          <div className="bg-white rounded-2xl p-4 border border-gray-150 shadow-sm flex flex-col justify-between hover:border-pink-300 transition-all">
+            <div className="flex items-center justify-between text-pink-600">
+              <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Coletivos</span>
+              <Palette size={18} />
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-gray-900">{arteGroups.length}</div>
+              <div className="text-[10px] text-gray-400 font-medium mt-0.5">Grupos ativos e ensaiando</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-gray-150 shadow-sm flex flex-col justify-between hover:border-emerald-300 transition-all">
+            <div className="flex items-center justify-between text-emerald-600">
+              <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Acervo Musical</span>
+              <Music size={18} />
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-gray-900">{arteMusicas.length}</div>
+              <div className="text-[10px] text-gray-400 font-medium mt-0.5">Composições e partituras</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-gray-150 shadow-sm flex flex-col justify-between hover:border-sky-300 transition-all">
+            <div className="flex items-center justify-between text-sky-600">
+              <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Teatro & Scripts</span>
+              <FileText size={18} />
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-gray-900">{artePecas.length}</div>
+              <div className="text-[10px] text-gray-400 font-medium mt-0.5">Roteiros doutrinários</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-gray-150 shadow-sm flex flex-col justify-between hover:border-purple-300 transition-all">
+            <div className="flex items-center justify-between text-purple-600">
+              <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Ensaios</span>
+              <Clock size={18} />
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-gray-900">{arteEnsaios.length}</div>
+              <div className="text-[10px] text-gray-400 font-medium mt-0.5">Sessões agendadas</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 border border-gray-150 shadow-sm flex flex-col justify-between hover:border-amber-300 transition-all col-span-2 sm:col-span-1">
+            <div className="flex items-center justify-between text-amber-600">
+              <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Saraus e Mostras</span>
+              <Calendar size={18} />
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-gray-900">{arteEventos.length}</div>
+              <div className="text-[10px] text-gray-400 font-medium mt-0.5">Apresentações públicas</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Global Search and Action Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-gray-150 shadow-sm">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              value={arteSearch}
+              onChange={(e) => setArteSearch(e.target.value)}
+              placeholder="Buscar grupo, música, peça ou evento..."
+              className="w-full pl-10 pr-8 h-10 bg-gray-50 border border-gray-150 rounded-2xl text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
+            />
+            {arteSearch && (
+              <button 
+                onClick={() => setArteSearch('')} 
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={exportArteCatalogPDF}
+              className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Download size={14} /> Exportar Catálogo do Acervo (PDF)
+            </button>
+          </div>
+        </div>
+
         {/* Navigation Tabs for Art Sub-modules */}
         <div className="flex border-b border-gray-100 pb-2 gap-2 overflow-x-auto scrollbar-none w-full whitespace-nowrap">
           {[
-            { id: 'grupos', label: 'Grupos Artísticos', icon: Palette, color: 'text-pink-600 bg-pink-50' },
-            { id: 'musica', label: 'Gestão Musical & Repertório', icon: Music, color: 'text-emerald-600 bg-emerald-50' },
-            { id: 'teatro', label: 'Teatro & Roteiros Espíritas', icon: FileText, color: 'text-sky-600 bg-sky-50' },
-            { id: 'ensaios', label: 'Cronograma de Ensaios', icon: Clock, color: 'text-purple-600 bg-purple-50' },
-            { id: 'eventos', label: 'Mostras e Festivais', icon: Calendar, color: 'text-amber-600 bg-amber-50' }
+            { id: 'grupos', label: `Grupos Artísticos (${filteredGroups.length})`, icon: Palette, color: 'text-pink-600 bg-pink-50' },
+            { id: 'musica', label: `Gestão Musical & Repertório (${filteredSongs.length})`, icon: Music, color: 'text-emerald-600 bg-emerald-50' },
+            { id: 'teatro', label: `Teatro & Roteiros (${filteredPieces.length})`, icon: FileText, color: 'text-sky-600 bg-sky-50' },
+            { id: 'ensaios', label: `Cronograma de Ensaios (${filteredEnsaios.length})`, icon: Clock, color: 'text-purple-600 bg-purple-50' },
+            { id: 'eventos', label: `Mostras e Festivais (${filteredEventos.length})`, icon: Calendar, color: 'text-amber-600 bg-amber-50' }
           ].map((item) => {
             const Icon = item.icon;
             const isActive = arteActiveTab === item.id;
@@ -8953,10 +11702,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 </div>
 
                 <div className="space-y-4">
-                  {arteGroups.length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Nenhum grupo artístico cadastrado.</div>
+                  {filteredGroups.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Nenhum grupo artístico localizado.</div>
                   ) : (
-                    arteGroups.map((group) => (
+                    filteredGroups.map((group) => (
                       <div key={group.id} className="p-3.5 sm:p-5 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-gray-200 transition-all">
                         <div className="space-y-1 w-full flex-1 min-w-0">
                           <span className="inline-block px-2 py-0.5 bg-pink-50 text-pink-650 border border-pink-100 rounded-md font-bold text-[8.5px] uppercase tracking-wider break-all">
@@ -9011,10 +11760,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 </div>
 
                 <div className="space-y-4">
-                  {arteMusicas.length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Nenhuma música cadastrada no repertório.</div>
+                  {filteredSongs.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Nenhuma música localizada no acervo.</div>
                   ) : (
-                    arteMusicas.map((song) => (
+                    filteredSongs.map((song) => (
                       <div key={song.id} className="p-3.5 sm:p-5 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-gray-300 transition-all">
                         <div className="space-y-1 w-full flex-1 min-w-0">
                           <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-650 border border-emerald-100 rounded-md font-bold text-[8.5px] uppercase tracking-wider break-all">
@@ -9031,12 +11780,22 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         </div>
                         <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
                           <button
+                            onClick={() => setViewingArteMediaModal({ type: 'song', item: song })}
+                            className="p-1.5 px-2.5 sm:p-2 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 rounded-xl transition-all cursor-pointer text-xs flex items-center gap-1.5 font-bold"
+                            title="Ver Letra / Partitura / Áudio"
+                          >
+                            <FileText size={12} /> <span>Letra & Partitura</span>
+                          </button>
+                          <button
                             onClick={() => {
                               setEditingArteSongId(song.id);
                               setNewSongTitle(song.name);
                               setNewSongAuthor(song.author);
                               setNewSongTheme(song.theme);
                               setNewSongKey(song.key);
+                              setNewSongLyrics(song.lyrics || '');
+                              setNewSongSheetMusicUrl(song.sheetMusicUrl || '');
+                              setNewSongAudioDemoUrl(song.audioDemoUrl || '');
                             }}
                             className="p-1.5 px-2.5 sm:p-2 bg-white border border-gray-150 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer text-xs flex items-center gap-1.5"
                             title="Editar Música"
@@ -9071,10 +11830,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 </div>
 
                 <div className="space-y-4">
-                  {artePecas.length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Nenhum script registrado.</div>
+                  {filteredPieces.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Nenhum script localizado.</div>
                   ) : (
-                    artePecas.map((piece) => (
+                    filteredPieces.map((piece) => (
                       <div key={piece.id} className="p-3.5 sm:p-5 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-gray-300 transition-all font-sans">
                         <div className="space-y-1 w-full flex-1 min-w-0">
                           <span className="inline-block px-2 py-0.5 bg-sky-50 text-sky-650 border border-sky-100 rounded-md font-bold text-[8.5px] uppercase tracking-wider break-all">
@@ -9086,11 +11845,20 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         </div>
                         <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
                           <button
+                            onClick={() => setViewingArteMediaModal({ type: 'piece', item: piece })}
+                            className="p-1.5 px-2.5 sm:p-2 bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 rounded-xl transition-all cursor-pointer text-xs flex items-center gap-1.5 font-bold"
+                            title="Ver Roteiro / Elenco"
+                          >
+                            <FileText size={12} /> <span>Roteiro & Elenco</span>
+                          </button>
+                          <button
                             onClick={() => {
                               setEditingArtePieceId(piece.id);
                               setNewPieceTitle(piece.name);
                               setNewPieceAuthor(piece.author);
                               setNewPieceTheme(piece.theme);
+                              setNewPieceScript(piece.fullScript || '');
+                              setNewPieceCast(piece.castRoles || '');
                             }}
                             className="p-1.5 px-2.5 sm:p-2 bg-white border border-gray-150 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer text-xs flex items-center gap-1.5"
                             title="Editar Roteiro"
@@ -9125,24 +11893,24 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 </div>
 
                 <div className="space-y-4">
-                  {arteEnsaios.length === 0 ? (
+                  {filteredEnsaios.length === 0 ? (
                     <div className="p-12 text-center text-gray-400 italic font-sans text-xs">Sem ensaios programados.</div>
                   ) : (
-                    arteEnsaios.map((ensaio) => {
+                    filteredEnsaios.map((ensaio) => {
                       const associatedGroup = arteGroups.find(g => g.id === ensaio.groupId);
                       return (
                         <div key={ensaio.id} className="p-3.5 sm:p-5 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-gray-300 transition-all">
                           <div className="space-y-1 w-full flex-1 min-w-0">
                             <span className="inline-block px-2 py-0.5 bg-purple-50 text-purple-650 border border-purple-100 rounded-md font-bold text-[8.5px] uppercase tracking-wider break-words">
-                              Grupo: {associatedGroup ? associatedGroup.name : 'Outro'}
+                              Grupo: {ensaio.groupName || (associatedGroup ? associatedGroup.name : 'Outro')}
                             </span>
                             <h4 className="font-extrabold text-sm sm:text-base text-gray-950 leading-tight pt-1 break-words">Atividade: {ensaio.activity}</h4>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-x-2.5 gap-y-0.5 text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                              <span>Horário: <strong className="text-gray-650">{ensaio.date} às {ensaio.time}</strong></span>
+                              <span>Horário: <strong className="text-gray-650">{formatDateBR(ensaio.date)} às {ensaio.time}</strong></span>
                               <span className="hidden sm:inline text-gray-300">•</span>
                               <span>Local: <strong className="text-gray-650">{ensaio.local}</strong></span>
                               <span className="hidden sm:inline text-gray-300">•</span>
-                              <span>Frequência: <strong className="text-gray-650">{ensaio.presentQty} de {ensaio.totalQty}</strong></span>
+                              <span>Frequência: <strong className="text-gray-650">{ensaio.presentQty || 0} de {ensaio.totalQty || 0}</strong></span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
@@ -9189,10 +11957,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 </div>
 
                 <div className="space-y-4">
-                  {arteEventos.length === 0 ? (
+                  {filteredEventos.length === 0 ? (
                     <div className="p-12 text-center text-gray-400 italic">Sem eventos planejados.</div>
                   ) : (
-                    arteEventos.map((ev) => (
+                    filteredEventos.map((ev) => (
                       <div key={ev.id} className="p-3.5 sm:p-5 bg-gray-50 border border-gray-150 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-gray-300 transition-all font-sans">
                         <div className="space-y-1 w-full flex-1 min-w-0">
                           <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-650 border border-amber-100 rounded-md font-bold text-[8.5px] uppercase tracking-wider break-all">
@@ -9200,7 +11968,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           </span>
                           <h4 className="font-extrabold text-sm sm:text-base text-gray-950 leading-tight pt-1 break-words">{ev.name}</h4>
                           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-x-2.5 gap-y-0.5 text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                            <span>Data: <strong className="text-gray-650">{ev.date}</strong></span>
+                            <span>Data: <strong className="text-gray-650">{formatDateBR(ev.date)}</strong></span>
                             <span className="hidden sm:inline text-gray-300">•</span>
                             <span>Local: <strong className="text-gray-650">{ev.local}</strong></span>
                             <span className="hidden sm:inline text-gray-300">•</span>
@@ -9210,6 +11978,13 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           </div>
                         </div>
                         <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
+                          <button
+                            onClick={() => exportArteProgramPDF(ev)}
+                            className="p-1.5 px-2.5 sm:p-2 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-xl transition-all cursor-pointer text-xs flex items-center gap-1.5 font-bold"
+                            title="Gerar Programa do Sarau (PDF)"
+                          >
+                            <Download size={12} /> <span>Programa PDF</span>
+                          </button>
                           <button
                             onClick={() => {
                               setEditingArteEventoId(ev.id);
@@ -9277,7 +12052,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                       <option value="TEATRO">Teatro</option>
                       <option value="DANÇA">Dança / Coreografia</option>
                       <option value="POESIA">Poesia / Declamação</option>
-                      <option value="AUDIOVISUAL">Audiovisual</option>
+                      <option value="ARTES_VISUAIS">Artes Visuais</option>
                       <option value="OUTROS">Outros</option>
                     </select>
                   </div>
@@ -9376,6 +12151,36 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                       className="w-full mt-1.5 h-10 bg-gray-50 border border-gray-150 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
                     />
                   </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Letra / Cifra da Composição</label>
+                    <textarea
+                      rows={3}
+                      value={newSongLyrics}
+                      onChange={(e) => setNewSongLyrics(e.target.value)}
+                      placeholder="Cole aqui a letra completa ou versão com cifras..."
+                      className="w-full mt-1.5 bg-gray-50 border border-gray-150 rounded-xl p-3 text-xs font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition-all resize-y"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Link da Partitura (Google Drive/PDF)</label>
+                    <input
+                      type="url"
+                      value={newSongSheetMusicUrl}
+                      onChange={(e) => setNewSongSheetMusicUrl(e.target.value)}
+                      placeholder="https://drive.google.com/..."
+                      className="w-full mt-1.5 h-10 bg-gray-50 border border-gray-150 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Link da Gravação / Ensaio (MP3/YouTube)</label>
+                    <input
+                      type="url"
+                      value={newSongAudioDemoUrl}
+                      onChange={(e) => setNewSongAudioDemoUrl(e.target.value)}
+                      placeholder="https://youtube.com/..."
+                      className="w-full mt-1.5 h-10 bg-gray-50 border border-gray-150 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -9388,6 +12193,9 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                       setNewSongAuthor('');
                       setNewSongTheme('');
                       setNewSongKey('C');
+                      setNewSongLyrics('');
+                      setNewSongSheetMusicUrl('');
+                      setNewSongAudioDemoUrl('');
                     }}
                     className="w-full mt-3 h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer"
                   >
@@ -9402,6 +12210,9 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         setNewSongAuthor('');
                         setNewSongTheme('');
                         setNewSongKey('C');
+                        setNewSongLyrics('');
+                        setNewSongSheetMusicUrl('');
+                        setNewSongAudioDemoUrl('');
                       }}
                       className="w-full mt-2 h-9 bg-gray-100 hover:bg-gray-200 text-gray-705 border border-gray-150 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all cursor-pointer text-center"
                     >
@@ -9443,6 +12254,26 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                       className="w-full mt-1.5 h-10 bg-gray-50 border border-gray-150 rounded-xl px-3 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
                     />
                   </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Elenco, Personagens e Figurinos</label>
+                    <textarea
+                      rows={2}
+                      value={newPieceCast}
+                      onChange={(e) => setNewPieceCast(e.target.value)}
+                      placeholder="Ex: Personagem 1 (Maria), Personagem 2 (Pedro)..."
+                      className="w-full mt-1.5 bg-gray-50 border border-gray-150 rounded-xl p-3 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition-all resize-y"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Roteiro Completo / Diálogos</label>
+                    <textarea
+                      rows={4}
+                      value={newPieceScript}
+                      onChange={(e) => setNewPieceScript(e.target.value)}
+                      placeholder="Cole aqui o texto integral da peça..."
+                      className="w-full mt-1.5 bg-gray-50 border border-gray-150 rounded-xl p-3 text-xs font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition-all resize-y"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -9454,6 +12285,8 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                       setNewPieceTitle('');
                       setNewPieceAuthor('');
                       setNewPieceTheme('');
+                      setNewPieceScript('');
+                      setNewPieceCast('');
                     }}
                     className="w-full mt-3 h-11 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all cursor-pointer"
                   >
@@ -9467,6 +12300,8 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         setNewPieceTitle('');
                         setNewPieceAuthor('');
                         setNewPieceTheme('');
+                        setNewPieceScript('');
+                        setNewPieceCast('');
                       }}
                       className="w-full mt-2 h-9 bg-gray-100 hover:bg-gray-200 text-gray-705 border border-gray-150 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all cursor-pointer text-center"
                     >
@@ -9645,6 +12480,114 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
             </div>
           </div>
         </div>
+
+        {/* Modal for Viewing Lyrics / Sheet Music / Full Scripts */}
+        {viewingArteMediaModal && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto font-sans relative">
+              <button 
+                onClick={() => setViewingArteMediaModal(null)}
+                className="absolute top-5 right-5 p-2 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full transition-all"
+              >
+                <X size={18} />
+              </button>
+
+              {viewingArteMediaModal.type === 'song' && (
+                <div className="space-y-4 text-left">
+                  <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                      <Music size={24} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                        Tom: {viewingArteMediaModal.item.key || 'C Major'} • Duração: {viewingArteMediaModal.item.duration || '3:00'}
+                      </span>
+                      <h3 className="text-xl font-black text-gray-900 mt-1">{viewingArteMediaModal.item.name}</h3>
+                      <p className="text-xs text-gray-500 font-bold">Autor: {viewingArteMediaModal.item.author} | Tema: {viewingArteMediaModal.item.theme}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {viewingArteMediaModal.item.sheetMusicUrl && (
+                      <a
+                        href={viewingArteMediaModal.item.sheetMusicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold hover:bg-blue-100 transition-all"
+                      >
+                        <FileText size={14} /> Abrir Partitura (PDF/Drive)
+                      </a>
+                    )}
+                    {viewingArteMediaModal.item.audioDemoUrl && (
+                      <a
+                        href={viewingArteMediaModal.item.audioDemoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold hover:bg-purple-100 transition-all"
+                      >
+                        <Sparkles size={14} /> Ouvir Áudio Demo / Ensaio
+                      </a>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-2">Letra da Música / Cifra</h4>
+                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 font-mono text-xs text-gray-800 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
+                      {viewingArteMediaModal.item.lyrics || 'Letra e cifras ainda não cadastradas.'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {viewingArteMediaModal.type === 'piece' && (
+                <div className="space-y-4 text-left">
+                  <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                    <div className="p-3 bg-sky-50 text-sky-600 rounded-2xl">
+                      <FileText size={24} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">
+                        Tempo Estimado: {viewingArteMediaModal.item.duration || '30 min'}
+                      </span>
+                      <h3 className="text-xl font-black text-gray-900 mt-1">{viewingArteMediaModal.item.name}</h3>
+                      <p className="text-xs text-gray-500 font-bold">Autor: {viewingArteMediaModal.item.author} | Tema: {viewingArteMediaModal.item.theme}</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-sky-50/50 border border-sky-100 rounded-2xl">
+                    <strong className="text-xs text-sky-900 block font-bold">Mensagem Central:</strong>
+                    <p className="text-xs text-sky-800 mt-0.5">{viewingArteMediaModal.item.message}</p>
+                  </div>
+
+                  {viewingArteMediaModal.item.castRoles && (
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-1">Elenco, Personagens e Figurinos</h4>
+                      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-3 text-xs text-gray-800 whitespace-pre-wrap">
+                        {viewingArteMediaModal.item.castRoles}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-2">Roteiro Completo / Diálogos</h4>
+                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 font-sans text-xs text-gray-800 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto">
+                      {viewingArteMediaModal.item.fullScript || 'Roteiro integral ainda não inserido.'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => setViewingArteMediaModal(null)}
+                  className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -9815,7 +12758,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider pt-1">
                             <span>Por: <strong className="text-gray-650">{item.author}</strong></span>
                             <span>•</span>
-                            <span>Data: <strong className="text-gray-650">{item.date}</strong></span>
+                            <span>Data: <strong className="text-gray-650">{formatDateBR(item.date)}</strong></span>
                           </div>
                         </div>
 
@@ -9943,7 +12886,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           )}
 
                           <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider pt-1">
-                            <span>Agendado para: <strong className="text-gray-650">{post.date}</strong></span>
+                            <span>Agendado para: <strong className="text-gray-650">{formatDateBR(post.date)}</strong></span>
                             <span>•</span>
                             <span>Responsável: <strong className="text-gray-650">{post.responsible}</strong></span>
                           </div>
@@ -10029,7 +12972,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         </div>
 
                         {/* Theme picker for image generation */}
-                        <div className="bg-gray-150 p-1 rounded-xl flex items-center gap-1">
+                        <div className="bg-gray-150 p-1 rounded-xl flex items-center gap-1 shrink-0">
                           {[
                             { key: 'indigo-sunset', label: 'Pôr do Sol', color: 'from-indigo-500 via-purple-600 to-amber-500' },
                             { key: 'emerald-peace', label: 'Serenidade', color: 'from-teal-500 via-emerald-600 to-cyan-500' },
@@ -10053,6 +12996,30 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         </div>
                       </div>
 
+                      {/* Multi-format Channel Selector Tabs */}
+                      <div className="flex flex-wrap gap-2 mb-4 bg-gray-100 p-1.5 rounded-2xl">
+                        {[
+                          { id: 'IG_FEED', label: '📸 Feed (1:1 Quadrado)' },
+                          { id: 'IG_STORIES', label: '📱 Stories (9:16 Vertical)' },
+                          { id: 'WHATSAPP', label: '💬 WhatsApp Chat' },
+                          { id: 'MURAL_TV', label: '🖥️ Mural TV Recepção (16:9)' }
+                        ].map((fmt) => (
+                          <button
+                            key={fmt.id}
+                            type="button"
+                            onClick={() => setPreviewChannelFormat(fmt.id as any)}
+                            className={cn(
+                              "flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer select-none text-center",
+                              previewChannelFormat === fmt.id
+                                ? "bg-white text-indigo-900 shadow-sm border border-indigo-100"
+                                : "text-gray-500 hover:text-gray-800"
+                            )}
+                          >
+                            {fmt.label}
+                          </button>
+                        ))}
+                      </div>
+
                       <div className="max-w-md mx-auto bg-white border border-gray-150 rounded-3xl overflow-hidden shadow-md font-sans">
                         {/* Header */}
                         <div className="p-3 bg-white border-b border-gray-100 flex items-center justify-between">
@@ -10068,38 +13035,145 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
 
                           <span className={cn(
                             "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider block border font-sans",
-                            previewPlatform === 'Instagram' ? "bg-pink-50 text-pink-650 border-pink-100" :
-                            previewPlatform === 'YouTube' ? "bg-red-50 text-red-650 border-red-100" :
-                            previewPlatform === 'WhatsApp' ? "bg-emerald-50 text-emerald-650 border-emerald-100" :
-                            "bg-indigo-50 text-indigo-650 border-indigo-100"
+                            previewChannelFormat === 'WHATSAPP' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                            previewChannelFormat === 'MURAL_TV' ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
+                            "bg-pink-50 text-pink-700 border-pink-200"
                           )}>
-                            {previewPlatform}
+                            {previewChannelFormat === 'IG_FEED' && 'Instagram Feed'}
+                            {previewChannelFormat === 'IG_STORIES' && 'Instagram Stories'}
+                            {previewChannelFormat === 'WHATSAPP' && 'WhatsApp Grupos'}
+                            {previewChannelFormat === 'MURAL_TV' && 'Mural Digital TV'}
                           </span>
                         </div>
 
-                        {/* Visual content area dynamic theme card */}
-                        <div className={cn(
-                          "aspect-square p-8 flex flex-col justify-between text-white relative transition-all duration-300",
-                          postCardTemplate === 'indigo-sunset' ? "bg-gradient-to-tr from-indigo-500 via-purple-600 to-amber-500" :
-                          postCardTemplate === 'emerald-peace' ? "bg-gradient-to-tr from-teal-500 via-emerald-600 to-cyan-500" :
-                          postCardTemplate === 'divine-light' ? "bg-gradient-to-tr from-rose-500 to-indigo-600" :
-                          "bg-gradient-to-tr from-slate-900 to-indigo-950"
-                        )}>
-                          <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-[9px] font-black uppercase tracking-widest self-start">
-                            ☆ DIÁLOGO DO BEM
-                          </div>
-                          
-                          <div className="my-auto text-center px-4 w-full">
-                            <p className="font-black italic text-base sm:text-lg tracking-tight leading-snug break-words drop-shadow-sm font-serif">
-                              "{previewText}"
-                            </p>
-                          </div>
+                        {/* Format: Instagram Feed 1:1 */}
+                        {previewChannelFormat === 'IG_FEED' && (
+                          <div className={cn(
+                            "aspect-square p-8 flex flex-col justify-between text-white relative transition-all duration-300",
+                            postCardTemplate === 'indigo-sunset' ? "bg-gradient-to-tr from-indigo-500 via-purple-600 to-amber-500" :
+                            postCardTemplate === 'emerald-peace' ? "bg-gradient-to-tr from-teal-500 via-emerald-600 to-cyan-500" :
+                            postCardTemplate === 'divine-light' ? "bg-gradient-to-tr from-rose-500 to-indigo-600" :
+                            "bg-gradient-to-tr from-slate-900 to-indigo-950"
+                          )}>
+                            <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 text-[9px] font-black uppercase tracking-widest self-start">
+                              ☆ DIÁLOGO DO BEM
+                            </div>
+                            
+                            <div className="my-auto text-center px-4 w-full">
+                              <p className="font-black italic text-base sm:text-lg tracking-tight leading-snug break-words drop-shadow-sm font-serif">
+                                "{previewText}"
+                              </p>
+                            </div>
 
-                          <div className="flex justify-between items-center text-[10px] bg-black/25 backdrop-blur-sm p-3 rounded-xl border border-white/10 font-mono">
-                            <span className="truncate max-w-[200px] font-bold">{previewTitle}</span>
-                            <span className="font-bold shrink-0 text-white/80">@mirantedeluz</span>
+                            <div className="flex justify-between items-center text-[10px] bg-black/25 backdrop-blur-sm p-3 rounded-xl border border-white/10 font-mono">
+                              <span className="truncate max-w-[200px] font-bold">{previewTitle}</span>
+                              <span className="font-bold shrink-0 text-white/80">@mirantedeluz</span>
+                            </div>
                           </div>
-                        </div>
+                        )}
+
+                        {/* Format: Instagram Stories 9:16 */}
+                        {previewChannelFormat === 'IG_STORIES' && (
+                          <div className={cn(
+                            "aspect-[9/16] p-6 flex flex-col justify-between text-white relative transition-all duration-300 overflow-hidden",
+                            postCardTemplate === 'indigo-sunset' ? "bg-gradient-to-b from-indigo-600 via-purple-700 to-amber-600" :
+                            postCardTemplate === 'emerald-peace' ? "bg-gradient-to-b from-teal-600 via-emerald-700 to-cyan-600" :
+                            postCardTemplate === 'divine-light' ? "bg-gradient-to-b from-rose-600 via-pink-700 to-indigo-700" :
+                            "bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-900"
+                          )}>
+                            <div className="space-y-3">
+                              <div className="flex gap-1.5 w-full">
+                                <div className="h-1 bg-white/90 rounded-full flex-1" />
+                                <div className="h-1 bg-white/30 rounded-full flex-1" />
+                              </div>
+                              <div className="flex items-center gap-2 text-left">
+                                <div className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center text-[9px] font-black text-white">ML</div>
+                                <span className="text-xs font-bold drop-shadow">mirantedeluz</span>
+                                <span className="text-[9px] text-white/70">1h</span>
+                              </div>
+                            </div>
+
+                            <div className="my-auto text-center px-2 space-y-3">
+                              <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/30 inline-block shadow-sm">
+                                ☆ {previewTitle}
+                              </span>
+                              <p className="font-extrabold italic text-lg sm:text-xl leading-snug font-serif drop-shadow-md">
+                                "{previewText}"
+                              </p>
+                            </div>
+
+                            <div className="text-center pt-2">
+                              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-white/20 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/30 shadow-lg">
+                                <span>🔗 Link na Bio • @mirantedeluz</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Format: WhatsApp Message */}
+                        {previewChannelFormat === 'WHATSAPP' && (
+                          <div className="p-4 bg-[#efeae2] font-sans border-y border-gray-200 text-left min-h-[280px] flex flex-col justify-between">
+                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-emerald-100 max-w-[90%] ml-auto text-left relative space-y-2">
+                              <p className="text-xs text-gray-800 whitespace-pre-wrap leading-relaxed font-sans">
+                                <strong className="text-emerald-800 block text-sm mb-1">{previewTitle}</strong>
+                                {previewText}
+                                {"\n\n"}
+                                <span className="text-emerald-700 font-bold block">{previewHashtags}</span>
+                                📍 <em>Associação Espírita Mirante de Luz - Bauru, SP</em>
+                              </p>
+                              <div className="flex justify-end items-center gap-1 text-[9px] text-gray-400 font-mono">
+                                <span>09:30</span>
+                                <span className="text-blue-500 font-bold">✓✓</span>
+                              </div>
+                            </div>
+
+                            <div className="pt-4 text-center">
+                              <a
+                                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`*${previewTitle}*\n\n"${previewText}"\n\n${previewHashtags}\n\nAssociação Espírita Mirante de Luz`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer"
+                              >
+                                <Share2 size={14} />
+                                <span>Disparar no Grupo de WhatsApp da Casa</span>
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Format: Mural Digital TV */}
+                        {previewChannelFormat === 'MURAL_TV' && (
+                          <div className={cn(
+                            "aspect-video p-6 flex flex-col justify-between text-white relative transition-all duration-300 overflow-hidden font-sans",
+                            postCardTemplate === 'indigo-sunset' ? "bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900" :
+                            postCardTemplate === 'emerald-peace' ? "bg-gradient-to-r from-teal-950 via-emerald-900 to-slate-950" :
+                            postCardTemplate === 'divine-light' ? "bg-gradient-to-r from-slate-950 via-rose-950 to-indigo-950" :
+                            "bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950"
+                          )}>
+                            <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
+                              <div className="flex items-center gap-2.5 text-left">
+                                <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center font-black text-xs text-white shadow-sm">ML</div>
+                                <div>
+                                  <span className="font-black text-xs uppercase tracking-wider block leading-tight">Mural Digital • Recepção</span>
+                                  <span className="text-[9px] text-amber-300 font-bold">Associação Espírita Mirante de Luz</span>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-mono bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">TV RECEPÇÃO</span>
+                            </div>
+
+                            <div className="my-auto text-center px-4 space-y-2">
+                              <h3 className="text-xs font-black uppercase tracking-widest text-amber-400">{previewTitle}</h3>
+                              <p className="font-serif italic text-base sm:text-lg font-bold leading-relaxed text-slate-100 drop-shadow-md">
+                                "{previewText}"
+                              </p>
+                            </div>
+
+                            <div className="flex justify-between items-center text-[9px] font-mono text-white/60 pt-2 border-t border-white/10">
+                              <span>TRANSMISSÃO INTERNA DO CENTRO ESPÍRITA</span>
+                              <span>{previewHashtags}</span>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Instagram Simulation Actions Panel */}
                         <div className="p-4 bg-gray-50 border-b border-gray-100 space-y-3.5 text-left">
@@ -10478,7 +13552,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           )}
 
                           <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider pt-1">
-                            <span>Data do Evento: <strong className="text-gray-650">{cam.date}</strong></span>
+                            <span>Data do Evento: <strong className="text-gray-650">{formatDateBR(cam.date)}</strong></span>
                             <span>•</span>
                             <span>Coordenador: <strong className="text-gray-650">{cam.responsible}</strong></span>
                           </div>
@@ -10638,6 +13712,28 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
 
               {comActiveTab === 'redes' && (
                 <div className="space-y-4 font-sans">
+                  {/* Agenda Event Importer Quick Button */}
+                  <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+                        <Calendar size={13} className="text-indigo-600" />
+                        Agenda de Palestras CEMIL
+                      </span>
+                      <span className="text-[9px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-md">Doutrinário</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-snug">
+                      Importe o tema, expositor e horário de eventos da agenda para preencher esta postagem com 1 clique.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAgendaImportModal(true)}
+                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Sparkles size={13} />
+                      <span>Importar Palestra / Evento da Agenda</span>
+                    </button>
+                  </div>
+
                   <div>
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Título da Postagem / Campanha</label>
                     <input
@@ -11198,1441 +14294,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
   };
 
   const renderPasseDashboard = () => {
-    // Call panel tracker
-    const [callingPerson, setCallingPerson] = useState<any>(null);
-    const [showCallBanner, setShowCallBanner] = useState(false);
-    const [showTicketModal, setShowTicketModal] = useState<any>(null);
-    const [escaladorRecomendado, setEscaladorRecomendado] = useState<any[] | null>(null);
-
-    // Load audit logs dynamically
-    const getPasseAuditLogs = () => {
-      try {
-        const stored = localStorage.getItem('passe_audit_logs');
-        return stored ? JSON.parse(stored) : [
-          { id: 'aud1', date: '2026-05-29 14:15', user: 'Roberto Souza', action: 'Acesso Autorizado', details: 'Descriptografou observações de Alvaro Fontes' }
-        ];
-      } catch {
-        return [];
-      }
-    };
-
-    const playCallSound = () => {
-      try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.15);
-        
-        setTimeout(() => {
-          const osc2 = audioCtx.createOscillator();
-          const gain2 = audioCtx.createGain();
-          osc2.connect(gain2);
-          gain2.connect(audioCtx.destination);
-          osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(1046.5, audioCtx.currentTime); // C6
-          gain2.gain.setValueAtTime(0.15, audioCtx.currentTime);
-          osc2.start();
-          osc2.stop(audioCtx.currentTime + 0.35);
-        }, 200);
-      } catch (e) {
-        console.warn("AudioContext not supported or allowed", e);
-      }
-    };
-
-    const triggerCall = (item: any) => {
-      setCallingPerson(item);
-      setShowCallBanner(true);
-      playCallSound();
-      
-      // Auto dismiss after 7 seconds
-      setTimeout(() => {
-        setShowCallBanner(false);
-      }, 7000);
-    };
-
-    const handleDecryptObs = (id: string, assistidoName: string) => {
-      const timestamp = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5);
-      const newAudit = {
-        id: `aud_${Date.now()}`,
-        date: timestamp,
-        user: currentUser?.name || 'Roberto Souza',
-        action: 'Acesso Autorizado',
-        details: `Descriptografou observações espirituais/médicas de ${assistidoName}.`
-      };
-      
-      let logs = [];
-      try {
-        const stored = localStorage.getItem('passe_audit_logs');
-        logs = stored ? JSON.parse(stored) : [
-          { id: 'aud1', date: '2026-05-29 14:15', user: 'Roberto Souza', action: 'Acesso Autorizado', details: 'Descriptografou observações de Alvaro Fontes' }
-        ];
-      } catch {}
-      
-      const updatedLogs = [newAudit, ...logs];
-      localStorage.setItem('passe_audit_logs', JSON.stringify(updatedLogs));
-      
-      setDecryptedObsId(id);
-      alert(`🔐 Acesso auditado registrado para ${currentUser?.name || 'Operador'}! Detalhes revelados.`);
-    };
-
-    const runEscaladorAutomatico = () => {
-      // Find passistas who are active and match escalador rules (e.g. have standard days like Sábados or available days)
-      const matches = passePassistas.filter(p => p.situacao === 'Ativo');
-      setEscaladorRecomendado(matches);
-      alert('🤖 Escala Automática calculada de acordo com as necessidades e qualificações dos Trabalhadores!');
-    };
-
-    const generatePasseSummaryReport = () => {
-      const doc = new jsPDF();
-      doc.setFontSize(22);
-      doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(14, 116, 144); // Cyan/Teal
-      doc.text('SETOR DE PASSE E FLUIDOTERAPIA', 14, 20);
-
-      doc.setFontSize(10);
-      doc.setFont('Helvetica', 'normal');
-      doc.setTextColor(100, 116, 139);
-      doc.text('ASSOCIAÇÃO ESPÍRITA MIRANTE DE LUZ', 14, 26);
-      doc.text(`Relatório Gerado em: ${new Date().toLocaleDateString('pt-BR')} por ${currentUser?.name || 'Administrador'}`, 14, 32);
-
-      doc.line(14, 36, 196, 36);
-
-      doc.setFontSize(14);
-      doc.setFont('Helvetica', 'bold');
-      doc.text('1. Atendimentos Espirituais e Fila Atual', 14, 46);
-
-      let yPos = 56;
-      doc.setFontSize(10);
-      doc.setFont('Helvetica', 'normal');
-      doc.setTextColor(30, 41, 59);
-
-      passeAtendimentos.forEach((at, index) => {
-        if (yPos > 270) { doc.addPage(); yPos = 20; }
-        doc.text(`${index + 1}. Assistido: ${at.name} | Tipo: ${at.type} | Sala: ${at.sala} | Status: ${at.status}`, 16, yPos);
-        yPos += 8;
-      });
-
-      yPos += 6;
-      doc.setFontSize(14);
-      doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(14, 116, 144);
-      doc.text('2. Cadastro e Escala Geral de Passistas', 14, yPos);
-      yPos += 10;
-
-      doc.setFontSize(10);
-      doc.setFont('Helvetica', 'normal');
-      doc.setTextColor(30, 41, 59);
-      passePassistas.forEach((ps, index) => {
-        if (yPos > 270) { doc.addPage(); yPos = 20; }
-        doc.text(`${index + 1}. Passista: ${ps.name} | Doutrinária: ${ps.doutrinaria} | Situação: ${ps.situacao} | Turno: ${ps.dias}`, 16, yPos);
-        yPos += 8;
-      });
-
-      yPos += 6;
-      doc.setFontSize(14);
-      doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(14, 116, 144);
-      doc.text('3. Fluidoterapia (Litragem e Câmaras Preparadas)', 14, yPos);
-      yPos += 10;
-
-      doc.setFontSize(10);
-      doc.setFont('Helvetica', 'normal');
-      doc.setTextColor(30, 41, 59);
-      passeFluidoterapia.forEach((fl, index) => {
-        if (yPos > 270) { doc.addPage(); yPos = 20; }
-        doc.text(`${index + 1}. Tipo: ${fl.fluidoType} | Litros: ${fl.qty}L | Responsável: ${fl.resp} | Data: ${fl.date}`, 16, yPos);
-        yPos += 8;
-      });
-
-      doc.save('Relatorio_Passe_Fluidoterapia_MiranteDeLuz.pdf');
-      alert('📄 Relatório PDF Corporativo gerado com sucesso!');
-    };
-
-    return (
-      <div className="space-y-8 animate-in fade-in duration-500 text-left">
-        
-        {/* Floating Call Panel Status */}
-        {showCallBanner && callingPerson && (
-          <motion.div 
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="bg-cyan-600 text-white rounded-3xl p-5 shadow-2xl flex items-center justify-between border-2 border-cyan-300 gap-4 relative z-50 text-left"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/20 rounded-2xl animate-ping shrink-0 text-white">
-                <Compass size={24} />
-              </div>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-cyan-200 block">PAINEL DIGITAL CHAMA</span>
-                <h4 className="text-xl font-bold tracking-tight">{callingPerson.name}</h4>
-                <p className="text-xs text-cyan-100 mt-1">Por favor, dirija-se à <span className="font-extrabold text-white underline">{callingPerson.sala}</span> com o passista <span className="font-semibold text-white">{callingPerson.passista}</span>.</p>
-              </div>
-            </div>
-            <button 
-              onClick={() => setShowCallBanner(false)}
-              className="p-2 hover:bg-white/10 rounded-xl transition-all text-white shrink-0"
-            >
-              <X size={16} />
-            </button>
-          </motion.div>
-        )}
-
-        {/* Tab Selector */}
-        <div className="flex overflow-x-auto whitespace-nowrap gap-2 pb-2 border-b border-gray-100 scrollbar-none w-full">
-          <button
-            onClick={() => {
-              setPasseActiveTab('atendimentos');
-              setEditingPasseAtendimentoId(null);
-            }}
-            className={cn(
-              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
-              passeActiveTab === 'atendimentos'
-                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/20 scale-102"
-                : "bg-white border border-gray-100 text-gray-450 hover:text-cyan-600 hover:border-cyan-200"
-            )}
-          >
-            <Activity size={14} />
-            <span>Atendimento & Fila</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setPasseActiveTab('passistas');
-              setEditingPassePassistaId(null);
-            }}
-            className={cn(
-              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
-              passeActiveTab === 'passistas'
-                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 scale-102"
-                : "bg-white border border-gray-100 text-gray-450 hover:text-emerald-600 hover:border-emerald-200"
-            )}
-          >
-            <Users size={14} />
-            <span>Passistas & Cadastro</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setPasseActiveTab('fluidoterapia');
-              setEditingPasseFluidoterapiaId(null);
-              setEditingPasseCampanhaId(null);
-            }}
-            className={cn(
-              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
-              passeActiveTab === 'fluidoterapia'
-                ? "bg-sky-600 text-white shadow-lg shadow-sky-600/20 scale-102"
-                : "bg-white border border-gray-100 text-gray-450 hover:text-sky-600 hover:border-sky-300"
-            )}
-          >
-            <Sparkles size={14} />
-            <span>Fluidoterapia & Vibrações</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setPasseActiveTab('salas');
-              setEditingPasseSalaId(null);
-              setEditingPasseMaterialId(null);
-            }}
-            className={cn(
-              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
-              passeActiveTab === 'salas'
-                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 scale-102"
-                : "bg-white border border-gray-100 text-gray-450 hover:text-indigo-600 hover:border-indigo-300"
-            )}
-          >
-            <MapPin size={14} />
-            <span>Salas & Materiais</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setPasseActiveTab('escalas');
-              setEditingPasseEscalaId(null);
-            }}
-            className={cn(
-              "p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-2 flex-shrink-0 whitespace-nowrap",
-              passeActiveTab === 'escalas'
-                ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20 scale-102"
-                : "bg-white border border-gray-100 text-gray-450 hover:text-purple-600 hover:border-purple-300"
-            )}
-          >
-            <Calendar size={14} />
-            <span>Escalas de Serviço</span>
-          </button>
-
-          {/* Quick PDF Report button */}
-          <button
-            onClick={generatePasseSummaryReport}
-            className="md:ml-auto p-3 px-5 sm:p-3.5 sm:px-6 rounded-2xl bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer flex-shrink-0 whitespace-nowrap"
-          >
-            <Download size={14} />
-            <span>PDF Administrativo</span>
-          </button>
-        </div>
-
-        {/* Content Columns split into list / forms */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          
-          {/* Main List view column */}
-          <div className="lg:col-span-8 space-y-8 text-left">
-            
-            {/* ATENDIMENTOS & FILA SCREEN */}
-            {passeActiveTab === 'atendimentos' && (
-              <div className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-black text-gray-950 italic">Controle de Atendimento e Fila de Espera</h3>
-                    <p className="text-xs text-cyan-800 font-bold uppercase tracking-widest mt-1">Status em Tempo Real do Atendimento Fluídico</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {passeAtendimentos.length === 0 ? (
-                    <div className="p-8 text-center bg-gray-50 border border-gray-100 rounded-3xl text-gray-400 font-medium">
-                      Nenhum atendido registrado na fila hoje.
-                    </div>
-                  ) : (
-                    passeAtendimentos.map(at => (
-                      <div key={at.id} className="p-5 bg-white border border-gray-150 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:border-cyan-300 transition-all text-left">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <h4 className="font-extrabold text-gray-950 text-base">{at.name}</h4>
-                            <span className={cn(
-                              "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider",
-                              at.status === 'Aguardando' && "bg-amber-100 text-amber-800",
-                              at.status === 'Em Atendimento' && "bg-cyan-100 text-cyan-800 animate-pulse",
-                              at.status === 'Concluído' && "bg-emerald-100 text-emerald-800"
-                            )}>
-                              {at.status}
-                            </span>
-                            <span className="px-2 py-0.5 border border-cyan-100 text-cyan-700 bg-cyan-50 rounded-lg text-[9px] font-bold">
-                              {at.type}
-                            </span>
-                          </div>
-
-                          <p className="text-[11px] text-gray-500 font-medium">
-                            Sala: <strong className="text-indigo-805">{at.sala}</strong> • Passista: <strong className="text-indigo-805">{at.passista || 'A definir'}</strong> • Horário: {at.time} ({at.date})
-                          </p>
-                          <p className="text-[11px] text-gray-500">
-                            Recomendação: <strong className="text-purple-700 italic">"{at.encaminhamento}"</strong>
-                          </p>
-
-                          {/* Encrypted Field Safeguard */}
-                          <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1.5 max-w-xl">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-black text-amber-600 block uppercase tracking-widest flex items-center gap-1">
-                                <Lock size={10} /> Notas Espirituais Reservadas
-                              </span>
-                              {decryptedObsId !== at.id ? (
-                                <button 
-                                  onClick={() => handleDecryptObs(at.id, at.name)}
-                                  className="text-[9px] text-cyan-600 font-extrabold uppercase tracking-wider hover:underline hover:text-cyan-800 cursor-pointer"
-                                >
-                                  (Descriptografar com Auditoria)
-                                </button>
-                              ) : (
-                                <span className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-widest flex items-center gap-1">
-                                  ✓ Autorizado
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs font-mono text-gray-650 tracking-tight">
-                              {decryptedObsId === at.id ? at.obs : "••••••••••••••••••••••••••••••••••••••••••••••••••••••"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 self-start md:self-center">
-                          {at.status !== 'Concluído' && (
-                            <button
-                              onClick={() => triggerCall(at)}
-                              className="p-2 px-3 bg-cyan-600 text-white hover:bg-cyan-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
-                              title="Chamar e Notificar em Telão"
-                            >
-                              <Compass size={12} className="animate-spin" />
-                              <span>Chamar</span>
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setShowTicketModal(at);
-                            }}
-                            className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-[11px] uppercase transition-all block"
-                            title="Visualizar Ticket Térmico"
-                          >
-                            <Printer size={12} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingPasseAtendimentoId(at.id);
-                              setNewPasseAtendName(at.name);
-                              setNewPasseAtendType(at.type);
-                              setNewPasseAtendSala(at.sala);
-                              setNewPasseAtendPassista(at.passista);
-                              setNewPasseAtendEncaminhamento(at.encaminhamento);
-                              setNewPasseAtendObs(at.obs);
-                              setNewPasseAtendStatus(at.status);
-                            }}
-                            className="p-2 bg-gray-50 border border-gray-150 hover:bg-indigo-100 rounded-xl text-gray-500 hover:text-indigo-700"
-                            title="Editar Atendimento"
-                          >
-                            <Pencil size={11} />
-                          </button>
-                          <button
-                            onClick={() => handleDeletePasseAtendimento(at.id, at.name)}
-                            className="p-2 bg-gray-50 border border-gray-150 hover:bg-red-100 rounded-xl text-gray-500 hover:text-red-700"
-                            title="Remover"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Secure Audit Trails log preview */}
-                <div className="bg-gray-950 text-gray-100 p-5 rounded-3xl font-mono text-xs space-y-3">
-                  <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                    <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider">Log de Auditoria de Segurança do Setor (Criptografia)</span>
-                    <span className="px-1 text-[8px] bg-red-650 text-white rounded">CONFIDENCIAL</span>
-                  </div>
-                  <div className="max-h-24 overflow-y-auto space-y-1">
-                    {getPasseAuditLogs().map((log: any) => (
-                      <div key={log.id} className="text-left leading-relaxed">
-                        <span className="text-gray-500">[{log.date}]</span> <strong className="text-cyan-300">{log.user}</strong>: {log.details}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* PASSISTAS CADASTRO SCREEN */}
-            {passeActiveTab === 'passistas' && (
-              <div className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-black text-gray-950 italic">Árvore de Trabalhadores & Escudo de Voluntários</h3>
-                    <p className="text-xs text-emerald-800 font-bold uppercase tracking-widest mt-1">Passistas Espíritas, Frequência e Qualificações</p>
-                  </div>
-                  <button 
-                    onClick={runEscaladorAutomatico}
-                    className="p-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl font-bold text-xs uppercase tracking-wider hover:scale-102 transition-all cursor-pointer"
-                  >
-                    🤖 Escala Automática Inteligente
-                  </button>
-                </div>
-
-                {escaladorRecomendado && (
-                  <div className="bg-emerald-50 rounded-3xl p-5 border border-emerald-250 animate-in slide-in-from-top-2 duration-305 text-left space-y-3">
-                    <div className="flex items-center justify-between border-b border-emerald-150 pb-2">
-                      <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block font-sans">Resultado do Escalador por Conexão de Campo</span>
-                      <button onClick={() => setEscaladorRecomendado(null)} className="text-[10px] text-emerald-650 font-bold hover:underline">Fechar</button>
-                    </div>
-                    <div className="space-y-2 font-sans">
-                      <p className="text-xs text-gray-750">Trabalhadores escaláveis recomendados para o turno de harmonização:</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {escaladorRecomendado.map(pps => (
-                          <div key={pps.id} className="p-3 bg-white border border-emerald-150 rounded-xl text-xs flex items-center justify-between">
-                            <div>
-                              <strong className="text-emerald-950 block">{pps.name}</strong>
-                              <span className="text-[9px] text-gray-400">Doutrinária e Passes Concluídos</span>
-                            </div>
-                            <span className="text-[10px] font-mono text-indigo-700 font-extrabold">{pps.dias}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {passePassistas.length === 0 ? (
-                    <div className="p-8 text-center bg-gray-50 rounded-3xl text-gray-400 font-medium col-span-2">
-                      Nenhum passista cadastrado ainda. Use o painel lateral para registrar.
-                    </div>
-                  ) : (
-                    passePassistas.map(ps => (
-                      <div key={ps.id} className="p-5 bg-white border border-gray-150 rounded-3xl shadow-sm text-left flex flex-col justify-between hover:border-emerald-300 transition-all">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-extrabold text-gray-950 text-sm leading-none">{ps.name}</h4>
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
-                              ps.situacao === 'Ativo' ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                            )}>
-                              {ps.situacao}
-                            </span>
-                          </div>
-                          
-                          <p className="text-[11px] text-gray-500 font-sans leading-relaxed">
-                            Formação: <strong className="text-emerald-800">Doutrinária {ps.doutrinaria}</strong> <br />
-                            Cursos Extra: <strong className="text-gray-700">{ps.cursos || 'Nenhum'}</strong> <br />
-                            Dias que Pode: <strong className="text-indigo-800 font-mono">{ps.dias}</strong> <br />
-                            Tempo na Casa: <strong className="text-gray-750 font-semibold">{ps.tempo || 'Não registrado'}</strong>
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2 border-t border-gray-100 pt-3 mt-4 justify-end">
-                          <button
-                            onClick={() => {
-                              setEditingPassePassistaId(ps.id);
-                              setNewPassistaName(ps.name);
-                              setNewPassistaDateIngresso(ps.dateIngresso);
-                              setNewPassistaDoutrinaria(ps.doutrinaria);
-                              setNewPassistaCursos(ps.cursos);
-                              setNewPassistaDias(ps.dias);
-                              setNewPassistaEscalaId(ps.escalaId);
-                              setNewPassistaSituacao(ps.situacao);
-                              setNewPassistaTempo(ps.tempo);
-                            }}
-                            className="p-1 px-2.5 bg-white border border-gray-150 text-xs font-bold text-gray-550 rounded-lg hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center gap-1 cursor-pointer"
-                          >
-                            <Pencil size={11} /> <span>Editar</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePassista(ps.id, ps.name)}
-                            className="p-1 px-2.5 bg-white border border-gray-150 text-xs font-bold text-gray-550 rounded-lg hover:bg-red-50 hover:text-red-700 transition-all flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash2 size={11} /> <span>Excluir</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* FLUIDOTERAPIA & VIBRAÇÕES SCREEN */}
-            {passeActiveTab === 'fluidoterapia' && (
-              <div className="space-y-8">
-                {/* Liters Prepared */}
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-xl font-black text-gray-950 italic">Controle das Águas Fluidificadas</h3>
-                    <p className="text-xs text-sky-800 font-bold uppercase tracking-widest mt-1">Câmaras de Fluidificação e Garrafas em Preparação</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {passeFluidoterapia.length === 0 ? (
-                      <div className="p-8 text-center bg-gray-50 border border-gray-100 rounded-3xl text-gray-400 font-medium">
-                        Nenhum registro de água fluidificada hoje.
-                      </div>
-                    ) : (
-                      passeFluidoterapia.map(fl => (
-                        <div key={fl.id} className="p-4 bg-white border border-gray-100 rounded-2xl flex items-center justify-between gap-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="p-1 bg-sky-50 text-sky-650 rounded-full">
-                                <Sparkles size={12} />
-                              </span>
-                              <strong className="text-sm font-extrabold text-gray-950">{fl.fluidoType}</strong>
-                              <span className="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-lg text-[9px] font-mono font-bold">
-                                {fl.qty} Litros
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 font-medium mt-1 font-sans">
-                              Preparador por: <strong className="text-gray-800">{fl.resp}</strong> • Destino: <strong className="text-indigo-800">{fl.dest}</strong> • Data: {fl.date}
-                            </p>
-                            <p className="text-xs text-gray-450 italic font-mono mt-1 mt-1 pr-4">"{fl.obs}"</p>
-                          </div>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => {
-                                setEditingPasseFluidoterapiaId(fl.id);
-                                setNewFluidoType(fl.fluidoType);
-                                setNewFluidoResp(fl.resp);
-                                setNewFluidoQty(fl.qty);
-                                setNewFluidoDest(fl.dest);
-                                setNewFluidoObs(fl.obs);
-                              }}
-                              className="p-1.5 bg-gray-50 text-gray-500 hover:text-indigo-700 hover:bg-indigo-50 border border-gray-150 rounded-lg cursor-pointer"
-                            >
-                              <Pencil size={11} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteFluidoterapia(fl.id)}
-                              className="p-1.5 bg-gray-50 text-gray-500 hover:text-red-750 hover:bg-red-50 border border-gray-150 rounded-lg cursor-pointer"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    ))}
-                  </div>
-                </div>
-
-                {/* Vibrational Campaigns */}
-                <div className="space-y-4 pt-4 border-t border-gray-100">
-                  <div>
-                    <h3 className="text-lg font-black text-gray-900 italic">Campanhas Vibratórias / Irradiação Conjugadas</h3>
-                    <p className="text-xs text-indigo-800 font-bold uppercase tracking-widest mt-1">Preces, Orações e Emissão de Ectoplasma Curativo</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {passeCampanhas.map(cp => (
-                      <div key={cp.id} className="p-5 bg-gradient-to-br from-indigo-50/50 to-sky-50/20 border border-indigo-100 rounded-3xl flex flex-col justify-between text-left">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <strong className="text-sm font-extrabold text-indigo-950 block">{cp.name}</strong>
-                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full text-[9px] font-black uppercase">
-                              {cp.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-600 font-sans leading-relaxed">
-                            Causa do Amparo: <span className="font-semibold text-indigo-905">{cp.motivo}</span>
-                          </p>
-                          <p className="text-[10px] text-gray-400 font-bold font-sans uppercase">
-                            Responsável: {cp.resp} • Data Início: {cp.date}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 justify-end mt-4 pt-3 border-t border-indigo-50">
-                          <button
-                            onClick={() => {
-                              setEditingPasseCampanhaId(cp.id);
-                              setNewCampName(cp.name);
-                              setNewCampMotivo(cp.motivo);
-                              setNewCampResp(cp.resp);
-                              setNewCampStatus(cp.status);
-                            }}
-                            className="p-1 px-2 border border-indigo-150 bg-white hover:bg-indigo-100 rounded-lg text-xs font-bold text-gray-500 cursor-pointer"
-                          >
-                            <Pencil size={11} />
-                          </button>
-                          <button
-                            onClick={() => handleDeletePasseCampanha(cp.id, cp.name)}
-                            className="p-1 px-2 border border-indigo-150 bg-white hover:bg-red-50 text-red-700 rounded-lg text-xs font-bold cursor-pointer"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* SALAS & INVENTÁRIO SCREEN */}
-            {passeActiveTab === 'salas' && (
-              <div className="space-y-8">
-                {/* Salas list */}
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-xl font-black text-gray-950 italic">Salas e Ambientes Regulados</h3>
-                    <p className="text-xs text-indigo-800 font-bold uppercase tracking-widest mt-1">Áreas Físicas Blindadas de Tratamento de Fluidos</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {passeSalas.length === 0 ? (
-                      <div className="p-8 text-center bg-gray-50 border border-gray-100 rounded-3xl text-gray-400 font-medium col-span-2">
-                        Nenhuma sala cadastrada.
-                      </div>
-                    ) : (
-                      passeSalas.map(sl => (
-                        <div key={sl.id} className="p-5 bg-white border border-gray-150 rounded-3xl flex flex-col justify-between hover:border-indigo-300 transition-all">
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-1">
-                              <h4 className="font-extrabold text-sm text-gray-950 flex items-center gap-1.5 leading-none">
-                                <MapPin size={14} className="text-indigo-500" />
-                                {sl.name}
-                              </h4>
-                              <span className={cn(
-                                "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0",
-                                sl.disp === 'Disponível' ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                              )}>
-                                {sl.disp}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 font-sans leading-relaxed">
-                              Tipo: <strong className="text-indigo-900">{sl.type}</strong> <br />
-                              Capacidade Máxima: <strong className="text-gray-800">{sl.cap} Assistidos</strong> <br />
-                              Coordenador: <strong className="text-purple-800">{sl.resp || 'Não escalado'}</strong>
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 justify-end mt-4 pt-3 border-t border-gray-100">
-                            <button
-                              onClick={() => {
-                                setEditingPasseSalaId(sl.id);
-                                setNewSalaName(sl.name);
-                                setNewSalaType(sl.type);
-                                setNewSalaCap(sl.cap);
-                                setNewSalaResp(sl.resp);
-                                setNewSalaDisp(sl.disp);
-                              }}
-                              className="p-1 px-2 border border-gray-150 bg-white hover:bg-indigo-50 hover:text-indigo-700 rounded-lg text-xs font-bold cursor-pointer"
-                            >
-                              <Pencil size={11} />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePasseSala(sl.id, sl.name)}
-                              className="p-1 px-2 border border-gray-150 bg-white hover:bg-red-50 text-red-700 rounded-lg text-xs font-bold cursor-pointer"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Material Inventory levels */}
-                <div className="space-y-4 pt-4 border-t border-gray-100">
-                  <div>
-                    <h3 className="text-lg font-black text-gray-900 italic">Controle de Estoque e Apoio Operacional</h3>
-                    <p className="text-xs text-amber-800 font-bold uppercase tracking-widest mt-1">Materiais Essenciais de Apoio Doutrinário (Copos, Garrafas e Galões)</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {passeMateriais.map(mat => {
-                      const isLowStock = mat.qty <= mat.min;
-                      return (
-                        <div key={mat.id} className="p-4 bg-gray-50 border border-gray-150 rounded-2xl flex flex-wrap items-center justify-between gap-4 text-left">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <strong className="text-sm font-extrabold text-gray-900">{mat.product}</strong>
-                              {isLowStock && (
-                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1">
-                                  <AlertTriangle size={10} /> Estoque Baixo
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] mt-1 text-gray-500 font-sans">
-                              Quantidade em Estoque: <strong className="text-indigo-800">{mat.qty} unidades</strong> • Nível de Alerta Mínimo: {mat.min} • Fiscal: {mat.resp || 'Casa Espírita'}
-                            </p>
-                          </div>
-
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingPasseMaterialId(mat.id);
-                                setNewMaterialProduct(mat.product);
-                                setNewMaterialQty(mat.qty);
-                                setNewMaterialMin(mat.min);
-                                setNewMaterialResp(mat.resp);
-                              }}
-                              className="p-1.5 bg-white border border-gray-150 text-gray-500 hover:text-indigo-705 rounded-lg text-xs cursor-pointer"
-                            >
-                              <Pencil size={11} />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePasseMaterial(mat.id, mat.product)}
-                              className="p-1.5 bg-white border border-gray-150 text-gray-500 hover:text-red-750 rounded-lg text-xs cursor-pointer"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ESCALAS DE SERVIÇO SCREEN */}
-            {passeActiveTab === 'escalas' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-black text-gray-950 italic">Escalas Totais de Serviço Semanal</h3>
-                  <p className="text-xs text-purple-800 font-bold uppercase tracking-widest mt-1">Escalas de Atendimento e Distribuição Harmoniosa de Turnos</p>
-                </div>
-
-                <div className="space-y-4">
-                  {passeEscalas.length === 0 ? (
-                    <div className="p-8 text-center bg-gray-50 rounded-3xl text-gray-400 font-medium">
-                      Nenhuma escala cadastrada para transmissão de passes nesta semana.
-                    </div>
-                  ) : (
-                    passeEscalas.map(esc => (
-                      <div key={esc.id} className="p-5 bg-white border border-gray-150 rounded-3xl shadow-sm text-left flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-purple-300 transition-all">
-                        <div className="space-y-1 bg-white">
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-purple-50 text-purple-650 rounded-full">
-                              <Calendar size={13} />
-                            </span>
-                            <strong className="text-base text-purple-950 font-black">{esc.equipe}</strong>
-                          </div>
-                          
-                          <p className="text-xs text-gray-550 font-sans leading-relaxed mt-2 pt-1 pl-1">
-                            Escalados: <strong className="text-gray-900">{esc.passistas}</strong> <br />
-                            Coordenador Geral: <strong className="text-purple-800">{esc.coord}</strong> <br />
-                            Horário Agendado: <strong className="text-indigo-800 font-mono">{esc.time}h</strong> ({esc.date})
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                          <button
-                            onClick={() => {
-                              setEditingPasseEscalaId(esc.id);
-                              setNewEscDate(esc.date);
-                              setNewEscTime(esc.time);
-                              setNewEscEquipe(esc.equipe);
-                              setNewEscPassistas(esc.passistas);
-                              setNewEscCoord(esc.coord);
-                            }}
-                            className="p-1.5 px-3 bg-white border border-gray-150 hover:bg-purple-50 rounded-xl text-gray-500 hover:text-purple-705 text-xs font-bold cursor-pointer"
-                          >
-                            <Pencil size={11} /> <span>Editar</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePasseEscala(esc.id)}
-                            className="p-1.5 px-3 bg-white border border-gray-150 hover:bg-red-50 rounded-xl text-gray-500 hover:text-red-700 text-xs font-bold cursor-pointer"
-                          >
-                            <Trash2 size={11} /> <span>Excluir</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-            
-          </div>
-
-          {/* RIGHT COLUMN: DYNAMIC FORM SUBMISSIONS */}
-          <div className="lg:col-span-4 space-y-6 text-left">
-            <div className="bg-white rounded-3xl sm:rounded-[36px] border border-gray-100 p-4 sm:p-6 shadow-sm">
-              <div className="border-b border-gray-50 pb-4 mb-4">
-                <h3 className="text-base font-extrabold text-gray-900 italic tracking-tight flex items-center gap-1.5">
-                  <Sparkles size={16} className="text-cyan-600" />
-                  {(editingPasseAtendimentoId || editingPassePassistaId || editingPasseFluidoterapiaId || editingPasseSalaId || editingPasseCampanhaId || editingPasseMaterialId || editingPasseEscalaId) ? 'Atualizar Registro' : 'Lançar Dados'}
-                </h3>
-                <p className="text-[11px] text-gray-450 mt-1 font-sans">
-                  Preencha cuidadosamente os campos abaixo para sincronização local e auditoria de prontuário.
-                </p>
-              </div>
-
-              {/* ATENDIMENTOS FORM */}
-              {passeActiveTab === 'atendimentos' && (
-                <div className="space-y-4 font-sans text-xs">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Nome do Assistido</label>
-                    <input
-                      type="text"
-                      value={newPasseAtendName}
-                      onChange={(e) => setNewPasseAtendName(e.target.value)}
-                      placeholder="Ex: Alvaro Fontes"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium focus:outline-none focus:border-cyan-500 focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Tipo de Harmonização / Passe</label>
-                    <select
-                      value={newPasseAtendType}
-                      onChange={(e) => setNewPasseAtendType(e.target.value)}
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium focus:outline-none"
-                    >
-                      <option value="Passe simples">Passe simples</option>
-                      <option value="Passe magnético">Passe magnético (Cura)</option>
-                      <option value="Fluidoterapia">Fluidoterapia (Tratamento Água)</option>
-                      <option value="Atendimento fraterno">Encaminhamento do Atendimento Fraterno</option>
-                      <option value="Harmonização espiritual">Harmonização e Tratamento Fluídico</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Sala Blindada Alocada</label>
-                    <select
-                      value={newPasseAtendSala}
-                      onChange={(e) => setNewPasseAtendSala(e.target.value)}
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    >
-                      {passeSalas.map(sl => (
-                        <option key={sl.id} value={sl.name}>{sl.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Passista Responsável</label>
-                    <select
-                      value={newPasseAtendPassista}
-                      onChange={(e) => setNewPasseAtendPassista(e.target.value)}
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    >
-                      <option value="">A definir pelo Escalador</option>
-                      {passePassistas.map(ps => (
-                        <option key={ps.id} value={ps.name}>{ps.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Encaminhamento / Recomendação</label>
-                    <input
-                      type="text"
-                      value={newPasseAtendEncaminhamento}
-                      onChange={(e) => setNewPasseAtendEncaminhamento(e.target.value)}
-                      placeholder="Ex: Prece Diária e Evangelho no Lar"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Ficha Confidencial (Prontuário de Passes)</label>
-                    <textarea
-                      value={newPasseAtendObs}
-                      onChange={(e) => setNewPasseAtendObs(e.target.value)}
-                      rows={3}
-                      placeholder="Relate sentimentos de distonia ou observações curativas com absoluto sigilo..."
-                      className="w-full p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-medium resize-none"
-                    />
-                    <span className="text-[9.5px] italic text-rose-500 mt-1 block">🔒 Dados sensíveis serão salvos sob criptografia no prontuário.</span>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Fila Status</label>
-                    <select
-                      value={newPasseAtendStatus}
-                      onChange={(e) => setNewPasseAtendStatus(e.target.value)}
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    >
-                      <option value="Aguardando">Aguardando na Fila</option>
-                      <option value="Em Atendimento">Em Atendimento</option>
-                      <option value="Concluído">Tratamento Concluído</option>
-                    </select>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!newPasseAtendName.trim()) { alert('Informe o nome do assistido!'); return; }
-                      handleAddPasseAtendimento(newPasseAtendName, newPasseAtendType, newPasseAtendSala, newPasseAtendPassista, newPasseAtendEncaminhamento, newPasseAtendStatus, newPasseAtendObs);
-                    }}
-                    className="w-full h-10 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-pointer"
-                  >
-                    {editingPasseAtendimentoId ? 'Salvar Alterações' : 'Agendar na Fila'}
-                  </button>
-                  {editingPasseAtendimentoId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingPasseAtendimentoId(null);
-                        setNewPasseAtendName('');
-                        setNewPasseAtendObs('');
-                      }}
-                      className="w-full h-8 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold"
-                    >
-                      Cancelar Edição
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* PASSISTAS FORM */}
-              {passeActiveTab === 'passistas' && (
-                <div className="space-y-4 font-sans text-xs">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Nome Completo</label>
-                    <input
-                      type="text"
-                      value={newPassistaName}
-                      onChange={(e) => setNewPassistaName(e.target.value)}
-                      placeholder="Ex: Denise Martins"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Formação Doutrinária Espírita</label>
-                    <select
-                      value={newPassistaDoutrinaria}
-                      onChange={(e) => setNewPassistaDoutrinaria(e.target.value)}
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    >
-                      <option value="Concluída">Kardec Básica Concluída</option>
-                      <option value="Em Andamento">Em Andamento (ESDE)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Cursos Complementares de Fluidoterapia / Passes</label>
-                    <input
-                      type="text"
-                      value={newPassistaCursos}
-                      onChange={(e) => setNewPassistaCursos(e.target.value)}
-                      placeholder="Ex: Passes e Fluidos, Passe Magnético Avançado"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Turno de Disponibilidade</label>
-                    <input
-                      type="text"
-                      value={newPassistaDias}
-                      onChange={(e) => setNewPassistaDias(e.target.value)}
-                      placeholder="Ex: Quartas e Sábados"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Tempo na Casa Espírita</label>
-                    <input
-                      type="text"
-                      value={newPassistaTempo}
-                      onChange={(e) => setNewPassistaTempo(e.target.value)}
-                      placeholder="Ex: 3 anos"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Situação de Escala</label>
-                    <select
-                      value={newPassistaSituacao}
-                      onChange={(e) => setNewPassistaSituacao(e.target.value)}
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                    >
-                      <option value="Ativo">Ativo e Escalado</option>
-                      <option value="Licença">Licença Temporária</option>
-                      <option value="Afastado">Afastado</option>
-                    </select>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!newPassistaName.trim()) { alert('Informe o nome do passista!'); return; }
-                      handleAddPassista(newPassistaName, newPassistaDateIngresso, newPassistaDoutrinaria, newPassistaCursos, newPassistaDias, newPassistaEscalaId, newPassistaSituacao, newPassistaTempo);
-                    }}
-                    className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-pointer"
-                  >
-                    {editingPassePassistaId ? 'Gravar Alterações' : 'Cadastrar Passista'}
-                  </button>
-                  {editingPassePassistaId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingPassePassistaId(null);
-                        setNewPassistaName('');
-                      }}
-                      className="w-full h-8 bg-gray-100 hover:bg-gray-200 text-gray-755 rounded-lg font-bold"
-                    >
-                      Cancelar Edição
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* FLUIDOTERAPIA & VIBRAÇÕES FORMS */}
-              {passeActiveTab === 'fluidoterapia' && (
-                <div className="space-y-4 font-sans text-xs">
-                  {editingPasseCampanhaId ? (
-                    // Campanha form
-                    <div className="space-y-4">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 block">Editando Campanha Especial</span>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Nome da Campanha</label>
-                        <input
-                          type="text"
-                          value={newCampName}
-                          onChange={(e) => setNewCampName(e.target.value)}
-                          placeholder="Ex: Vibração pelos Enfermos"
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Causa Especial / Vibração</label>
-                        <input
-                          type="text"
-                          value={newCampMotivo}
-                          onChange={(e) => setNewCampMotivo(e.target.value)}
-                          placeholder="Ex: Doentes da UTI de Hospitais"
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Médium Coordenador</label>
-                        <input
-                          type="text"
-                          value={newCampResp}
-                          onChange={(e) => setNewCampResp(e.target.value)}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Status</label>
-                        <select
-                          value={newCampStatus}
-                          onChange={(e) => setNewCampStatus(e.target.value)}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        >
-                          <option value="Ativo">Vibrando Coletivamente</option>
-                          <option value="Concluído">Concluído</option>
-                        </select>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAddPasseCampanha(newCampName, newCampMotivo, newCampResp, newCampStatus)}
-                        className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold uppercase tracking-widest text-[10px]"
-                      >
-                        Salvar Campanha
-                      </button>
-                    </div>
-                  ) : (
-                    // Agua Fluidificada Form
-                    <div className="space-y-4">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-sky-400 block">Nova Fluidificação de Galões</span>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Tipo de Água Flutuante</label>
-                        <select
-                          value={newFluidoType}
-                          onChange={(e) => setNewFluidoType(e.target.value)}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        >
-                          <option value="Água Geral">Água Geral para Assistidos</option>
-                          <option value="Água Individualizada">Garrafa Fluídica de Cura Individual</option>
-                          <option value="Fluido de Vibração Coletiva">Fluido de Vibração Coletiva</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Litragem / Garrafas Preparadas</label>
-                        <input
-                          type="number"
-                          value={newFluidoQty}
-                          onChange={(e) => setNewFluidoQty(Number(e.target.value))}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Médium Fluidificador Responsável</label>
-                        <input
-                          type="text"
-                          value={newFluidoResp}
-                          onChange={(e) => setNewFluidoResp(e.target.value)}
-                          placeholder="Ex: Denise Martins"
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Destinação na Casa Espírita</label>
-                        <input
-                          type="text"
-                          value={newFluidoDest}
-                          onChange={(e) => setNewFluidoDest(e.target.value)}
-                          placeholder="Ex: Salão Principal / Atendimento Fraterno"
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Notas e Sintonização Espiritual</label>
-                        <textarea
-                          value={newFluidoObs}
-                          onChange={(e) => setNewFluidoObs(e.target.value)}
-                          rows={2}
-                          placeholder="Pense em Paz Doutrinária ao fluidificar..."
-                          className="w-full p-2 bg-gray-50 border border-gray-155 rounded-lg text-xs font-medium resize-none"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!newFluidoResp.trim()) { alert('Informe o fluidificador responsável!'); return; }
-                          handleAddFluidoterapia(newFluidoType, newFluidoResp, newFluidoQty, newFluidoDest, newFluidoObs);
-                        }}
-                        className="w-full h-10 bg-sky-600 hover:bg-sky-705 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-pointer"
-                      >
-                        {editingPasseFluidoterapiaId ? 'Salvar Água' : 'Registrar Água Concluída'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* SALAS & INVENTÁRIO FORMS */}
-              {passeActiveTab === 'salas' && (
-                <div className="space-y-4 font-sans text-xs">
-                  {editingPasseMaterialId ? (
-                    // Edit material levels
-                    <div className="space-y-4">
-                      <span className="text-[9px] font-black uppercase text-amber-500 block">Editar Suprimentos Espíritas</span>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Nome do Produto</label>
-                        <input
-                          type="text"
-                          value={newMaterialProduct}
-                          onChange={(e) => setNewMaterialProduct(e.target.value)}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Quantidade em Unidades</label>
-                        <input
-                          type="number"
-                          value={newMaterialQty}
-                          onChange={(e) => setNewMaterialQty(Number(e.target.value))}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Quantidade Limite Alerta</label>
-                        <input
-                          type="number"
-                          value={newMaterialMin}
-                          onChange={(e) => setNewMaterialMin(Number(e.target.value))}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAddPasseMaterial(newMaterialProduct, newMaterialQty, newMaterialMin, newMaterialResp)}
-                        className="w-full h-10 bg-amber-550 text-white hover:bg-amber-600 rounded-xl font-bold uppercase text-[10px]"
-                      >
-                        Salvar Estoque
-                      </button>
-                    </div>
-                  ) : (
-                    // Create and edit Salas
-                    <div className="space-y-4">
-                      <span className="text-[9px] font-black uppercase text-indigo-400 block">Nova Sala de Atendimento</span>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Nome da Sala</label>
-                        <input
-                          type="text"
-                          value={newSalaName}
-                          onChange={(e) => setNewSalaName(e.target.value)}
-                          placeholder="Ex: Sala 3 - Emmanuel"
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Modabilidade</label>
-                        <select
-                          value={newSalaType}
-                          onChange={(e) => setNewSalaType(e.target.value)}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        >
-                          <option value="Sala de Passe Coletivo">Sala de Passe Coletivo / Magnetismo</option>
-                          <option value="Sala de Passe Individual">Sala de Passe Individual</option>
-                          <option value="Câmara de Fluidificação">Câmara de Fluidificação Dedicada</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Capacidade de Pessoas</label>
-                        <input
-                          type="number"
-                          value={newSalaCap}
-                          onChange={(e) => setNewSalaCap(Number(e.target.value))}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Médium Coordenador da Sala</label>
-                        <input
-                          type="text"
-                          value={newSalaResp}
-                          onChange={(e) => setNewSalaResp(e.target.value)}
-                          placeholder="Ex: Claudio Ferreira"
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Mesa Coletiva Status</label>
-                        <select
-                          value={newSalaDisp}
-                          onChange={(e) => setNewSalaDisp(e.target.value)}
-                          className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 text-xs font-medium"
-                        >
-                          <option value="Disponível">Disponível</option>
-                          <option value="Ocupada">Em Sessão Ativa</option>
-                          <option value="Manutenção">Em Limpeza Fluídica / Fechada</option>
-                        </select>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!newSalaName.trim()) { alert('Informe o nome da sala!'); return; }
-                          handleAddPasseSala(newSalaName, newSalaType, newSalaCap, newSalaResp, newSalaDisp);
-                        }}
-                        className="w-full h-10 bg-indigo-600 hover:bg-indigo-705 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-pointer"
-                      >
-                        {editingPasseSalaId ? 'Salvar Sala' : 'Alocar Sala Blindada'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ESCALAS DE SERVIÇO FORM */}
-              {passeActiveTab === 'escalas' && (
-                <div className="space-y-4 font-sans text-xs">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Grupo / Equipe de Apoio</label>
-                    <input
-                      type="text"
-                      value={newEscEquipe}
-                      onChange={(e) => setNewEscEquipe(e.target.value)}
-                      placeholder="Ex: Equipe Allan Kardec Sábados"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Passistas Vinculados (Lista)</label>
-                    <input
-                      type="text"
-                      value={newEscPassistas}
-                      onChange={(e) => setNewEscPassistas(e.target.value)}
-                      placeholder="Ex: Claudio Ferreira, Denise Martins"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Coordenador do Turno</label>
-                    <input
-                      type="text"
-                      value={newEscCoord}
-                      onChange={(e) => setNewEscCoord(e.target.value)}
-                      placeholder="Ex: Roberto Souza"
-                      className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2.5 focus:outline-none"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Data</label>
-                      <input
-                        type="date"
-                        value={newEscDate}
-                        onChange={(e) => setNewEscDate(e.target.value)}
-                        className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 block mb-1">Horário de Início</label>
-                      <input
-                        type="text"
-                        value={newEscTime}
-                        onChange={(e) => setNewEscTime(e.target.value)}
-                        placeholder="19:30"
-                        className="w-full h-9 bg-gray-50 border border-gray-150 rounded-lg px-2 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!newEscEquipe.trim()) { alert('Informe o nome da equipe!'); return; }
-                      handleAddPasseEscala(newEscDate, newEscTime, newEscEquipe, newEscPassistas, newEscCoord);
-                    }}
-                    className="w-full h-10 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] cursor-pointer"
-                  >
-                    {editingPasseEscalaId ? 'Gravar Transmissão' : 'Agendar Escala de Turno'}
-                  </button>
-                  {editingPasseEscalaId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingPasseEscalaId(null);
-                        setNewEscEquipe('Equipe Fraternidade');
-                      }}
-                      className="w-full h-8 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold"
-                    >
-                      Cancelar Edição
-                    </button>
-                  )}
-                </div>
-              )}
-
-            </div>
-          </div>
-
-        </div>
-
-        {/* PRINT TICKET MODAL OVERLAY */}
-        {showTicketModal && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
-            <div className="bg-white text-slate-900 rounded-3xl sm:rounded-[32px] p-4 sm:p-8 max-w-sm w-full font-mono text-xs border border-slate-200 text-center shadow-2xl relative">
-              <button 
-                onClick={() => setShowTicketModal(null)}
-                className="absolute right-4 top-4 p-1 hover:bg-gray-100 rounded-full text-gray-500"
-              >
-                <X size={16} />
-              </button>
-              
-              <div className="space-y-4">
-                <span className="text-[10px] font-black bg-cyan-100 text-cyan-800 px-3 py-1 rounded-full uppercase tracking-widest">
-                  TICKET DE TRANSMISSÃO DE FLUIDOS
-                </span>
-                
-                <h3 className="font-extrabold text-lg text-slate-950 tracking-tight mt-2">MIRANTE DE LUZ ESPÍRITA</h3>
-                <p className="text-[10px] text-slate-500 font-sans mt-0.5 border-b border-b-slate-100 pb-3">
-                  CNPJ: 14.238.112/0001-90 | Assistência e Passes
-                </p>
-
-                <div className="text-left py-4 pt-2 space-y-2 font-mono text-sm border-b border-slate-100 pb-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Senha Fila:</span>
-                    <strong className="text-cyan-700 font-black"># {showTicketModal.id.slice(-4).toUpperCase()}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Assistido:</span>
-                    <strong className="text-slate-900">{showTicketModal.name}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Tratamento:</span>
-                    <strong className="text-slate-900">{showTicketModal.type}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Sala Blindada:</span>
-                    <strong className="text-slate-900">{showTicketModal.sala}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Data e Hora:</span>
-                    <strong className="text-slate-900 font-mono">{showTicketModal.date} {showTicketModal.time}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Responsável:</span>
-                    <strong className="text-slate-950">{showTicketModal.passista || 'Equipe Cooperadores'}</strong>
-                  </div>
-                </div>
-
-                <div className="py-2 flex justify-center flex-col items-center gap-1.5 font-sans">
-                  <QrCode size={110} className="text-slate-800" />
-                  <span className="text-[9.5px] italic text-slate-400 block tracking-tight">"Amai-vos e instruí-vos. Sintonize com o Evangelho ao adentrar a câmara."</span>
-                </div>
-
-                <div className="flex gap-2 font-sans pt-4">
-                  <button 
-                    onClick={() => {
-                      alert('Simulação de Impressão de Cupom Térmico enviada para a porta USB COM3!');
-                      setShowTicketModal(null);
-                    }}
-                    className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold uppercase text-[10px] tracking-wider transition-all cursor-pointer"
-                  >
-                    Imprimir Via Atendido
-                  </button>
-                  <button 
-                    onClick={() => setShowTicketModal(null)}
-                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-850 rounded-xl font-bold text-[10px] uppercase"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </div>
-    );
+    return <PasseDashboard userRole={currentUser?.role} userName={currentUser?.name} />;
   };
 
   const renderSocialDashboard = () => {
@@ -12886,7 +14548,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         <div key={log.id} className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 text-left text-[10px] relative font-sans">
                           <div className="flex justify-between font-black text-gray-700">
                             <span>{log.user}</span>
-                            <span className="text-gray-400 font-normal">{log.date}</span>
+                            <span className="text-gray-400 font-normal">{formatDateBR(log.date)}</span>
                           </div>
                           <p className="text-rose-600 font-semibold mt-1">{log.action}</p>
                           <p className="text-gray-400 font-normal mt-0.5">{log.details}</p>
@@ -13254,7 +14916,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         <span className="text-rose-800 font-extrabold text-sm block">{at.assistidoName}</span>
                         <span className="text-[9.5px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100">{at.type}</span>
                       </div>
-                      <span className="text-gray-400 mt-1 font-semibold">{at.date}</span>
+                      <span className="text-gray-400 mt-1 font-semibold">{formatDateBR(at.date)}</span>
                     </div>
                     
                     <div className="space-y-1.5 font-medium text-gray-500">
@@ -13430,7 +15092,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           <td className="p-3 font-semibold text-gray-700">{don.description}</td>
                           <td className="p-3 font-black text-gray-900">{don.qty} {don.unit}</td>
                           <td className="p-3 text-gray-500 font-medium">{don.donor}</td>
-                          <td className="p-3 text-gray-400">{don.entryDate}</td>
+                          <td className="p-3 text-gray-400">{formatDateBR(don.entryDate)}</td>
                           <td className="p-3 flex items-center gap-1">
                             <button
                               onClick={() => handleStartEditSocialDoacao(don)}
@@ -13638,10 +15300,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                     )}
                   </div>
 
-                  {/* Manual testing options (as an elegant backup just in case) */}
+                  {/* Manual quick selection options */}
                   <div className="space-y-2 p-3 bg-slate-900 rounded-2xl border border-slate-800 text-left font-sans">
-                    <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">Testar via ID / Nome direto (Local Sandbox)</span>
-                    <p className="text-[9px] text-slate-400">Escolha uma família abaixo para simular o recebimento instantâneo:</p>
+                    <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">Registro Rápido por Família / Seleção Direta</span>
+                    <p className="text-[9px] text-slate-400">Escolha uma família abaixo para registrar a entrega imediatamente:</p>
                     <div className="max-h-[110px] overflow-y-auto space-y-1.5 pr-1 text-left text-xs pt-1">
                       {socialAssistidos.length === 0 ? (
                         <p className="text-[10px] text-center text-slate-500 py-2 italic font-bold">Nenhum assistido cadastrado!</p>
@@ -13726,7 +15388,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                           <td className="p-3 text-gray-500 font-bold font-mono">{sc.id.slice(0, 8)}</td>
                           <td className="p-3 font-extrabold text-rose-800">{sc.assistidoName}</td>
                           <td className="p-3 font-semibold text-gray-750">{sc.basketType}</td>
-                          <td className="p-3 text-gray-400">{sc.date}</td>
+                          <td className="p-3 text-gray-400">{formatDateBR(sc.date)}</td>
                           <td className="p-3 font-black">
                             {sc.qrCodeScanned ? (
                               <span className="text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 font-extrabold text-[9.5px]">📱 Validado via QR Scanner</span>
@@ -13757,10 +15419,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 </div>
               </div>
 
-              {/* LIST OF REGISTERED ASSISTIDOS INTEGRATOR TO INITIATE QR SIMULATION */}
+              {/* LIST OF REGISTERED ASSISTIDOS INTEGRATOR TO INITIATE VALIDATION */}
               <div className="space-y-3 bg-white p-5 rounded-2xl border border-rose-100 text-left">
                 <span className="text-xs font-black text-rose-800 block uppercase">Despacho de Cesta Básica por Família Ativa</span>
-                <span className="text-[10px] text-gray-400 font-medium block">Inicie a validação rápida da entrega utilizando o simulação por QR Code.</span>
+                <span className="text-[10px] text-gray-400 font-medium block">Valide a entrega rapidamente selecionando o assistido ou utilizando o leitor QR.</span>
                 <div className="space-y-2 mt-3 max-h-[220px] overflow-y-auto">
                   {socialAssistidos.map(a => (
                     <div key={a.id} className="p-3 rounded-xl border border-gray-150 flex items-center justify-between hover:bg-gray-50/50 font-sans text-xs">
@@ -13861,7 +15523,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                         <span className="text-rose-800 font-extrabold text-sm block">{svi.assistidoName}</span>
                         <span className="text-[10px] text-gray-400">Visitado por: {svi.responsible}</span>
                       </div>
-                      <span className="text-gray-400 font-semibold">{svi.date}</span>
+                      <span className="text-gray-400 font-semibold">{formatDateBR(svi.date)}</span>
                     </div>
 
                     <div className="space-y-2 text-gray-600 font-medium leading-relaxed font-sans">
@@ -14277,9 +15939,32 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
         </div>
         
         <div className="relative z-10 max-w-2xl space-y-6">
-          <div className="inline-flex items-center gap-3 px-4 py-2 bg-white/10 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] border border-white/10">
-            <Sparkles size={14} className="text-indigo-300" />
-            <span>Simulador de Setor: {formatSectorName(sector?.name || sectorName)}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-3 px-4 py-2 bg-white/10 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] border border-white/10">
+              <Sparkles size={14} className="text-indigo-300" />
+              <span>Módulo Operacional: {formatSectorName(sector?.name || sectorName)}</span>
+            </div>
+
+            {adminTab !== 'overview' && (
+              <button
+                onClick={() => {
+                  setAdminTab('overview');
+                  setCurrentViewSectorId(sectorId);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500/80 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/20 transition-all cursor-pointer shadow-md active:scale-95"
+              >
+                <ArrowLeft size={14} />
+                <span>Voltar ao Início do Setor</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => navigate('/setores')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/20 transition-all cursor-pointer ml-auto shadow-md active:scale-95"
+            >
+              <ArrowLeft size={14} />
+              <span>Voltar aos Setores</span>
+            </button>
           </div>
           
           <h1 className="text-4xl md:text-6xl font-black italic tracking-tighter leading-none">
@@ -14317,7 +16002,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setCurrentViewSectorId(sectorId);
             }}
             className={cn(
-              "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
+              "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest whitespace-nowrap cursor-pointer",
               adminTab === 'overview'
                 ? "bg-white text-indigo-600 shadow-md"
                 : "text-gray-500 hover:text-gray-900"
@@ -14334,7 +16019,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 setCurrentViewSectorId(sectorId);
               }}
               className={cn(
-                "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
+                "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest whitespace-nowrap cursor-pointer",
                 adminTab === 'finance'
                   ? "bg-white text-indigo-600 shadow-md"
                   : "text-gray-500 hover:text-gray-900"
@@ -14351,7 +16036,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
               setCurrentViewSectorId(sectorId);
             }}
             className={cn(
-              "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest",
+              "flex-shrink-0 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl transition-all font-black text-xs uppercase tracking-widest whitespace-nowrap cursor-pointer",
               adminTab === 'pos_bazar'
                 ? "bg-white text-indigo-600 shadow-md"
                 : "text-gray-500 hover:text-gray-900"
@@ -14381,7 +16066,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                     setCurrentViewSectorId(sub.id);
                   }}
                   className={cn(
-                    "flex items-center gap-2 py-4 pl-5 pr-2 rounded-l-2xl font-black text-xs uppercase tracking-widest transition-colors cursor-pointer",
+                    "flex items-center gap-2 py-4 pl-5 pr-2 rounded-l-2xl font-black text-xs uppercase tracking-widest whitespace-nowrap transition-colors cursor-pointer",
                     active ? "text-indigo-600" : "text-gray-500 hover:text-gray-900"
                   )}
                 >
@@ -14752,6 +16437,37 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                     />
                   </>
                 )}
+                {isFraterno && (
+                  <>
+                    <StatCard 
+                      title="Aguardando Acolhimento" 
+                      value={stats.waiting} 
+                      icon={Clock} 
+                      color="text-amber-600" 
+                      bg="bg-amber-50" 
+                      shadow="shadow-amber-500/10"
+                      delay={0}
+                    />
+                    <StatCard 
+                      title="Em Atendimento Fraterno" 
+                      value={stats.inProgress} 
+                      icon={HeartHandshake} 
+                      color="text-indigo-600" 
+                      bg="bg-indigo-50" 
+                      shadow="shadow-indigo-500/10"
+                      delay={0.1}
+                    />
+                    <StatCard 
+                      title="Acolhimentos Concluídos" 
+                      value={stats.completedToday} 
+                      icon={CheckCircle2} 
+                      color="text-emerald-600" 
+                      bg="bg-emerald-50" 
+                      shadow="shadow-emerald-500/10"
+                      delay={0.2}
+                    />
+                  </>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -14798,7 +16514,8 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 {isArte && renderArteDashboard()}
                 {isComunicacao && renderComunicacaoDashboard()}
                 {isPasse && renderPasseDashboard()}
-                {isSocial && renderSocialDashboard()}
+                {isSocial && <SocialDashboard userRole={currentUser?.role} userName={currentUser?.name} />}
+                {isFraterno && <FraternoDashboard />}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -15109,8 +16826,30 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="space-y-12"
+            className="space-y-8"
           >
+            {/* Top Navigation Back Button Bar */}
+            <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[24px] border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-2xl">
+                  <Coins size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900">Janela de Tesouraria e Finanças</h3>
+                  <p className="text-xs text-gray-500 font-medium">Controle de caixa, entradas, saídas e movimentações do centro.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setAdminTab('overview');
+                  setCurrentViewSectorId(sectorId);
+                }}
+                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <ArrowLeft size={14} />
+                <span>Voltar ao Início do Setor</span>
+              </button>
+            </div>
             {/* Real Stats for Finance matching Spreadsheet layout */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <StatCard 
@@ -16453,8 +18192,30 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="space-y-12"
+            className="space-y-8"
           >
+            {/* Top Navigation Back Button Bar */}
+            <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[24px] border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-100 text-indigo-800 rounded-2xl">
+                  <Store size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900">Janela de Ponto de Venda & Comercial</h3>
+                  <p className="text-xs text-gray-500 font-medium">Controle de estoque, vendas de Livraria, Cantina e Bazar Beneficente.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setAdminTab('overview');
+                  setCurrentViewSectorId(sectorId);
+                }}
+                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <ArrowLeft size={14} />
+                <span>Voltar ao Início do Setor</span>
+              </button>
+            </div>
             {/* Split screen: left col-8 with POS/Stock, right col-4 with shopping checkout cart & suppliers */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
@@ -17557,9 +19318,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                 <button
                   type="button"
                   onClick={() => setInfoModalSector(null)}
-                  className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer"
+                  className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  Fechar Janela
+                  <ArrowLeft size={16} />
+                  <span>Voltar / Fechar Janela</span>
                 </button>
               </div>
 
@@ -18066,7 +19828,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                             <AlertTriangle size={32} className="text-amber-500 mx-auto" />
                             <p className="text-[11px] text-gray-200 font-extrabold uppercase tracking-widest max-w-xs">{cameraError}</p>
                             <p className="text-[9.5px] text-gray-400 max-w-xs px-2 leading-relaxed mx-auto">
-                              Por favor, use a simulação de ativos abaixo para testar diretamente.
+                              Selecione um ativo na lista abaixo para registrar a leitura diretamente.
                             </p>
                           </>
                         ) : (
@@ -18074,7 +19836,7 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                             <QrCode size={40} className="mx-auto text-indigo-400 animate-pulse" />
                             <p className="text-xs text-white font-extrabold uppercase tracking-widest animate-pulse">Iniciando câmera...</p>
                             <p className="text-[10px] text-gray-400 max-w-xs leading-relaxed px-4 mx-auto">
-                              Aguardando permissão de câmera do navegador do celular.
+                              Aguardando permissão de câmera do navegador do dispositivo.
                             </p>
                           </>
                         )}
@@ -18082,10 +19844,10 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
                     )}
                   </div>
 
-                  {/* Interactive manual or mock lists to trigger test scanning */}
+                  {/* Quick selection or direct reading list */}
                   <div className="space-y-3 p-4 bg-white rounded-2xl border border-gray-100">
-                    <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Simular Leitura QR (Protótipo local)</span>
-                    <p className="text-[9.5px] text-gray-400">Como estamos rodando na sandbox do navegador, escolha um ativo abaixo para simular a leitura do QR Code:</p>
+                    <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Leitura Rápida por Ativo Cadastrado</span>
+                    <p className="text-[9.5px] text-gray-400">Selecione um ativo abaixo para registrar a leitura do tombamento:</p>
                     <div className="max-h-[140px] overflow-y-auto space-y-2 pr-1 pt-1 text-left">
                       {patrimonioItems.length === 0 ? (
                         <p className="text-xs text-center text-gray-400 py-4 font-bold uppercase italic">Cadastre ativos no inventário primeiro!</p>
@@ -18457,6 +20219,181 @@ Retorne exclusivamente o texto final estruturado, pronto para uso.`;
           </div>
         )}
       </AnimatePresence>
+
+      {/* Trava de Segurança Doutrinária Modal */}
+      <AnimatePresence>
+        {showApprovalWarningModal && pendingPublishPost && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-amber-200 text-left space-y-5 font-sans"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-3 bg-amber-100 text-amber-700 rounded-2xl shrink-0">
+                  <ShieldAlert size={26} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-amber-700 tracking-wider bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 inline-block mb-1">
+                    Trava Doutrinária Kardecista
+                  </span>
+                  <h3 className="text-lg font-black text-slate-900 leading-tight">
+                    Aprovação Pendente do Revisor Doutrinário
+                  </h3>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-100 text-xs text-amber-950 space-y-2">
+                <p className="font-medium leading-relaxed">
+                  Para resguardar a fidelidade aos princípios da Doutrina Espírita e evitar desvios conceituais em canais públicos, esta publicação exige autorização prévia do <strong>Coordenador ou Revisor Doutrinário</strong>.
+                </p>
+                <div className="pt-2 border-t border-amber-200/60 text-[11px]">
+                  <span className="font-bold block text-slate-800">Postagem Selecionada:</span>
+                  <span className="italic text-slate-700">"{pendingPublishPost.title}"</span>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={handleConcederVistoEPublicar}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CheckCircle2 size={16} />
+                  <span>Conceder Visto Doutrinário & Publicar Agora</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleEncaminharParaRevisao}
+                  className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs uppercase tracking-wider rounded-xl border border-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Clock size={16} />
+                  <span>Encaminhar para Fila de Revisão Doutrinária</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowApprovalWarningModal(false);
+                    setPendingPublishPost(null);
+                  }}
+                  className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Importar Evento / Palestra da Agenda */}
+      <AnimatePresence>
+        {showAgendaImportModal && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-indigo-100 text-left space-y-5 font-sans"
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                    <Calendar size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">
+                      Agenda de Palestras e Eventos CEMIL
+                    </h3>
+                    <p className="text-xs text-gray-400 font-medium">
+                      Selecione uma atividade para autopreencher o título e a legenda de divulgação.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAgendaImportModal(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                {agendaEventsList.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="p-4 bg-gray-50 hover:bg-indigo-50/50 border border-gray-200 hover:border-indigo-200 rounded-2xl transition-all space-y-2"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                          {formatDateBR(ev.date)} às {ev.time} • {ev.room}
+                        </span>
+                        <h4 className="text-sm font-extrabold text-slate-900 mt-1">{ev.title}</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewPostTitle(ev.title);
+                          setNewPostText(`Convidamos a todos os irmãos e simpatizantes para a palestra: "${ev.title}". Expositor(a): ${ev.speaker}.\n\n"Tenhamos paz no coração e sigamos no bem."`);
+                          setNewPostDate(ev.date);
+                          setNewPostHashtags('#palestraespirita #evangelho #mirantedeluz #espiritismo #bauru');
+                          setNewPostSpiritObjective(`Divulgação da palestra pública de ${ev.speaker} para harmonização das famílias.`);
+                          setShowAgendaImportModal(false);
+                        }}
+                        className="py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer shadow-sm"
+                      >
+                        Usar na Postagem
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed font-sans">{ev.description}</p>
+                    <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                      Expositor(a): <span className="text-slate-800">{ev.speaker}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Barra Inferior de Navegação com Botão Voltar */}
+      <div className="pt-8 mt-12 border-t border-gray-200/80 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {adminTab !== 'overview' && (
+            <button
+              onClick={() => {
+                setAdminTab('overview');
+                setCurrentViewSectorId(sectorId);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl text-xs font-black uppercase tracking-wider border border-indigo-200 transition-all cursor-pointer shadow-xs active:scale-95 group"
+            >
+              <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform text-indigo-600" />
+              <span>Voltar ao Início do Setor</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => navigate('/setores')}
+            className="inline-flex items-center gap-2 px-5 py-3 bg-white hover:bg-slate-100 text-slate-800 rounded-2xl text-xs font-black uppercase tracking-wider border border-slate-200 transition-all cursor-pointer shadow-xs active:scale-95 group"
+          >
+            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform text-indigo-600" />
+            <span>Voltar aos Setores</span>
+          </button>
+        </div>
+
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="text-xs font-bold text-gray-400 hover:text-indigo-600 transition-colors"
+        >
+          Voltar ao Topo ↑
+        </button>
+      </div>
     </div>
   );
 }

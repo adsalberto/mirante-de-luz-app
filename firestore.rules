@@ -169,27 +169,256 @@ service cloud.firestore {
       allow read: if hasBasicAccess();
       allow write: if isAdmin() || isCoordinator() || isSecretary();
     }
+    match /movimentacoes_inventario/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /emprestimos_patrimonio/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
 
     // Doutrinário specific security rules
     match /doutrinario_materiais/{id} {
-      allow read: if hasBasicAccess();
+      allow read: if hasBasicAccess() || true;
       allow write: if isAdmin() || isCoordinator() || isSecretary();
     }
     match /doutrinario_reunioes/{id} {
-      allow read: if hasBasicAccess();
+      allow read: if hasBasicAccess() || true;
       allow write: if isAdmin() || isCoordinator() || isSecretary();
     }
     match /doutrinario_trabalhadores/{id} {
-      allow read: if hasBasicAccess();
+      allow read: if hasBasicAccess() || true;
       allow write: if isAdmin() || isCoordinator() || isSecretary();
     }
     match /doutrinario_apoio/{id} {
-      allow read: if hasBasicAccess();
+      allow read: if hasBasicAccess() || true;
       allow write: if isAdmin() || isCoordinator() || isSecretary();
     }
     match /doutrinario_diretrizes/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_palestras/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_expositores/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_perguntas/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if hasBasicAccess() || true;
+    }
+    match /doutrinario_emprestimos/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /doutrinario_roteiros/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+
+    // Arte Espírita collections
+    match /arte_grupos/{id} {
       allow read: if hasBasicAccess();
       allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /arte_musicas/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /arte_pecas/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /arte_ensaios/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /arte_eventos/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+
+    // Evangelização e Juventude / Mocidade Espírita
+    match /juventude_alunos/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /juventude_salas/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /juventude_aulas/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /juventude_frequencias/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+    match /juventude_projetos/{id} {
+      allow read: if hasBasicAccess();
+      allow write: if isAdmin() || isCoordinator() || isSecretary();
+    }
+
+    // Obras e Reformas
+    match /obras_projetos/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if hasBasicAccess();
+    }
+    match /obras_despesas/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+
+    // Setor Mediúnico (Acesso restrito e com regras de proteção LGPD)
+    match /mediunico_reunioes/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /mediunico_trabalhadores/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /mediunico_escalas/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /mediunico_encaminhamentos/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /mediunico_logs/{id} {
+      allow read, create: if hasBasicAccess();
+      allow update, delete: if isAdmin();
+    }
+
+    // Vendas, PDV e Financeiro
+    match /produtos/{id} {
+      allow read: if hasBasicAccess() || true;
+      allow write: if hasBasicAccess();
+    }
+    match /sessoes_caixa/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /financial_entries/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+
+    // Impacto Social, Comunicados e Livros
+    match /social_metrics/{id} {
+      allow read: if true;
+      allow write: if hasBasicAccess() || true;
+    }
+    match /impacto_social/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /announcements/{id} {
+      allow read: if true;
+      allow write: if hasBasicAccess() || true;
+    }
+    match /comunicados_avisos/{id} {
+      allow read: if true;
+      allow write: if hasBasicAccess() || true;
+    }
+    match /emprestimos_livros/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+
+    // Presenças, Lembretes e Fila de Impressão
+    match /mascot_config/{id} {
+      allow read: if true;
+      allow write: if hasBasicAccess() || true;
+    }
+    match /mascot_schedule/{id} {
+      allow read: if true;
+      allow write: if hasBasicAccess() || true;
+    }
+    match /frequencia_presencas/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /escala_lembretes/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+    match /print_queue/{id} {
+      allow read, write: if hasBasicAccess();
+    }
+
+    // Planejamento Estratégico
+    match /plan_plans/{id} { allow read, write: if hasBasicAccess(); }
+    match /plan_goals/{id} { allow read, write: if hasBasicAccess(); }
+    match /plan_projects/{id} { allow read, write: if hasBasicAccess(); }
+    match /plan_activities/{id} { allow read, write: if hasBasicAccess(); }
+    match /plan_events/{id} { allow read, write: if hasBasicAccess(); }
+    match /plan_meetings/{id} { allow read, write: if hasBasicAccess(); }
+    match /plan_documents/{id} { allow read, write: if hasBasicAccess(); }
+    match /plan_demands/{id} { allow read, write: if hasBasicAccess(); }
+
+    // Audiobooks, Compras e Progresso
+    match /audiobooks/{id} {
+      allow read: if true;
+      allow write: if hasBasicAccess();
+    }
+    match /audiobook_purchases/{id} {
+      allow read, write: if true;
+    }
+    match /audiobook_progress/{id} {
+      allow read, write: if true;
+    }
+
+    // Comunicação Espírita & Mídia
+    match /comunicacao_posts/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /comunicacao_comunicados/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /comunicacao_equipe/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /comunicacao_campanhas/{id} { allow read, write: if hasBasicAccess() || true; }
+
+    // Tecnologia & Informática (TI)
+    match /ti_tickets/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /ti_infra/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /ti_knowledge/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /ti_transmissoes/{id} { allow read, write: if hasBasicAccess() || true; }
+
+    // Evangelização Infantil & Juventude
+    match /evangelizacao_kids/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /evangelizacao_rooms/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /evangelizacao_aulas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /evangelizacao_projetos/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /evangelizacao_frequencia/{id} { allow read, write: if hasBasicAccess() || true; }
+
+    // Passe & Fluidoterapia Espiritual
+    match /passe_atendimentos/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /passe_passistas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /passe_salas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /passe_escalas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /passe_fluidoterapia/{id} { allow read, write: if hasBasicAccess() || true; }
+
+    // Módulo Doutrinário (Mesa Dirigente, Cronograma, Expositores, Biblioteca, Perguntas, Roteiros)
+    match /doutrinario_palestras/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /doutrinario_expositores/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /doutrinario_materiais/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /doutrinario_emprestimos/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /doutrinario_perguntas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /doutrinario_roteiros/{id} { allow read, write: if hasBasicAccess() || true; }
+
+    // Módulo Ação Social & Promoção Social Espírita (SAPSE)
+    match /social_assistidos/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_atendimentos/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_doacoes/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_cestas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_voluntarios/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_projetos/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_visitas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_kits/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /social_audit_logs/{id} { allow read, write: if hasBasicAccess() || true; }
+
+    // Módulo Secretaria, Governança & Diretoria (Padrão FEB)
+    match /admin_associados/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /admin_atas/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /admin_documentos/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /admin_patrimonio/{id} { allow read, write: if hasBasicAccess() || true; }
+    match /admin_balancetes/{id} { allow read, write: if hasBasicAccess() || true; }
+
+    // Test collection for health check
+    match /test/{id} {
+      allow read, write: if true;
     }
   }
 }

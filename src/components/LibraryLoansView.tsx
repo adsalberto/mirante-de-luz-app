@@ -3,6 +3,7 @@ import { BookOpen, Plus, Search, Filter, Calendar, Clock, CheckCircle, AlertTria
 import { motion, AnimatePresence } from 'motion/react';
 import { dataService } from '../services/dataService';
 import { BookLoan } from '../types';
+import { formatDateBR } from '../lib/utils';
 
 export const LibraryLoansView: React.FC = () => {
   const [loans, setLoans] = useState<BookLoan[]>([]);
@@ -234,11 +235,11 @@ export const LibraryLoansView: React.FC = () => {
                           <span>{loan.borrowerContact}</span>
                         </div>
                       </td>
-                      <td className="p-4 font-semibold text-slate-600">{loan.loanDate}</td>
+                      <td className="p-4 font-semibold text-slate-600">{formatDateBR(loan.loanDate)}</td>
                       <td className="p-4 font-semibold text-slate-600">
-                        {loan.dueDate}
+                        {formatDateBR(loan.dueDate)}
                         {loan.returnDate && (
-                          <div className="text-xs text-emerald-600 font-bold">Devolvido em {loan.returnDate}</div>
+                          <div className="text-xs text-emerald-600 font-bold">Devolvido em {formatDateBR(loan.returnDate)}</div>
                         )}
                       </td>
                       <td className="p-4">
